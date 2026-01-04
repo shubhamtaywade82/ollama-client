@@ -62,6 +62,26 @@ RSpec/MultipleExpectations:
 RSpec/MultipleDescribes:
   Enabled: false
 
+Style/MultilineBlockChain:
+  Exclude:
+    - "spec/**/*"
+
+RSpec/DescribeClass:
+  Exclude:
+    - "spec/ollama/errors_spec.rb"
+
+RSpec/DescribeMethod:
+  Exclude:
+    - "spec/ollama/client_model_suggestions_spec.rb"
+
+RSpec/DescribedClass:
+  Exclude:
+    - "spec/ollama/errors_spec.rb"
+
+RSpec/SpecFilePathFormat:
+  Exclude:
+    - "spec/ollama/client_model_suggestions_spec.rb"
+
 # Exclude examples from style checks (they're just examples)
 Style/Documentation:
   Exclude:

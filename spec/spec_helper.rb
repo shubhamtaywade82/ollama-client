@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "ollama_client"
+require "webmock/rspec"
 
 RSpec.configure do |config|
   # Enable flags like --only-failures and --next-failure
@@ -11,5 +12,10 @@ RSpec.configure do |config|
 
   config.expect_with :rspec do |c|
     c.syntax = :expect
+  end
+
+  # WebMock configuration
+  config.before do
+    WebMock.reset!
   end
 end

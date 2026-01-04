@@ -13,3 +13,7 @@ gem "rspec", "~> 3.0"
 gem "rubocop", "~> 1.21"
 gem "rubocop-rake"
 gem "rubocop-rspec"
+
+# Testing utilities
+gem "timecop", "~> 0.9"
+gem "webmock", "~> 3.18"

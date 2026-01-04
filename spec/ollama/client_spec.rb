@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "webmock/rspec"
+
 RSpec.describe Ollama::Client do
   it "has a version number" do
     expect(Ollama::VERSION).not_to be_nil
@@ -43,13 +45,18 @@ RSpec.describe Ollama::Client do
 
     context "when Ollama server is not available" do
       it "raises an error after retries" do
-        # Use a non-existent port to simulate server unavailability
         unavailable_client = described_class.new(config: Ollama::Config.new.tap do |c|
           c.base_url = "http://localhost:99999"
+          c.retries = 1
         end)
+
+        stub_request(:post, "http://localhost:99999/api/generate")
+          .to_raise(SocketError.new("Connection refused"))
+          .times(2)
+
         expect do
           unavailable_client.generate(prompt: "test", schema: schema)
-        end.to raise_error(Ollama::Error)
+        end.to raise_error(Ollama::RetryExhaustedError)
       end
     end
   end
