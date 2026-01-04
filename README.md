@@ -1,6 +1,47 @@
 # Ollama::Client
 
-A Ruby client library for interacting with the Ollama API.
+A **low-level, opinionated Ollama client** for **LLM-based hybrid agents**,
+**NOT** a chatbot,
+**NOT** domain-specific,
+**NOT** a framework.
+
+This gem provides:
+
+* ✅ Safe LLM calls
+* ✅ Strict output contracts
+* ✅ Retry & timeout handling
+* ✅ Zero hidden state
+* ✅ Extensible schemas
+
+Everything else (tools, agents, domains) lives **outside** this gem.
+
+## 🎯 What This Gem IS
+
+* LLM call executor
+* Output validator
+* Retry + timeout manager
+* Schema enforcer
+
+## 🚫 What This Gem IS NOT
+
+* ❌ Agent loop
+* ❌ Tool router
+* ❌ Domain logic
+* ❌ Memory store
+* ❌ Chat UI
+
+This keeps it **clean and future-proof**.
+
+## 🔒 Guarantees
+
+| Guarantee              | Yes |
+| ---------------------- | --- |
+| Stateless              | ✅   |
+| Retry bounded          | ✅   |
+| Schema validated       | ✅   |
+| Deterministic defaults | ✅   |
+| Agent-safe             | ✅   |
+| Domain-agnostic        | ✅   |
 
 ## Installation
 
@@ -24,10 +65,84 @@ gem install ollama-client
 
 ## Usage
 
-```ruby
-require "ollama/client"
+### Basic Configuration
 
-# TODO: Add usage examples
+```ruby
+require "ollama_client"
+
+# Configure global defaults
+OllamaClient.configure do |c|
+  c.base_url = "http://localhost:11434"
+  c.model = "llama3.1"
+  c.timeout = 30
+  c.retries = 3
+  c.temperature = 0.2
+end
+```
+
+### Example: Planning Agent
+
+```ruby
+client = Ollama::Client.new
+
+schema = {
+  "type" => "object",
+  "required" => ["action"],
+  "properties" => {
+    "action" => { "type" => "string" },
+    "reasoning" => { "type" => "string" }
+  }
+}
+
+result = client.generate(
+  prompt: "Analyze the current situation and decide the next step.",
+  schema: schema
+)
+
+puts result["action"]
+```
+
+### Example: Analysis Agent
+
+```ruby
+schema = {
+  "type" => "object",
+  "required" => ["summary", "confidence"],
+  "properties" => {
+    "summary" => { "type" => "string" },
+    "confidence" => { "type" => "number", "minimum" => 0, "maximum" => 1 }
+  }
+}
+
+client = Ollama::Client.new
+result = client.generate(
+  prompt: "Summarize the following data: #{data}",
+  schema: schema
+)
+```
+
+### Custom Configuration Per Client
+
+```ruby
+custom_config = Ollama::Config.new
+custom_config.model = "qwen2.5:14b"
+custom_config.temperature = 0.1
+
+client = Ollama::Client.new(config: custom_config)
+```
+
+### Error Handling
+
+```ruby
+begin
+  result = client.generate(prompt: prompt, schema: schema)
+rescue Ollama::TimeoutError => e
+  puts "Request timed out: #{e.message}"
+rescue Ollama::SchemaViolationError => e
+  puts "Output didn't match schema: #{e.message}"
+rescue Ollama::RetryExhaustedError => e
+  puts "Failed after retries: #{e.message}"
+end
 ```
 
 ## Development
