@@ -32,7 +32,13 @@ module Ollama
         attempts += 1
         raw = call_chat_api(model: model, messages: messages, format: format, options: options)
         parsed = parse_json_response(raw)
-        SchemaValidator.validate!(parsed, format) if format
+
+        # CRITICAL: If format is provided, free-text output is forbidden
+        if format
+          raise SchemaViolationError, "Empty or nil response when format schema is required" if parsed.nil? || parsed.empty?
+          SchemaValidator.validate!(parsed, format)
+        end
+
         parsed
       rescue NotFoundError => e
         enhanced_error = enhance_not_found_error(e)
@@ -57,6 +63,9 @@ module Ollama
         attempts += 1
         raw = call_api(prompt)
         parsed = parse_json_response(raw)
+
+        # CRITICAL: If schema is provided, free-text output is forbidden
+        raise SchemaViolationError, "Empty or nil response when schema is required" if parsed.nil? || parsed.empty?
         SchemaValidator.validate!(parsed, schema)
         parsed
       rescue NotFoundError => e
@@ -161,20 +170,22 @@ module Ollama
     end
 
     def parse_json_response(raw)
-      # With format parameter, Ollama should return valid JSON directly
-      # Try direct JSON parse first
-      JSON.parse(raw.strip)
-    rescue JSON::ParserError
-      # If that fails, try to extract JSON from markdown code blocks (fallback)
-      # Match ```json ... ``` or ``` ... ``` with JSON inside
-      json_match = raw.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/m)
-      return JSON.parse(json_match[1]) if json_match
+      # CRITICAL: Never parse raw text directly - extract JSON first
+      # Ollama can return leading text, markdown fences, or explanations
+      json_start = raw.index("{")
+      json_end = raw.rindex("}")
 
-      # Try to find JSON object in plain text (multiline)
-      json_match = raw.match(/(\{[\s\S]*\})/m)
-      return JSON.parse(json_match[1]) if json_match
+      unless json_start && json_end && json_end > json_start
+        raise InvalidJSONError, "No JSON object found in response. Response: #{raw[0..200]}..."
+      end
 
-      raise InvalidJSONError, "LLM response is not valid JSON. Response: #{raw[0..200]}..."
+      # Extract only the JSON portion
+      json_text = raw[json_start..json_end]
+      begin
+        JSON.parse(json_text)
+      rescue JSON::ParserError => e
+        raise InvalidJSONError, "Failed to parse extracted JSON: #{e.message}. Extracted: #{json_text[0..200]}..."
+      end
     end
 
     def find_similar_models(requested, available, limit: 5)
@@ -233,9 +244,21 @@ module Ollama
       unless res.is_a?(Net::HTTPSuccess)
         status_code = res.code.to_i
         requested_model = model || @config.model
-        raise NotFoundError.new(res.message, requested_model: requested_model) if status_code == 404
 
-        raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
+        # Explicit HTTP error handling with hard retry rules
+        case status_code
+        when 404
+          raise NotFoundError.new(res.message, requested_model: requested_model)
+        when 400, 401, 403
+          # Client errors: never retry
+          raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
+        when 408, 429, 500, 503
+          # Retryable errors: will be retried by caller
+          raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
+        else
+          # Other 4xx/5xx: default to non-retryable for safety
+          raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
+        end
       end
 
       response_body = JSON.parse(res.body)
@@ -281,9 +304,21 @@ module Ollama
 
       unless res.is_a?(Net::HTTPSuccess)
         status_code = res.code.to_i
-        raise NotFoundError.new(res.message, requested_model: @config.model) if status_code == 404
 
-        raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
+        # Explicit HTTP error handling with hard retry rules
+        case status_code
+        when 404
+          raise NotFoundError.new(res.message, requested_model: @config.model)
+        when 400, 401, 403
+          # Client errors: never retry
+          raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
+        when 408, 429, 500, 503
+          # Retryable errors: will be retried by caller
+          raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
+        else
+          # Other 4xx/5xx: default to non-retryable for safety
+          raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
+        end
       end
 
       body = JSON.parse(res.body)

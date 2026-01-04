@@ -67,17 +67,16 @@ gem install ollama-client
 
 **Note:** You can use `require "ollama_client"` (recommended) or `require "ollama/client"` directly. The client works with or without the global `OllamaClient` configuration module.
 
-### Choosing Between `generate()` and `chat()`
+### Primary API: `generate()`
 
-- **`generate(prompt:, schema:)`** - Use for single-turn interactions with a simple prompt
-  - Simpler API for straightforward tasks
-  - Uses `/api/generate` endpoint
-  - Good for: one-shot analysis, classification, extraction
+**`generate(prompt:, schema:)`** is the **primary and recommended method** for agent-grade usage:
 
-- **`chat(model:, messages:, format:, options:)`** - Use for multi-turn conversations
-  - Supports conversation history with messages array
-  - Uses `/api/chat` endpoint
-  - Good for: interactive agents, context-aware tasks, chat interfaces
+- ✅ Stateless, explicit state injection
+- ✅ Uses `/api/generate` endpoint
+- ✅ Ideal for: agent planning, tool routing, one-shot analysis, classification, extraction
+- ✅ No implicit memory or conversation history
+
+**This is the method you should use for hybrid agents.**
 
 ### Basic Configuration
 
@@ -208,7 +207,37 @@ end
 
 **Note:** The gem uses Ollama's native `format` parameter for structured outputs, which enforces the JSON schema server-side. This ensures reliable, consistent JSON responses that match your schema exactly.
 
-### Example: Chat API with Structured Outputs
+### Advanced: When (Rarely) to Use `chat()`
+
+⚠️ **Warning:** `chat()` is **NOT recommended** for agent planning or tool routing.
+
+**Why?**
+- Chat encourages implicit memory and conversation history
+- Message history grows silently over time
+- Schema validation becomes weaker with accumulated context
+- Harder to reason about state in agent systems
+
+**When to use `chat()`:**
+- User-facing chat interfaces (not agent internals)
+- Explicit multi-turn conversations where you control message history
+- When you need conversation context for a specific use case
+
+**For agents, prefer `generate()` with explicit state injection:**
+
+```ruby
+# ✅ GOOD: Explicit state in prompt
+context = "Previous actions: #{actions.join(', ')}"
+result = client.generate(
+  prompt: "Given context: #{context}. Decide next action.",
+  schema: decision_schema
+)
+
+# ❌ AVOID: Implicit conversation history
+messages = [{ role: "user", content: "..." }]
+result = client.chat(messages: messages, format: schema)  # History grows silently
+```
+
+### Example: Chat API (Advanced Use Case)
 
 ```ruby
 require "ollama_client"
@@ -216,7 +245,7 @@ require "json"
 
 client = Ollama::Client.new
 
-# Define schema for friend list (matching JavaScript example)
+# Define schema for friend list
 friend_list_schema = {
   "type" => "object",
   "required" => ["friends"],
@@ -236,7 +265,7 @@ friend_list_schema = {
   }
 }
 
-# Use chat API with messages
+# Use chat API with messages (for user-facing interfaces, not agent internals)
 messages = [
   {
     role: "user",
@@ -259,10 +288,6 @@ begin
     status = friend["is_available"] ? "available" : "busy"
     puts "#{friend['name']} (#{friend['age']}) - #{status}"
   end
-
-  # Or work with the full structure
-  available_friends = response["friends"].select { |f| f["is_available"] }
-  puts "\nAvailable friends: #{available_friends.map { |f| f['name'] }.join(', ')}"
 
 rescue Ollama::SchemaViolationError => e
   puts "Response didn't match schema: #{e.message}"
