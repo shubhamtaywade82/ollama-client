@@ -24,7 +24,7 @@ module Ollama
         parsed = JSON.parse(raw)
         SchemaValidator.validate!(parsed, schema)
         parsed
-      rescue TimeoutError, InvalidJSONError, SchemaViolationError => e
+      rescue TimeoutError, InvalidJSONError, SchemaViolationError, Error => e
         raise RetryExhaustedError, "Failed after #{attempts} attempts: #{e.message}" if attempts > @config.retries
 
         retry
@@ -61,6 +61,8 @@ module Ollama
       raise InvalidJSONError, "Failed to parse API response: #{e.message}"
     rescue Net::ReadTimeout, Net::OpenTimeout
       raise TimeoutError, "Request timed out after #{@config.timeout}s"
+    rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
+      raise Error, "Connection failed: #{e.message}"
     end
   end
 end

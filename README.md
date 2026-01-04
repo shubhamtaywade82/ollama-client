@@ -145,6 +145,77 @@ rescue Ollama::RetryExhaustedError => e
 end
 ```
 
+## Architecture: Tool Calling Pattern
+
+**Important:** This gem does **NOT** include tool calling. Here's why and how to do it correctly:
+
+### Why Tools Don't Belong Here
+
+Ollama does not have native tool calling. Tool execution is an **orchestration concern**, not an LLM concern. The correct pattern is:
+
+```
+┌──────────────────────────┐
+│   Your Agent / App       │
+│                          │
+│  ┌──────── Tool Router ┐ │
+│  │                    │ │
+│  │  ┌─ Ollama Client ┐│ │  ← This gem (reasoning only)
+│  │  │ (outputs intent)││ │
+│  │  └────────────────┘│ │
+│  │        ↓            │ │
+│  │   Tool Registry     │ │  ← Your code
+│  │        ↓            │ │
+│  │   Tool Executor     │ │  ← Your code
+│  └────────────────────┘ │
+└──────────────────────────┘
+```
+
+### The Correct Pattern
+
+1. **LLM outputs structured intent** (via this gem with schema validation)
+2. **Agent validates and routes** to the appropriate tool
+3. **Tool executes deterministically** (pure Ruby, no LLM calls)
+4. **Agent observes results** and decides next step
+
+**Key principle:** LLMs describe intent. Agents execute tools.
+
+### Example: Tool-Aware Agent
+
+```ruby
+# In your agent code (NOT in this gem)
+class ToolRouter
+  def initialize(llm:, registry:)
+    @llm = llm  # Ollama::Client instance
+    @registry = registry
+  end
+
+  def step(prompt:, context:)
+    # LLM outputs intent (not execution)
+    decision = @llm.generate(
+      prompt: prompt,
+      schema: {
+        "type" => "object",
+        "required" => ["action"],
+        "properties" => {
+          "action" => { "type" => "string" },
+          "input" => { "type" => "object" }
+        }
+      }
+    )
+
+    return { done: true } if decision["action"] == "finish"
+
+    # Agent executes tool (deterministic)
+    tool = @registry.fetch(decision["action"])
+    output = tool.call(input: decision["input"], context: context)
+
+    { tool: tool.name, output: output }
+  end
+end
+```
+
+This keeps the `ollama-client` gem **domain-agnostic** and **reusable** across any project.
+
 ## Development
 
 After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
