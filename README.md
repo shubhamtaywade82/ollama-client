@@ -362,15 +362,27 @@ end
 
 ### Custom Configuration Per Client
 
+**Important:** For production agents, prefer per-client configuration over global config to avoid thread-safety issues.
+
 ```ruby
 require "ollama_client"
 
+# Prefer per-client config for agents (thread-safe)
 custom_config = Ollama::Config.new
 custom_config.model = "qwen2.5:14b"
 custom_config.temperature = 0.1
+custom_config.timeout = 60  # Increase timeout for complex schemas
 
 client = Ollama::Client.new(config: custom_config)
 ```
+
+**Note:** Global `OllamaClient.configure` is convenient for defaults, but is **not thread-safe by default**. For concurrent agents, use per-client configuration.
+
+**Timeout Tips:**
+- Default timeout is 20 seconds
+- For complex schemas or large prompts, increase to 60-120 seconds
+- For simple schemas, 20 seconds is usually sufficient
+- Timeout applies per request (not total workflow time)
 
 ### Listing Available Models
 
@@ -485,6 +497,51 @@ end
 ```
 
 This keeps the `ollama-client` gem **domain-agnostic** and **reusable** across any project.
+
+## Advanced Examples
+
+The `examples/` directory contains advanced examples demonstrating production-grade patterns:
+
+### `advanced_multi_step_agent.rb`
+Multi-step agent workflow with:
+- Complex nested schemas
+- State management across steps
+- Confidence thresholds
+- Risk assessment
+- Error recovery
+
+### `advanced_error_handling.rb`
+Comprehensive error handling patterns:
+- All error types (NotFoundError, HTTPError, TimeoutError, etc.)
+- Retry strategies with exponential backoff
+- Fallback mechanisms
+- Error statistics and observability
+
+### `advanced_complex_schemas.rb`
+Real-world complex schemas:
+- Financial analysis (nested metrics, recommendations, risk factors)
+- Code review (issues, suggestions, effort estimation)
+- Research paper analysis (findings, methodology, citations)
+
+### `advanced_performance_testing.rb`
+Performance and observability:
+- Latency measurement (min, max, avg, p95, p99)
+- Throughput testing
+- Error rate tracking
+- Metrics export
+
+### `advanced_edge_cases.rb`
+Boundary and edge case testing:
+- Empty/long prompts
+- Special characters and unicode
+- Minimal/strict schemas
+- Deeply nested structures
+- Enum constraints
+
+Run any example:
+```bash
+ruby examples/advanced_multi_step_agent.rb
+```
 
 ## Development
 
