@@ -9,7 +9,9 @@ Gem::Specification.new do |spec|
   spec.email = ["shubhamtaywade82@gmail.com"]
 
   spec.summary = "A low-level, opinionated Ollama client for LLM-based hybrid agents"
-  spec.description = "A production-ready Ruby client for Ollama API with schema validation, retries, and agent-safe defaults. Designed for LLM-based hybrid agents, not chatbots."
+  spec.description = "A production-ready Ruby client for Ollama API with schema validation, " \
+                     "retries, and agent-safe defaults. Designed for LLM-based hybrid agents, " \
+                     "not chatbots."
   spec.homepage = "https://github.com/shubhamtaywade82/ollama-client"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.2.0"
@@ -17,6 +19,7 @@ Gem::Specification.new do |spec|
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/shubhamtaywade82/ollama-client"
   spec.metadata["changelog_uri"] = "https://github.com/shubhamtaywade82/ollama-client/blob/main/CHANGELOG.md"
+  spec.metadata["rubygems_mfa_required"] = "true"
 
   # Specify which files should be added to the gem when it is released.
   # The `git ls-files -z` loads the files in the RubyGem that have been added into git.

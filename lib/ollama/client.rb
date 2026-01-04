@@ -8,6 +8,7 @@ require_relative "schema_validator"
 require_relative "config"
 
 module Ollama
+  # Main client class for interacting with Ollama API
   class Client
     def initialize(config: OllamaClient.config)
       @config = config
@@ -24,9 +25,8 @@ module Ollama
         SchemaValidator.validate!(parsed, schema)
         parsed
       rescue TimeoutError, InvalidJSONError, SchemaViolationError => e
-        if attempts > @config.retries
-          raise RetryExhaustedError, "Failed after #{attempts} attempts: #{e.message}"
-        end
+        raise RetryExhaustedError, "Failed after #{attempts} attempts: #{e.message}" if attempts > @config.retries
+
         retry
       end
     end
@@ -53,9 +53,7 @@ module Ollama
         open_timeout: @config.timeout
       ) { |http| http.request(req) }
 
-      unless res.is_a?(Net::HTTPSuccess)
-        raise Error, "HTTP #{res.code}: #{res.message}"
-      end
+      raise Error, "HTTP #{res.code}: #{res.message}" unless res.is_a?(Net::HTTPSuccess)
 
       body = JSON.parse(res.body)
       body["response"]

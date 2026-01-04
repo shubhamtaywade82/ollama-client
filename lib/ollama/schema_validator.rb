@@ -4,6 +4,7 @@ require "json-schema"
 require_relative "errors"
 
 module Ollama
+  # Validates JSON data against JSON Schema
   class SchemaValidator
     def self.validate!(data, schema)
       JSON::Validator.validate!(schema, data)
@@ -12,4 +13,3 @@ module Ollama
     end
   end
 end
-

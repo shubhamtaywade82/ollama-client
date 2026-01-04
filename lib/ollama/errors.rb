@@ -7,4 +7,3 @@ module Ollama
   class SchemaViolationError < Error; end
   class RetryExhaustedError < Error; end
 end
-

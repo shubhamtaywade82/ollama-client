@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module Ollama
+  # Configuration class with safe defaults for agent-grade usage
   class Config
     attr_accessor :base_url, :model, :timeout, :retries, :temperature, :top_p, :num_ctx
 
@@ -15,4 +16,3 @@ module Ollama
     end
   end
 end
-

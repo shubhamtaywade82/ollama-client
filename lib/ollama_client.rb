@@ -5,6 +5,7 @@ require_relative "ollama/errors"
 require_relative "ollama/schema_validator"
 require_relative "ollama/client"
 
+# Main entry point for OllamaClient gem
 module OllamaClient
   def self.config
     @config ||= Ollama::Config.new
@@ -14,4 +15,3 @@ module OllamaClient
     yield(config)
   end
 end
-
