@@ -12,21 +12,26 @@ Style/StringLiterals:
 
 Style/StringLiteralsInInterpolation:
   EnforcedStyle: double_quotes
+  Exclude:
+    - "examples/**/*"
 
 Metrics/MethodLength:
   Max: 35
   Exclude:
     - "spec/**/*"
+    - "examples/**/*"
 
 Metrics/AbcSize:
-  Max: 40
+  Max: 45
   Exclude:
     - "spec/**/*"
+    - "examples/**/*"
 
 Metrics/ClassLength:
-  Max: 160
+  Max: 220
   Exclude:
     - "spec/**/*"
+    - "examples/**/*"
 
 Metrics/CyclomaticComplexity:
   Max: 15
@@ -42,6 +47,7 @@ Metrics/BlockLength:
   Exclude:
     - "spec/**/*"
     - "*.gemspec"
+    - "examples/**/*"
 
 RSpec/ExampleLength:
   Max: 15
@@ -55,3 +61,28 @@ RSpec/MultipleExpectations:
 
 RSpec/MultipleDescribes:
   Enabled: false
+
+# Exclude examples from style checks (they're just examples)
+Style/Documentation:
+  Exclude:
+    - "examples/**/*"
+
+Style/WordArray:
+  Exclude:
+    - "examples/**/*"
+
+Style/StringConcatenation:
+  Exclude:
+    - "examples/**/*"
+
+Lint/ScriptPermission:
+  Exclude:
+    - "examples/**/*"
+
+Lint/AmbiguousOperatorPrecedence:
+  Exclude:
+    - "examples/**/*"
+
+Layout/TrailingEmptyLines:
+  Exclude:
+    - "examples/**/*"

@@ -67,6 +67,18 @@ gem install ollama-client
 
 **Note:** You can use `require "ollama_client"` (recommended) or `require "ollama/client"` directly. The client works with or without the global `OllamaClient` configuration module.
 
+### Choosing Between `generate()` and `chat()`
+
+- **`generate(prompt:, schema:)`** - Use for single-turn interactions with a simple prompt
+  - Simpler API for straightforward tasks
+  - Uses `/api/generate` endpoint
+  - Good for: one-shot analysis, classification, extraction
+
+- **`chat(model:, messages:, format:, options:)`** - Use for multi-turn conversations
+  - Supports conversation history with messages array
+  - Uses `/api/chat` endpoint
+  - Good for: interactive agents, context-aware tasks, chat interfaces
+
 ### Basic Configuration
 
 ```ruby
@@ -82,51 +94,244 @@ OllamaClient.configure do |c|
 end
 ```
 
-### Example: Planning Agent
+### Quick Start Pattern
+
+The basic pattern for using structured outputs:
 
 ```ruby
 require "ollama_client"
 
 client = Ollama::Client.new
 
+# 1. Define your JSON schema
 schema = {
   "type" => "object",
-  "required" => ["action"],
+  "required" => ["field1", "field2"],
   "properties" => {
-    "action" => { "type" => "string" },
-    "reasoning" => { "type" => "string" }
+    "field1" => { "type" => "string" },
+    "field2" => { "type" => "number" }
   }
 }
 
-result = client.generate(
-  prompt: "Analyze the current situation and decide the next step.",
-  schema: schema
-)
+# 2. Call the LLM with your schema
+begin
+  result = client.generate(
+    prompt: "Your prompt here",
+    schema: schema
+  )
 
-puts result["action"]
+  # 3. Use the validated structured output
+  puts result["field1"]
+  puts result["field2"]
+
+  # The result is guaranteed to match your schema!
+
+rescue Ollama::SchemaViolationError => e
+  # Handle validation errors (rare with format parameter)
+  puts "Invalid response: #{e.message}"
+rescue Ollama::Error => e
+  # Handle other errors
+  puts "Error: #{e.message}"
+end
+```
+
+### Example: Planning Agent (Complete Workflow)
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+
+# Define the schema for decision-making
+decision_schema = {
+  "type" => "object",
+  "required" => ["action", "reasoning", "confidence"],
+  "properties" => {
+    "action" => {
+      "type" => "string",
+      "description" => "The action to take: 'search', 'calculate', 'finish', etc."
+    },
+    "reasoning" => {
+      "type" => "string",
+      "description" => "Why this action was chosen"
+    },
+    "confidence" => {
+      "type" => "number",
+      "minimum" => 0,
+      "maximum" => 1,
+      "description" => "Confidence level in this decision"
+    },
+    "parameters" => {
+      "type" => "object",
+      "description" => "Parameters needed for the action"
+    }
+  }
+}
+
+# Get structured decision from LLM
+begin
+  result = client.generate(
+    prompt: "Analyze the current situation and decide the next step. Context: User asked about weather in Paris.",
+    schema: decision_schema
+  )
+
+  # Use the structured output
+  puts "Action: #{result['action']}"
+  puts "Reasoning: #{result['reasoning']}"
+  puts "Confidence: #{(result['confidence'] * 100).round}%"
+
+  # Route based on action
+  case result["action"]
+  when "search"
+    # Execute search with parameters
+    query = result.dig("parameters", "query") || "default query"
+    puts "Executing search: #{query}"
+    # ... your search logic here
+  when "calculate"
+    # Execute calculation
+    puts "Executing calculation with params: #{result['parameters']}"
+    # ... your calculation logic here
+  when "finish"
+    puts "Task complete!"
+  else
+    puts "Unknown action: #{result['action']}"
+  end
+
+rescue Ollama::SchemaViolationError => e
+  puts "LLM returned invalid structure: #{e.message}"
+  # Handle gracefully - maybe retry or use fallback
+rescue Ollama::Error => e
+  puts "Error: #{e.message}"
+end
 ```
 
 **Note:** The gem uses Ollama's native `format` parameter for structured outputs, which enforces the JSON schema server-side. This ensures reliable, consistent JSON responses that match your schema exactly.
 
-### Example: Analysis Agent
+### Example: Chat API with Structured Outputs
+
+```ruby
+require "ollama_client"
+require "json"
+
+client = Ollama::Client.new
+
+# Define schema for friend list (matching JavaScript example)
+friend_list_schema = {
+  "type" => "object",
+  "required" => ["friends"],
+  "properties" => {
+    "friends" => {
+      "type" => "array",
+      "items" => {
+        "type" => "object",
+        "required" => ["name", "age", "is_available"],
+        "properties" => {
+          "name" => { "type" => "string" },
+          "age" => { "type" => "integer" },
+          "is_available" => { "type" => "boolean" }
+        }
+      }
+    }
+  }
+}
+
+# Use chat API with messages
+messages = [
+  {
+    role: "user",
+    content: "I have two friends. The first is Ollama 22 years old busy saving the world, and the second is Alonso 23 years old and wants to hang out. Return a list of friends in JSON format"
+  }
+]
+
+begin
+  response = client.chat(
+    model: "llama3.1:8b",
+    messages: messages,
+    format: friend_list_schema,
+    options: {
+      temperature: 0  # More deterministic
+    }
+  )
+
+  # Response is already parsed and validated
+  response["friends"].each do |friend|
+    status = friend["is_available"] ? "available" : "busy"
+    puts "#{friend['name']} (#{friend['age']}) - #{status}"
+  end
+
+  # Or work with the full structure
+  available_friends = response["friends"].select { |f| f["is_available"] }
+  puts "\nAvailable friends: #{available_friends.map { |f| f['name'] }.join(', ')}"
+
+rescue Ollama::SchemaViolationError => e
+  puts "Response didn't match schema: #{e.message}"
+rescue Ollama::Error => e
+  puts "Error: #{e.message}"
+end
+```
+
+### Example: Data Analysis with Validation
 
 ```ruby
 require "ollama_client"
 
-schema = {
+client = Ollama::Client.new
+
+analysis_schema = {
   "type" => "object",
-  "required" => ["summary", "confidence"],
+  "required" => ["summary", "confidence", "key_points"],
   "properties" => {
     "summary" => { "type" => "string" },
-    "confidence" => { "type" => "number", "minimum" => 0, "maximum" => 1 }
+    "confidence" => {
+      "type" => "number",
+      "minimum" => 0,
+      "maximum" => 1
+    },
+    "key_points" => {
+      "type" => "array",
+      "items" => { "type" => "string" },
+      "minItems" => 1,
+      "maxItems" => 5
+    },
+    "sentiment" => {
+      "type" => "string",
+      "enum" => ["positive", "neutral", "negative"]
+    }
   }
 }
 
-client = Ollama::Client.new
-result = client.generate(
-  prompt: "Summarize the following data: #{data}",
-  schema: schema
-)
+data = "Sales increased 25% this quarter, customer satisfaction is at 4.8/5"
+
+begin
+  result = client.generate(
+    prompt: "Analyze this data: #{data}",
+    schema: analysis_schema
+  )
+
+  # Use the validated structured output
+  puts "Summary: #{result['summary']}"
+  puts "Confidence: #{(result['confidence'] * 100).round}%"
+  puts "Sentiment: #{result['sentiment']}"
+  puts "\nKey Points:"
+  result["key_points"].each_with_index do |point, i|
+    puts "  #{i + 1}. #{point}"
+  end
+
+  # Make decisions based on structured data
+  if result["confidence"] > 0.8 && result["sentiment"] == "positive"
+    puts "\n✅ High confidence positive analysis - proceed with action"
+  elsif result["confidence"] < 0.5
+    puts "\n⚠️ Low confidence - review manually"
+  end
+
+rescue Ollama::SchemaViolationError => e
+  puts "Analysis failed validation: #{e.message}"
+  # Could retry or use fallback logic
+rescue Ollama::TimeoutError => e
+  puts "Request timed out: #{e.message}"
+rescue Ollama::Error => e
+  puts "Error: #{e.message}"
+end
 ```
 
 ### Custom Configuration Per Client

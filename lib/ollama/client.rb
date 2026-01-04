@@ -24,7 +24,7 @@ module Ollama
     # @param format [Hash, nil] JSON Schema for structured outputs
     # @param options [Hash, nil] Additional options (temperature, top_p, etc.)
     # @return [Hash] Parsed and validated JSON response matching the format schema
-    def chat(model: nil, messages:, format: nil, options: {})
+    def chat(messages:, model: nil, format: nil, options: {})
       attempts = 0
       @current_schema = format # Store for validation
 

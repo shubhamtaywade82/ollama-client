@@ -11,7 +11,7 @@ def run(model)
   # Define the JSON schema for friend info
   friend_info_schema = {
     "type" => "object",
-    "required" => ["name", "age", "is_available"],
+    "required" => %w[name age is_available],
     "properties" => {
       "name" => {
         "type" => "string",
@@ -44,7 +44,9 @@ def run(model)
 
   messages = [{
     role: "user",
-    content: "I have two friends. The first is Ollama 22 years old busy saving the world, and the second is Alonso 23 years old and wants to hang out. Return a list of friends in JSON format"
+    content: "I have two friends. The first is Ollama 22 years old busy saving the world, " \
+             "and the second is Alonso 23 years old and wants to hang out. " \
+             "Return a list of friends in JSON format"
   }]
 
   response = client.chat(
@@ -67,4 +69,3 @@ end
 
 # Run with the same model as the JavaScript example
 run("llama3.1:8b")
-
