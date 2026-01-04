@@ -65,6 +65,8 @@ gem install ollama-client
 
 ## Usage
 
+**Note:** You can use `require "ollama_client"` (recommended) or `require "ollama/client"` directly. The client works with or without the global `OllamaClient` configuration module.
+
 ### Basic Configuration
 
 ```ruby
@@ -83,6 +85,8 @@ end
 ### Example: Planning Agent
 
 ```ruby
+require "ollama_client"
+
 client = Ollama::Client.new
 
 schema = {
@@ -102,9 +106,13 @@ result = client.generate(
 puts result["action"]
 ```
 
+**Note:** The gem uses Ollama's native `format` parameter for structured outputs, which enforces the JSON schema server-side. This ensures reliable, consistent JSON responses that match your schema exactly.
+
 ### Example: Analysis Agent
 
 ```ruby
+require "ollama_client"
+
 schema = {
   "type" => "object",
   "required" => ["summary", "confidence"],
@@ -124,6 +132,8 @@ result = client.generate(
 ### Custom Configuration Per Client
 
 ```ruby
+require "ollama_client"
+
 custom_config = Ollama::Config.new
 custom_config.model = "qwen2.5:14b"
 custom_config.temperature = 0.1
@@ -131,17 +141,46 @@ custom_config.temperature = 0.1
 client = Ollama::Client.new(config: custom_config)
 ```
 
+### Listing Available Models
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+models = client.list_models
+puts "Available models: #{models.join(', ')}"
+```
+
 ### Error Handling
 
 ```ruby
+require "ollama_client"
+
 begin
   result = client.generate(prompt: prompt, schema: schema)
+rescue Ollama::NotFoundError => e
+  # 404 Not Found - model or endpoint doesn't exist
+  # The error message automatically suggests similar model names if available
+  puts e.message
+  # Example output:
+  # HTTP 404: Not Found
+  #
+  # Model 'qwen2.5:7b' not found. Did you mean one of these?
+  #   - qwen2.5:14b
+  #   - qwen2.5:32b
+rescue Ollama::HTTPError => e
+  # Other HTTP errors (400, 500, etc.)
+  # Non-retryable errors (400) are raised immediately
+  # Retryable errors (500, 503, 408, 429) are retried
+  puts "HTTP #{e.status_code}: #{e.message}"
 rescue Ollama::TimeoutError => e
   puts "Request timed out: #{e.message}"
 rescue Ollama::SchemaViolationError => e
   puts "Output didn't match schema: #{e.message}"
 rescue Ollama::RetryExhaustedError => e
   puts "Failed after retries: #{e.message}"
+rescue Ollama::Error => e
+  puts "Error: #{e.message}"
 end
 ```
 

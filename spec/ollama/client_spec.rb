@@ -11,7 +11,7 @@ RSpec.describe Ollama::Client do
       client = described_class.new
       config = client.instance_variable_get(:@config)
       expect(config).to be_a(Ollama::Config)
-      expect(config.model).to eq("qwen2.5:7b")
+      expect(config.model).to eq("llama3.1:8b")
     end
 
     it "accepts custom config" do
@@ -43,8 +43,12 @@ RSpec.describe Ollama::Client do
 
     context "when Ollama server is not available" do
       it "raises an error after retries" do
+        # Use a non-existent port to simulate server unavailability
+        unavailable_client = described_class.new(config: Ollama::Config.new.tap do |c|
+          c.base_url = "http://localhost:99999"
+        end)
         expect do
-          client.generate(prompt: "test", schema: schema)
+          unavailable_client.generate(prompt: "test", schema: schema)
         end.to raise_error(Ollama::Error)
       end
     end
@@ -56,7 +60,7 @@ RSpec.describe Ollama::Config do
     it "sets safe defaults" do
       config = described_class.new
       expect(config.base_url).to eq("http://localhost:11434")
-      expect(config.model).to eq("qwen2.5:7b")
+      expect(config.model).to eq("llama3.1:8b")
       expect(config.timeout).to eq(20)
       expect(config.retries).to eq(2)
       expect(config.temperature).to eq(0.2)

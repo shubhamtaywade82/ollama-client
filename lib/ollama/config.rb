@@ -7,7 +7,7 @@ module Ollama
 
     def initialize
       @base_url = "http://localhost:11434"
-      @model = "qwen2.5:7b"
+      @model = "llama3.1:8b"
       @timeout = 20
       @retries = 2
       @temperature = 0.2
