@@ -498,9 +498,18 @@ end
 
 This keeps the `ollama-client` gem **domain-agnostic** and **reusable** across any project.
 
+**See `examples/tool_calling_pattern.rb` for a working implementation of this pattern.**
+
 ## Advanced Examples
 
 The `examples/` directory contains advanced examples demonstrating production-grade patterns:
+
+### `tool_calling_pattern.rb`
+**Working implementation of the ToolRouter pattern from the Architecture section:**
+- Tool registry and routing
+- LLM outputs intent, agent executes tools
+- Demonstrates the correct separation of concerns
+- Matches the pattern shown in README.md lines 430-500
 
 ### `advanced_multi_step_agent.rb`
 Multi-step agent workflow with:
