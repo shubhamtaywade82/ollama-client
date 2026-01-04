@@ -149,7 +149,8 @@ decision_schema = {
   "properties" => {
     "action" => {
       "type" => "string",
-      "description" => "The action to take: 'search', 'calculate', 'finish', etc."
+      "enum" => ["search", "calculate", "finish"],
+      "description" => "The action to take: 'search', 'calculate', or 'finish'"
     },
     "reasoning" => {
       "type" => "string",
