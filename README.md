@@ -511,6 +511,14 @@ The `examples/` directory contains advanced examples demonstrating production-gr
 - Demonstrates the correct separation of concerns
 - Matches the pattern shown in README.md lines 430-500
 
+### `dhanhq_trading_agent.rb`
+**Real-world integration: Ollama (reasoning) + DhanHQ (execution):**
+- Ollama analyzes market data and makes trading decisions
+- DhanHQ executes trades (place orders, check positions, etc.)
+- Demonstrates proper separation: LLM = reasoning, DhanHQ = execution
+- Shows risk management with super orders (SL/TP)
+- Perfect example of agent-grade tool calling pattern
+
 ### `advanced_multi_step_agent.rb`
 Multi-step agent workflow with:
 - Complex nested schemas
