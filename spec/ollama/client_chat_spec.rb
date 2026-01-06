@@ -36,6 +36,12 @@ RSpec.describe Ollama::Client, "#chat" do
   end
 
   describe "successful requests" do
+    it "requires explicit opt-in to use chat()" do
+      expect do
+        client.chat(messages: messages, format: schema)
+      end.to raise_error(Ollama::Error, /gated/i)
+    end
+
     it "returns parsed and validated JSON response" do
       stub_request(:post, "http://localhost:11434/api/chat")
         .with(
@@ -56,7 +62,7 @@ RSpec.describe Ollama::Client, "#chat" do
           }.to_json
         )
 
-      result = client.chat(messages: messages, format: schema)
+      result = client.chat(messages: messages, format: schema, allow_chat: true)
 
       expect(result).to eq("response" => "Hello there!")
     end
@@ -75,7 +81,7 @@ RSpec.describe Ollama::Client, "#chat" do
           }.to_json
         )
 
-      client.chat(messages: messages, model: "custom-model", format: schema)
+      client.chat(messages: messages, model: "custom-model", format: schema, allow_chat: true)
 
       expect(request_body["model"]).to eq("custom-model")
     end
@@ -97,7 +103,8 @@ RSpec.describe Ollama::Client, "#chat" do
       client.chat(
         messages: messages,
         format: schema,
-        options: { temperature: 0.5 }
+        options: { temperature: 0.5 },
+        allow_chat: true
       )
 
       expect(request_body.dig("options", "temperature")).to eq(0.5)
@@ -119,7 +126,7 @@ RSpec.describe Ollama::Client, "#chat" do
           }.to_json
         )
 
-      result = client.chat(messages: messages)
+      result = client.chat(messages: messages, allow_chat: true)
 
       expect(request_body).not_to have_key("format")
       # Content is a JSON string, so parse_json_response will parse it
@@ -144,7 +151,7 @@ RSpec.describe Ollama::Client, "#chat" do
           )
 
         expect do
-          client.chat(messages: messages, format: schema)
+          client.chat(messages: messages, format: schema, allow_chat: true)
         end.to raise_error(Ollama::NotFoundError) do |error|
           expect(error.requested_model).to eq("test-model")
           expect(error.suggestions).to include("test-model-v2")
@@ -159,7 +166,7 @@ RSpec.describe Ollama::Client, "#chat" do
           .times(config.retries + 1)
 
         expect do
-          client.chat(messages: messages, format: schema)
+          client.chat(messages: messages, format: schema, allow_chat: true)
         end.to raise_error(Ollama::RetryExhaustedError)
 
         expect(WebMock).to have_requested(:post, "http://localhost:11434/api/chat")
@@ -191,7 +198,7 @@ RSpec.describe Ollama::Client, "#chat" do
             }
           )
 
-        result = client.chat(messages: messages, format: schema)
+        result = client.chat(messages: messages, format: schema, allow_chat: true)
 
         expect(result).to eq("response" => "correct")
         expect(WebMock).to have_requested(:post, "http://localhost:11434/api/chat").twice
@@ -220,7 +227,7 @@ RSpec.describe Ollama::Client, "#chat" do
           }.to_json
         )
 
-      result = client.chat(messages: conversation_messages, format: schema)
+      result = client.chat(messages: conversation_messages, format: schema, allow_chat: true)
 
       # WebMock stringifies keys, so compare with string keys
       expected_messages = conversation_messages.map { |m| m.transform_keys(&:to_s) }

@@ -3,7 +3,7 @@
 module Ollama
   # Configuration class with safe defaults for agent-grade usage
   class Config
-    attr_accessor :base_url, :model, :timeout, :retries, :temperature, :top_p, :num_ctx
+    attr_accessor :base_url, :model, :timeout, :retries, :temperature, :top_p, :num_ctx, :on_response
 
     def initialize
       @base_url = "http://localhost:11434"
@@ -13,6 +13,7 @@ module Ollama
       @temperature = 0.2
       @top_p = 0.9
       @num_ctx = 8192
+      @on_response = nil
     end
   end
 end

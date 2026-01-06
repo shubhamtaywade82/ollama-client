@@ -9,6 +9,19 @@ RSpec.describe Ollama::Client do
   end
 
   describe ".new" do
+    before do
+      # Ensure a stable baseline even if other specs mutate global config.
+      OllamaClient.configure do |c|
+        c.base_url = "http://localhost:11434"
+        c.model = "llama3.1:8b"
+        c.timeout = 20
+        c.retries = 2
+        c.temperature = 0.2
+        c.top_p = 0.9
+        c.num_ctx = 8192
+      end
+    end
+
     it "initializes with default config" do
       client = described_class.new
       config = client.instance_variable_get(:@config)
@@ -98,6 +111,22 @@ RSpec.describe Ollama::SchemaValidator do
         }
       }
       data = { "name" => 123 }
+      expect do
+        described_class.validate!(data, schema)
+      end.to raise_error(Ollama::SchemaViolationError)
+    end
+
+    it "rejects additional properties by default for object schemas" do
+      schema = {
+        "type" => "object",
+        "properties" => {
+          "name" => { "type" => "string" }
+        }
+        # NOTE: no additionalProperties provided
+      }
+
+      data = { "name" => "test", "extra" => "nope" }
+
       expect do
         described_class.validate!(data, schema)
       end.to raise_error(Ollama::SchemaViolationError)

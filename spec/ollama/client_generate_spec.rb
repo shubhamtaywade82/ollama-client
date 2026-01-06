@@ -253,5 +253,55 @@ RSpec.describe Ollama::Client, "#generate" do
 
       expect(result).to eq("test" => "value")
     end
+
+    it "handles non-JSON prefix/suffix noise" do
+      stub_request(:post, "http://localhost:11434/api/generate")
+        .to_return(
+          status: 200,
+          body: { response: "Here you go:\n{\"test\":\"value\"}\nDone." }.to_json
+        )
+
+      result = client.generate(prompt: "test", schema: schema)
+
+      expect(result).to eq("test" => "value")
+    end
+  end
+
+  describe "strict mode" do
+    it "does not retry on schema violation when strict" do
+      stub_request(:post, "http://localhost:11434/api/generate")
+        .to_return(
+          { status: 200, body: { response: '{"test":123}' }.to_json }, # Wrong type
+          { status: 200, body: { response: '{"test":"value"}' }.to_json }
+        )
+
+      expect do
+        client.generate(prompt: "test", schema: schema, strict: true)
+      end.to raise_error(Ollama::SchemaViolationError)
+
+      expect(WebMock).to have_requested(:post, "http://localhost:11434/api/generate").once
+    end
+
+    it "does not retry on invalid JSON when strict" do
+      stub_request(:post, "http://localhost:11434/api/generate")
+        .to_return(
+          { status: 200, body: { response: "not json" }.to_json },
+          { status: 200, body: { response: '{"test":"value"}' }.to_json }
+        )
+
+      expect do
+        client.generate(prompt: "test", schema: schema, strict: true)
+      end.to raise_error(Ollama::InvalidJSONError)
+
+      expect(WebMock).to have_requested(:post, "http://localhost:11434/api/generate").once
+    end
+
+    it "provides a generate_strict! convenience method" do
+      stub_request(:post, "http://localhost:11434/api/generate")
+        .to_return(status: 200, body: { response: '{"test":"value"}' }.to_json)
+
+      result = client.generate_strict!(prompt: "test", schema: schema)
+      expect(result).to eq("test" => "value")
+    end
   end
 end
