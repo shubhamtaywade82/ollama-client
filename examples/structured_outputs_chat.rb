@@ -53,6 +53,7 @@ def run(model)
     model: model,
     messages: messages,
     format: friend_list_schema,
+    allow_chat: true,
     options: {
       temperature: 0 # Make responses more deterministic
     }
