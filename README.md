@@ -427,6 +427,33 @@ rescue Ollama::Error => e
 end
 ```
 
+## Tool Intent (Not Tool Execution)
+
+### Tool Intent Support
+
+This gem supports **tool intent generation**, not tool execution.
+
+The LLM can describe *what it wants to do next* in a structured format.
+Your application or agent framework is responsible for executing tools.
+
+Example:
+
+```ruby
+intent = client.generate_tool_intent(
+  prompt: "Find the next step to answer the user",
+  tools: [
+    { name: "search", description: "Search the web" },
+    { name: "calculate", description: "Run a calculation" }
+  ]
+)
+
+intent.action # => "search"
+intent.input  # => { "query" => "..." }
+```
+
+> ⚠️ This gem does NOT execute tools.
+> Tool execution belongs in your agent or application layer.
+
 ## Architecture: Tool Calling Pattern
 
 **Important:** This gem does **NOT** include tool calling. Here's why and how to do it correctly:
