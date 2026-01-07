@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "required": ["action"],
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Tool name or 'finish'"
+    },
+    "input": {
+      "type": "object",
+      "description": "Parameters for the tool"
+    }
+  },
+  "additionalProperties": false
+}

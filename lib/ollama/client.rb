@@ -6,6 +6,9 @@ require "json"
 require_relative "errors"
 require_relative "schema_validator"
 require_relative "config"
+require_relative "tool_intent"
+require_relative "schemas/tool_intent"
+require_relative "prompts/tool_planner"
 
 module Ollama
   # Main client class for interacting with Ollama API
@@ -83,6 +86,30 @@ module Ollama
 
         retry
       end
+    end
+
+    # Generate a schema-validated tool intent (no execution).
+    #
+    # @param prompt [String] Task description for planner
+    # @param tools [Array<Hash>] Array of tools with :name and :description
+    # @param rules [Array<String>] Optional additional rules for planner
+    # @return [Ollama::ToolIntent] Typed intent object
+    def generate_tool_intent(prompt:, tools:, rules: [])
+      planner_prompt =
+        Ollama::Prompts.tool_planner(
+          tools: tools,
+          rules: rules
+        ) + "\n\nTask:\n#{prompt}"
+
+      result = generate(
+        prompt: planner_prompt,
+        schema: Ollama::Schemas.tool_intent
+      )
+
+      Ollama::ToolIntent.new(
+        action: result["action"],
+        input: result["input"] || {}
+      )
     end
 
     # Public method to list available models
