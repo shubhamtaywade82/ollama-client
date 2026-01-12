@@ -265,7 +265,7 @@ module DhanHQAgent
         puts "   ✅ Historical data retrieved"
         puts "   📊 Type: #{result[:type]}"
         puts "   📊 Records: #{result[:result][:count]}"
-        if result[:result][:count] == 0
+        if result[:result][:count].zero?
           puts "   ⚠️  No data found for date range #{from_date} to #{to_date}"
           puts "      (This may be normal if market was closed or data unavailable)"
         end
@@ -393,7 +393,7 @@ module DhanHQAgent
     def option_chain_summary(chain, underlying_price, expiry)
       return { expiry: expiry, chain_type: chain.class } unless chain.is_a?(Hash)
 
-      strike_prices = chain.keys.sort_by { |k| k.to_f }
+      strike_prices = chain.keys.sort_by(&:to_f)
       first_strike_data = strike_prices.empty? ? nil : chain[strike_prices.first]
 
       atm_strike = nearest_strike(strike_prices, underlying_price)
