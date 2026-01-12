@@ -9,6 +9,7 @@ require_relative "config"
 
 module Ollama
   # Main client class for interacting with Ollama API
+  # rubocop:disable Metrics/ClassLength
   class Client
     def initialize(config: nil)
       @config = config || default_config
@@ -30,6 +31,8 @@ module Ollama
     # @param strict [Boolean] If true, requires explicit opt-in and disables retries on schema violations
     # @param include_meta [Boolean] If true, returns hash with :data and :meta keys
     # @return [Hash] Parsed and validated JSON response matching the format schema
+    # rubocop:disable Metrics/MethodLength
+    # rubocop:disable Metrics/ParameterLists
     def chat(messages:, model: nil, format: nil, options: {}, strict: false, allow_chat: false, return_meta: false)
       unless allow_chat || strict
         raise Error,
@@ -99,6 +102,7 @@ module Ollama
         retry
       end
     end
+    # rubocop:enable Metrics/ParameterLists
 
     # Raw Chat API method that returns the full parsed response body.
     #
@@ -111,6 +115,7 @@ module Ollama
     # @param tools [Array<Hash>, nil] Tool definitions (OpenAI-style schema) sent to Ollama
     # @param options [Hash, nil] Additional options (temperature, top_p, etc.)
     # @return [Hash] Full parsed JSON response body from Ollama
+    # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/ParameterLists
     def chat_raw(messages:, model: nil, format: nil, tools: nil, options: {}, strict: false, allow_chat: false,
                  return_meta: false, stream: false, &on_chunk)
       unless allow_chat || strict
@@ -206,6 +211,7 @@ module Ollama
         retry
       end
     end
+    # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/ParameterLists
 
     def generate(prompt:, schema:, strict: false, return_meta: false)
       attempts = 0
@@ -266,6 +272,7 @@ module Ollama
         retry
       end
     end
+    # rubocop:enable Metrics/MethodLength
 
     def generate_strict!(prompt:, schema:, return_meta: false)
       generate(prompt: prompt, schema: schema, strict: true, return_meta: return_meta)
@@ -273,6 +280,7 @@ module Ollama
 
     # Lightweight server health check.
     # Returns true/false by default; pass return_meta: true for details.
+    # rubocop:disable Metrics/MethodLength
     def health(return_meta: false)
       ping_uri = URI.join(@base_uri.to_s.end_with?("/") ? @base_uri.to_s : "#{@base_uri}/", "api/ping")
       started_at = monotonic_time
@@ -319,6 +327,7 @@ module Ollama
         }
       }
     end
+    # rubocop:enable Metrics/MethodLength
 
     # Public method to list available models
     def list_models
@@ -344,37 +353,19 @@ module Ollama
       raise Error, "Connection failed: #{e.message}"
     end
 
-    # Health check: verify Ollama server is reachable and responding
-    #
-    # @return [Hash] Health status with :status, :latency_ms, and optional :error
-    def health
-      start_time = Time.now
-      ping_uri = URI("#{@config.base_url}/api/tags")
-
-      req = Net::HTTP::Get.new(ping_uri)
-      res = Net::HTTP.start(
-        ping_uri.hostname,
-        ping_uri.port,
-        read_timeout: 5, # Short timeout for health checks
-        open_timeout: 5
-      ) { |http| http.request(req) }
-
-      latency_ms = ((Time.now - start_time) * 1000).round(2)
-
-      if res.is_a?(Net::HTTPSuccess)
-        { status: "healthy", latency_ms: latency_ms }
-      else
-        { status: "unhealthy", latency_ms: latency_ms, error: "HTTP #{res.code}" }
-      end
-    rescue Net::ReadTimeout, Net::OpenTimeout
-      { status: "unhealthy", latency_ms: ((Time.now - start_time) * 1000).round(2), error: "timeout" }
-    rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
-      { status: "unhealthy", latency_ms: ((Time.now - start_time) * 1000).round(2), error: e.message }
-    rescue StandardError => e
-      { status: "unhealthy", latency_ms: ((Time.now - start_time) * 1000).round(2), error: e.message }
-    end
-
     private
+
+    def handle_http_error(res, requested_model: nil)
+      status_code = res.code.to_i
+      requested_model ||= @config.model
+
+      raise NotFoundError.new(res.message, requested_model: requested_model) if status_code == 404
+
+      # All other errors use HTTPError
+      # Retryable: 408, 429, 500, 503 (handled by HTTPError#retryable?)
+      # Non-retryable: 400-403, 405-407, 409-428, 430-499, 501, 504-599
+      raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
+    end
 
     def default_config
       if defined?(OllamaClient)
@@ -444,6 +435,7 @@ module Ollama
       raise InvalidJSONError, "Failed to parse extracted JSON: #{e.message}. Extracted: #{json_text&.slice(0, 200)}..."
     end
 
+    # rubocop:disable Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
     def extract_json_fragment(text)
       raise InvalidJSONError, "Empty response body" if text.nil? || text.empty?
 
@@ -488,9 +480,7 @@ module Ollama
             stack << 93 # ]
           when 125, 93 # }, ]
             expected = stack.pop
-            unless expected == ch
-              raise InvalidJSONError, "Malformed JSON in response. Response: #{text[start_idx, 200]}..."
-            end
+            raise InvalidJSONError, "Malformed JSON in response. Response: #{text[start_idx, 200]}..." if expected != ch
             return text[start_idx..i] if stack.empty?
           end
         end
@@ -500,6 +490,7 @@ module Ollama
 
       raise InvalidJSONError, "Incomplete JSON in response. Response: #{text[start_idx, 200]}..."
     end
+    # rubocop:enable Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
 
     def emit_response_hook(raw, meta)
       hook = @config.on_response
@@ -573,25 +564,7 @@ module Ollama
         open_timeout: @config.timeout
       ) { |http| http.request(req) }
 
-      unless res.is_a?(Net::HTTPSuccess)
-        status_code = res.code.to_i
-        requested_model = model || @config.model
-
-        # Explicit HTTP error handling with hard retry rules
-        case status_code
-        when 404
-          raise NotFoundError.new(res.message, requested_model: requested_model)
-        when 400, 401, 403
-          # Client errors: never retry
-          raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
-        when 408, 429, 500, 503
-          # Retryable errors: will be retried by caller
-          raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
-        else
-          # Other 4xx/5xx: default to non-retryable for safety
-          raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
-        end
-      end
+      handle_http_error(res, requested_model: model || @config.model) unless res.is_a?(Net::HTTPSuccess)
 
       response_body = JSON.parse(res.body)
       # Chat API returns message.content, not response
@@ -634,24 +607,7 @@ module Ollama
         open_timeout: @config.timeout
       ) { |http| http.request(req) }
 
-      unless res.is_a?(Net::HTTPSuccess)
-        status_code = res.code.to_i
-
-        # Explicit HTTP error handling with hard retry rules
-        case status_code
-        when 404
-          raise NotFoundError.new(res.message, requested_model: @config.model)
-        when 400, 401, 403
-          # Client errors: never retry
-          raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
-        when 408, 429, 500, 503
-          # Retryable errors: will be retried by caller
-          raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
-        else
-          # Other 4xx/5xx: default to non-retryable for safety
-          raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
-        end
-      end
+      handle_http_error(res) unless res.is_a?(Net::HTTPSuccess)
 
       body = JSON.parse(res.body)
       body["response"]
@@ -692,21 +648,7 @@ module Ollama
         open_timeout: @config.timeout
       ) { |http| http.request(req) }
 
-      unless res.is_a?(Net::HTTPSuccess)
-        status_code = res.code.to_i
-        requested_model = model || @config.model
-
-        case status_code
-        when 404
-          raise NotFoundError.new(res.message, requested_model: requested_model)
-        when 400, 401, 403
-          raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
-        when 408, 429, 500, 503
-          raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
-        else
-          raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
-        end
-      end
+      handle_http_error(res, requested_model: model || @config.model) unless res.is_a?(Net::HTTPSuccess)
 
       res.body
     rescue Net::ReadTimeout, Net::OpenTimeout
@@ -715,6 +657,7 @@ module Ollama
       raise Error, "Connection failed: #{e.message}"
     end
 
+    # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity, Metrics/BlockLength
     def call_chat_api_raw_stream(model:, messages:, format:, tools:, options:)
       req = Net::HTTP::Post.new(@chat_uri)
       req["Content-Type"] = "application/json"
@@ -754,21 +697,7 @@ module Ollama
         open_timeout: @config.timeout
       ) do |http|
         http.request(req) do |res|
-          unless res.is_a?(Net::HTTPSuccess)
-            status_code = res.code.to_i
-            requested_model = model || @config.model
-
-            case status_code
-            when 404
-              raise NotFoundError.new(res.message, requested_model: requested_model)
-            when 400, 401, 403
-              raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
-            when 408, 429, 500, 503
-              raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
-            else
-              raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
-            end
-          end
+          handle_http_error(res, requested_model: model || @config.model) unless res.is_a?(Net::HTTPSuccess)
 
           res.read_body do |chunk|
             buffer << chunk
@@ -840,5 +769,7 @@ module Ollama
     rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
       raise Error, "Connection failed: #{e.message}"
     end
+    # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity, Metrics/BlockLength
   end
+  # rubocop:enable Metrics/ClassLength
 end

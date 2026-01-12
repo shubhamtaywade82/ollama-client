@@ -33,7 +33,9 @@ module OllamaClient
   def self.configure
     if Thread.current != Thread.main && !@warned_thread_config
       @warned_thread_config = true
-      warn("[ollama-client] Global OllamaClient.configure is not thread-safe. Prefer per-client config (Ollama::Client.new(config: ...)).")
+      msg = "[ollama-client] Global OllamaClient.configure is not thread-safe. " \
+            "Prefer per-client config (Ollama::Client.new(config: ...))."
+      warn(msg)
     end
 
     @config_mutex.synchronize do

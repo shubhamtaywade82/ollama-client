@@ -20,6 +20,7 @@ module Ollama
         @messages = []
       end
 
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity, Metrics/BlockLength
       def run(system:, user:)
         @messages = [
           Messages.system(system),
@@ -92,6 +93,7 @@ module Ollama
         @stream&.emit(:final, text: last_assistant_content.to_s)
         last_assistant_content
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity, Metrics/BlockLength
 
       private
 

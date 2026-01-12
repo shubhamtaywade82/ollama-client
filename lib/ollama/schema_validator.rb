@@ -24,6 +24,7 @@ module Ollama
       enforce_no_additional_properties(schema)
     end
 
+    # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def self.enforce_no_additional_properties(node)
       case node
       when Array
@@ -71,6 +72,7 @@ module Ollama
         node
       end
     end
+    # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
     private_class_method :prepare_schema, :enforce_no_additional_properties
   end
