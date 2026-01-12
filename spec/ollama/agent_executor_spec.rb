@@ -24,10 +24,10 @@ RSpec.describe Ollama::Agent::Executor do
   it "runs a tool-calling loop and returns final assistant content" do
     request_bodies = []
 
-    tool_called = false
+    tool_calls_count = 0
     tools = {
       "fetch_weather" => lambda do |city:|
-        tool_called = true
+        tool_calls_count += 1
         { city: city, forecast: "sunny" }
       end
     }
@@ -71,7 +71,7 @@ RSpec.describe Ollama::Agent::Executor do
     executor = described_class.new(client, tools: tools, max_steps: 5)
     result = executor.run(system: "You are helpful.", user: "What's the weather in Paris?")
 
-    expect(tool_called).to be(true)
+    expect(tool_calls_count).to eq(1)
     expect(result).to include("sunny")
 
     # First request should include tool definitions.

@@ -730,6 +730,15 @@ module Ollama
               line = buffer.slice!(0, newline_idx + 1).strip
               next if line.empty?
 
+              # Tolerate SSE framing (e.g. "data: {...}") and ignore non-data lines.
+              if line.start_with?("data:")
+                line = line.sub(/\Adata:\s*/, "").strip
+              elsif line.start_with?("event:") || line.start_with?(":")
+                next
+              end
+
+              next if line.empty? || line == "[DONE]"
+
               obj = JSON.parse(line)
 
               # Expose the raw chunk to callers (presentation only).

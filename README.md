@@ -1,19 +1,20 @@
 # Ollama::Client
 
-A **low-level, opinionated Ollama client** for **LLM-based hybrid agents**,
-**NOT** a chatbot,
+> An **agent-first Ruby client for Ollama**, optimized for **deterministic planners** and **safe tool-using executors**.
+
+This is **NOT** a chatbot UI,
 **NOT** domain-specific,
-**NOT** a framework.
+**NOT** a general-purpose “everything Ollama supports” wrapper.
 
 This gem provides:
 
 * ✅ Safe LLM calls
 * ✅ Strict output contracts
 * ✅ Retry & timeout handling
-* ✅ Zero hidden state
+* ✅ Explicit state (Planner is stateless; Executor is intentionally stateful via `messages`)
 * ✅ Extensible schemas
 
-Domain tools and application logic live **outside** this gem. For convenience, it also includes a small `Ollama::Agent` layer (Planner + Executor) for common agent patterns.
+Domain tools and application logic live **outside** this gem. For convenience, it includes a small `Ollama::Agent` layer (Planner + Executor) that encodes correct agent usage.
 
 ## 🎯 What This Gem IS
 
@@ -21,6 +22,7 @@ Domain tools and application logic live **outside** this gem. For convenience, i
 * Output validator
 * Retry + timeout manager
 * Schema enforcer
+* A minimal agent layer (`Ollama::Agent::Planner` + `Ollama::Agent::Executor`)
 
 ## 🚫 What This Gem IS NOT
 
@@ -28,19 +30,21 @@ Domain tools and application logic live **outside** this gem. For convenience, i
 * ❌ Domain logic
 * ❌ Memory store
 * ❌ Chat UI
+* ❌ A promise of full Ollama API coverage (it focuses on agent workflows)
 
 This keeps it **clean and future-proof**.
 
 ## 🔒 Guarantees
 
-| Guarantee              | Yes |
-| ---------------------- | --- |
-| Stateless              | ✅   |
-| Retry bounded          | ✅   |
-| Schema validated       | ✅   |
-| Deterministic defaults | ✅   |
-| Agent-safe             | ✅   |
-| Domain-agnostic        | ✅   |
+| Guarantee                              | Yes |
+| -------------------------------------- | --- |
+| Client requests are explicit           | ✅   |
+| Planner is stateless (no hidden memory)| ✅   |
+| Executor is stateful (explicit messages)| ✅  |
+| Retry bounded                          | ✅   |
+| Schema validated (when schema provided)| ✅   |
+| Tools run in Ruby (not in the LLM)     | ✅   |
+| Streaming is display-only (Executor)   | ✅   |
 
 ## Installation
 
@@ -85,6 +89,14 @@ gem install ollama-client
 **Warnings:**
 - Don’t use `generate()` for tool-calling loops (you’ll end up re-implementing message/tool lifecycles).
 - Don’t use `chat()` for deterministic planners unless you’re intentionally managing conversation state.
+- Don’t let streaming output drive decisions (streaming is presentation-only).
+
+### Scope / endpoint coverage
+
+This gem intentionally focuses on **agent building blocks**:
+
+- **Supported**: `/api/generate`, `/api/chat`, `/api/tags`, `/api/ping`
+- **Not guaranteed**: full endpoint parity with every Ollama release (embeddings, advanced model mgmt, etc.)
 
 ### Planner Agent (stateless, /api/generate)
 
@@ -132,6 +144,10 @@ puts answer
 
 Streaming is treated as **presentation**, not control. The agent buffers the full assistant message and only
 executes tools after the streamed message is complete and parsed.
+
+**Streaming format support:**
+- The streaming parser accepts **NDJSON** (one JSON object per line).
+- It also tolerates **SSE-style** lines prefixed with `data: ` (common in proxies), as long as the payload is JSON.
 
 ```ruby
 observer = Ollama::StreamingObserver.new do |event|
