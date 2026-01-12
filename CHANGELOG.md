@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.2.0] - 2026-01-12
+
 - Add `Ollama::Agent::Planner` (stateless `/api/generate`)
 - Add `Ollama::Agent::Executor` (stateful `/api/chat` tool loop)
 - Add `Ollama::StreamingObserver` + disciplined streaming support (Executor only)
