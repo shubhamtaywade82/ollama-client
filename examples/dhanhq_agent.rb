@@ -12,24 +12,6 @@ require "dhan_hq"
 require_relative "../lib/ollama_client"
 require_relative "dhanhq_tools"
 
-# Debug logging helper
-def debug_log(location, message, data = {}, hypothesis_id = nil)
-  log_entry = {
-    sessionId: "debug-session",
-    runId: "run1",
-    hypothesisId: hypothesis_id,
-    location: location,
-    message: message,
-    data: data,
-    timestamp: Time.now.to_f * 1000
-  }
-  File.open("/home/nemesis/project/ollama-client/.cursor/debug.log", "a") do |f|
-    f.puts(log_entry.to_json)
-  end
-rescue StandardError
-  # Ignore logging errors
-end
-
 # Helper to build market context from data
 # rubocop:disable Metrics/PerceivedComplexity
 def build_market_context_from_data(market_data)
