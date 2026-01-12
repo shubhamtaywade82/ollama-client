@@ -342,6 +342,14 @@ class TradingAgent
         schema: @decision_schema
       )
 
+      # Clean up parameters - remove any keys that look like comments or instructions
+      if decision.is_a?(Hash) && decision["parameters"].is_a?(Hash)
+        decision["parameters"] = decision["parameters"].reject do |key, _value|
+          key_str = key.to_s
+          key_str.start_with?(">") || key_str.start_with?("//") || key_str.include?("adjust") || key_str.length > 50
+        end
+      end
+
       # Validate confidence threshold
       return { action: "no_action", reason: "invalid_decision" } unless decision.is_a?(Hash) && decision["confidence"]
 
@@ -434,6 +442,10 @@ class TradingAgent
 
       Important: security_id must be a STRING (e.g., "13" not 13). Valid exchange_segment values: NSE_EQ, NSE_FNO, NSE_CURRENCY, BSE_EQ, BSE_FNO, BSE_CURRENCY, MCX_COMM, IDX_I
 
+      CRITICAL: The parameters object must contain ONLY valid parameter values (strings, numbers, etc.).
+      DO NOT include comments, instructions, or explanations in the parameters object.
+      Parameters should be clean JSON values only.
+
       Decision Criteria:
       - Only take actions with confidence > 0.6
       - Consider risk management (use super orders for risky trades)
@@ -442,9 +454,9 @@ class TradingAgent
 
       Respond with a JSON object containing:
       - action: one of the available trading actions
-      - reasoning: why this action was chosen
+      - reasoning: why this action was chosen (put explanations here, NOT in parameters)
       - confidence: your confidence level (0-1)
-      - parameters: object with required parameters for the action
+      - parameters: object with ONLY required parameter values (no comments, no explanations)
     PROMPT
   end
 end
@@ -701,19 +713,34 @@ if __FILE__ == $PROGRAM_NAME
     if result[:result]
       puts "   ✅ Expired options data retrieved"
       puts "   📊 Expiry: #{result[:result][:expiry_date]}"
-      # Show summary of expired options data instead of full data (can be very large)
-      data_summary = if result[:result][:data].is_a?(Hash)
-                       {
-                         call_data_points: result[:result][:call_data]&.dig(:open)&.length || 0,
-                         put_data_points: result[:result][:put_data]&.dig(:open)&.length || 0,
-                         has_ohlc: !result[:result][:ohlc_data].empty?,
-                         has_volume: !result[:result][:volume_data].empty?,
-                         summary_stats: result[:result][:summary_stats]
-                       }
-                     else
-                       "Data available (#{result[:result][:data].class})"
-                     end
-      puts "   📊 Data summary: #{JSON.pretty_generate(data_summary)}"
+      # Show concise summary of expired options data instead of full data (can be very large)
+      if result[:result][:summary_stats]
+        stats = result[:result][:summary_stats]
+        # Create a concise summary without the huge price_ranges array
+        concise_summary = {
+          data_points: stats[:data_points] || 0,
+          avg_volume: stats[:avg_volume]&.round(2),
+          avg_open_interest: stats[:avg_open_interest]&.round(2),
+          avg_implied_volatility: stats[:avg_implied_volatility]&.round(4),
+          price_range_stats: if stats[:price_ranges]&.is_a?(Array) && !stats[:price_ranges].empty?
+                               {
+                                 min: stats[:price_ranges].min.round(2),
+                                 max: stats[:price_ranges].max.round(2),
+                                 avg: (stats[:price_ranges].sum / stats[:price_ranges].length).round(2),
+                                 count: stats[:price_ranges].length
+                               }
+                             else
+                               nil
+                             end,
+          has_ohlc: stats[:has_ohlc],
+          has_volume: stats[:has_volume],
+          has_open_interest: stats[:has_open_interest],
+          has_implied_volatility: stats[:has_implied_volatility]
+        }
+        puts "   📊 Data summary: #{JSON.pretty_generate(concise_summary)}"
+      else
+        puts "   📊 Data available but summary stats not found"
+      end
     else
       puts "   ⚠️  #{result[:error]}"
       puts "      (Note: Options may require specific symbol format or may not exist for this instrument)"
@@ -730,21 +757,110 @@ if __FILE__ == $PROGRAM_NAME
   begin
     # NOTE: Options symbols may need different format
     # Try with NIFTY which typically has options
-    result = DhanHQDataTools.get_option_chain(
+    # First, get the list of available expiries
+    expiry_list_result = DhanHQDataTools.get_option_chain(
       symbol: "NIFTY", # NIFTY typically has options, RELIANCE might not
-      exchange_segment: "NSE_FNO"
+      exchange_segment: "IDX_I"
     )
-    if result[:result]
-      puts "   ✅ Option chain data retrieved"
-      if result[:result][:expiries]
-        puts "   📊 Available expiries: #{result[:result][:count]}"
-        expiries = result[:result][:expiries]
-        puts "   📊 First few expiries: #{expiries.first(3).inspect}" if expiries.is_a?(Array)
-      elsif result[:result][:chain]
-        puts "   📊 Option chain: #{JSON.pretty_generate(result[:result][:chain])}"
+    if expiry_list_result[:result] && expiry_list_result[:result][:expiries]
+      expiries = expiry_list_result[:result][:expiries]
+      puts "   ✅ Available expiries: #{expiry_list_result[:result][:count]}"
+      puts "   📊 First few expiries: #{expiries.first(3).inspect}" if expiries.is_a?(Array) && !expiries.empty?
+
+      # Get the actual option chain for the next/upcoming expiry
+      next_expiry = expiries.is_a?(Array) && !expiries.empty? ? expiries.first : nil
+      if next_expiry
+        puts "   📊 Fetching option chain for next expiry: #{next_expiry}"
+        # For NIFTY index options, use IDX_I as underlying_seg, not NSE_FNO
+        chain_result = DhanHQDataTools.get_option_chain(
+          symbol: "NIFTY",
+          exchange_segment: "IDX_I", # Use IDX_I for index options underlying
+          expiry: next_expiry
+        )
+        if chain_result[:result] && chain_result[:result][:chain]
+          chain = chain_result[:result][:chain]
+          underlying_price = chain_result[:result][:underlying_last_price]
+
+          # Option chain structure: chain[:oc] is a hash with strike prices as string keys
+          # Each strike contains "ce" (call) and "pe" (put) data with Greeks, IV, OI, etc.
+          chain_summary = if chain.is_a?(Hash)
+                            # Strike prices are string keys (e.g., "25000.000000")
+                            strike_prices = chain.keys.sort_by { |k| k.to_f }
+                            first_strike_data = chain[strike_prices.first] unless strike_prices.empty?
+
+                            # Find ATM or nearest strike to underlying price for sample Greeks
+                            atm_strike = if underlying_price && !strike_prices.empty?
+                                           strike_prices.min_by { |s| (s.to_f - underlying_price).abs }
+                                         else
+                                           strike_prices.first
+                                         end
+                            atm_data = chain[atm_strike] if atm_strike
+
+                            # Extract Greeks from ATM strike if available
+                            sample_greeks = {}
+                            if atm_data.is_a?(Hash)
+                              ce_data = atm_data["ce"] || atm_data[:ce]
+                              pe_data = atm_data["pe"] || atm_data[:pe]
+
+                              if ce_data.is_a?(Hash) && (ce_data.key?("greeks") || ce_data.key?(:greeks))
+                                ce_greeks = ce_data["greeks"] || ce_data[:greeks]
+                                sample_greeks[:call] = {
+                                  strike: atm_strike,
+                                  delta: ce_greeks["delta"] || ce_greeks[:delta],
+                                  theta: ce_greeks["theta"] || ce_greeks[:theta],
+                                  gamma: ce_greeks["gamma"] || ce_greeks[:gamma],
+                                  vega: ce_greeks["vega"] || ce_greeks[:vega],
+                                  iv: ce_data["implied_volatility"] || ce_data[:implied_volatility],
+                                  oi: ce_data["oi"] || ce_data[:oi],
+                                  last_price: ce_data["last_price"] || ce_data[:last_price]
+                                }
+                              end
+
+                              if pe_data.is_a?(Hash) && (pe_data.key?("greeks") || pe_data.key?(:greeks))
+                                pe_greeks = pe_data["greeks"] || pe_data[:greeks]
+                                sample_greeks[:put] = {
+                                  strike: atm_strike,
+                                  delta: pe_greeks["delta"] || pe_greeks[:delta],
+                                  theta: pe_greeks["theta"] || pe_greeks[:theta],
+                                  gamma: pe_greeks["gamma"] || pe_greeks[:gamma],
+                                  vega: pe_greeks["vega"] || pe_greeks[:vega],
+                                  iv: pe_data["implied_volatility"] || pe_data[:implied_volatility],
+                                  oi: pe_data["oi"] || pe_data[:oi],
+                                  last_price: pe_data["last_price"] || pe_data[:last_price]
+                                }
+                              end
+                            end
+
+                            {
+                              expiry: chain_result[:result][:expiry],
+                              underlying_last_price: underlying_price,
+                              strikes_count: strike_prices.length,
+                              has_call_options: first_strike_data.is_a?(Hash) && (first_strike_data.key?("ce") || first_strike_data.key?(:ce)),
+                              has_put_options: first_strike_data.is_a?(Hash) && (first_strike_data.key?("pe") || first_strike_data.key?(:pe)),
+                              has_greeks: !sample_greeks.empty?,
+                              strike_range: if strike_prices.empty?
+                                              nil
+                                            else
+                                              {
+                                                min: strike_prices.first,
+                                                max: strike_prices.last,
+                                                sample_strikes: strike_prices.first(5)
+                                              }
+                                            end,
+                              sample_greeks: sample_greeks.empty? ? nil : sample_greeks
+                            }
+                          else
+                            { expiry: chain_result[:result][:expiry], chain_type: chain.class }
+                          end
+          puts "   ✅ Option chain retrieved for expiry: #{chain_result[:result][:expiry]}"
+          puts "   📊 Underlying LTP: #{underlying_price}" if underlying_price
+          puts "   📊 Chain summary: #{JSON.pretty_generate(chain_summary)}"
+        elsif chain_result[:error]
+          puts "   ⚠️  Could not retrieve option chain data: #{chain_result[:error]}"
+        end
       end
-    else
-      puts "   ⚠️  #{result[:error]}"
+    elsif expiry_list_result[:error]
+      puts "   ⚠️  #{expiry_list_result[:error]}"
       puts "      (Note: Options may require specific symbol format or may not exist for this instrument)"
     end
   rescue StandardError => e

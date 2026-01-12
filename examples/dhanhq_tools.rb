@@ -460,11 +460,11 @@ class DhanHQDataTools
     end
     # rubocop:enable Metrics/ParameterLists, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
-    # 6. Option Chain API - Get option chain using Instrument convenience methods
-    # These methods automatically use instrument's security_id, exchange_segment, and instrument attributes
-    # Note: Instrument.find(exchange_segment, symbol) expects symbol (e.g., "NIFTY", "RELIANCE"), not security_id
+    # 6. Option Chain API - Get option chain using OptionChain.fetch
+    # Requires: underlying_scrip (security_id), underlying_seg (exchange_segment), expiry (optional)
+    # Note: For index options, underlying_seg should be "IDX_I", not "NSE_FNO"
     def get_option_chain(exchange_segment:, security_id: nil, symbol: nil, expiry: nil)
-      # Instrument.find expects symbol, support both for backward compatibility
+      # Need security_id - get it from instrument if we only have symbol
       instrument_symbol = symbol || security_id
       unless instrument_symbol
         return {
@@ -476,45 +476,77 @@ class DhanHQDataTools
 
       instrument_symbol = instrument_symbol.to_s
       exchange_segment = exchange_segment.to_s
-      instrument = DhanHQ::Models::Instrument.find(exchange_segment, instrument_symbol)
 
-      if instrument
-        if expiry
-          # Get option chain for specific expiry - automatically uses instrument's attributes
-          chain = instrument.option_chain(expiry: expiry)
-          {
-            action: "get_option_chain",
-            params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment, expiry: expiry },
-            result: {
-              expiry: expiry,
-              chain: chain,
-              instrument_info: {
-                trading_symbol: safe_instrument_attr(instrument, :trading_symbol),
-                instrument_type: safe_instrument_attr(instrument, :instrument_type)
-              }
-            }
-          }
-        else
-          # Get list of available expiries - automatically uses instrument's attributes
-          expiries = instrument.expiry_list
-          {
-            action: "get_option_chain",
-            params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment },
-            result: {
-              expiries: expiries,
-              count: expiries.is_a?(Array) ? expiries.length : 0,
-              instrument_info: {
-                trading_symbol: safe_instrument_attr(instrument, :trading_symbol),
-                instrument_type: safe_instrument_attr(instrument, :instrument_type)
-              }
-            }
-          }
-        end
-      else
+      # For option chains, we need the underlying security_id
+      # If exchange_segment is NSE_FNO/BSE_FNO, try to find the underlying in IDX_I or NSE_EQ
+      underlying_seg = exchange_segment
+      found_instrument = nil
+
+      # Try to find instrument to get security_id
+      found_instrument = DhanHQ::Models::Instrument.find(exchange_segment, instrument_symbol)
+      # If not found and exchange_segment is NSE_FNO/BSE_FNO, try IDX_I for index options
+      if !found_instrument && %w[NSE_FNO BSE_FNO].include?(exchange_segment)
+        found_instrument = DhanHQ::Models::Instrument.find("IDX_I", instrument_symbol)
+        underlying_seg = "IDX_I" if found_instrument
+      end
+
+      # Get security_id from instrument if not provided
+      resolved_security_id = if security_id
+                               security_id.to_i
+                             elsif found_instrument
+                               safe_instrument_attr(found_instrument, :security_id)&.to_i
+                             else
+                               nil
+                             end
+
+      unless resolved_security_id
+        return {
+          action: "get_option_chain",
+          error: "security_id is required and could not be determined from instrument",
+          params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment }
+        }
+      end
+
+      if expiry
+        # Get option chain for specific expiry using OptionChain.fetch
+        chain = DhanHQ::Models::OptionChain.fetch(
+          underlying_scrip: resolved_security_id,
+          underlying_seg: underlying_seg,
+          expiry: expiry.to_s
+        )
         {
           action: "get_option_chain",
-          error: "Instrument not found",
-          params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment }
+          params: { security_id: resolved_security_id, symbol: symbol, exchange_segment: exchange_segment,
+                    expiry: expiry },
+          result: {
+            expiry: expiry,
+            underlying_last_price: chain[:last_price],
+            chain: chain[:oc], # oc contains strike prices as keys
+            instrument_info: {
+              underlying_security_id: resolved_security_id,
+              underlying_seg: underlying_seg,
+              trading_symbol: found_instrument ? safe_instrument_attr(found_instrument, :trading_symbol) : symbol
+            }
+          }
+        }
+      else
+        # Get list of available expiries using OptionChain.fetch_expiry_list
+        expiries = DhanHQ::Models::OptionChain.fetch_expiry_list(
+          underlying_scrip: resolved_security_id,
+          underlying_seg: underlying_seg
+        )
+        {
+          action: "get_option_chain",
+          params: { security_id: resolved_security_id, symbol: symbol, exchange_segment: exchange_segment },
+          result: {
+            expiries: expiries,
+            count: expiries.is_a?(Array) ? expiries.length : 0,
+            instrument_info: {
+              underlying_security_id: resolved_security_id,
+              underlying_seg: underlying_seg,
+              trading_symbol: found_instrument ? safe_instrument_attr(found_instrument, :trading_symbol) : symbol
+            }
+          }
         }
       end
     rescue StandardError => e
