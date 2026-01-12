@@ -7,6 +7,7 @@
 # - Build order parameters for trading (does not place orders)
 
 require "json"
+require "date"
 require "dhan_hq"
 require_relative "../lib/ollama_client"
 require_relative "dhanhq_tools"
@@ -97,6 +98,7 @@ class DataAgent
         },
         "parameters" => {
           "type" => "object",
+          "additionalProperties" => true,
           "description" => "Parameters for the action (symbol, exchange_segment, etc.)"
         }
       }
@@ -133,7 +135,7 @@ class DataAgent
   # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
   def execute_decision(decision)
     action = decision["action"]
-    params = decision["parameters"] || {}
+    params = normalize_parameters(decision["parameters"] || {})
 
     case action
     when "get_market_quote"
@@ -226,6 +228,33 @@ class DataAgent
 
   private
 
+  def normalize_parameters(params)
+    normalized = {}
+    params.each do |key, value|
+      # For symbol and exchange_segment, extract first element if array
+      # For other fields, preserve original type
+      if %w[symbol exchange_segment].include?(key.to_s)
+        normalized[key] = if value.is_a?(Array) && !value.empty?
+                            value.first.to_s
+                          elsif value.is_a?(String) && value.strip.start_with?("[") && value.strip.end_with?("]")
+                            # Handle stringified arrays
+                            begin
+                              parsed = JSON.parse(value)
+                              parsed.is_a?(Array) && !parsed.empty? ? parsed.first.to_s : value.to_s
+                            rescue JSON::ParserError
+                              value.to_s
+                            end
+                          else
+                            value.to_s
+                          end
+      else
+        # Preserve original type for other parameters
+        normalized[key] = value
+      end
+    end
+    normalized
+  end
+
   def build_analysis_prompt(market_context:)
     <<~PROMPT
       Analyze the following market situation and decide the best data retrieval action:
@@ -234,19 +263,23 @@ class DataAgent
       #{market_context}
 
       Available Actions (DATA ONLY - NO TRADING):
-      - get_market_quote: Get market quote using Instrument.quote convenience method (requires: symbol OR security_id, exchange_segment)
-      - get_live_ltp: Get live last traded price using Instrument.ltp convenience method (requires: symbol OR security_id, exchange_segment)
-      - get_market_depth: Get full market depth (bid/ask levels) using Instrument.quote convenience method (requires: symbol OR security_id, exchange_segment)
-      - get_historical_data: Get historical data using Instrument.daily/intraday convenience methods (requires: symbol OR security_id, exchange_segment, from_date, to_date, optional: interval, expiry_code)
-      - get_expired_options_data: Get expired options historical data using Instrument.daily convenience method (requires: symbol OR security_id, exchange_segment, expiry_date, optional: expiry_code)
-      - get_option_chain: Get option chain using Instrument.expiry_list/option_chain convenience methods (requires: symbol OR security_id, exchange_segment, optional: expiry)
+      - get_market_quote: Get market quote using Instrument.quote convenience method (requires: symbol OR security_id as STRING, exchange_segment as STRING)
+      - get_live_ltp: Get live last traded price using Instrument.ltp convenience method (requires: symbol OR security_id as STRING, exchange_segment as STRING)
+      - get_market_depth: Get full market depth (bid/ask levels) using Instrument.quote convenience method (requires: symbol OR security_id as STRING, exchange_segment as STRING)
+      - get_historical_data: Get historical data using Instrument.daily/intraday convenience methods (requires: symbol OR security_id as STRING, exchange_segment as STRING, from_date, to_date, optional: interval, expiry_code)
+      - get_expired_options_data: Get expired options historical data using Instrument.daily convenience method (requires: symbol OR security_id as STRING, exchange_segment as STRING, expiry_date, optional: expiry_code)
+      - get_option_chain: Get option chain using Instrument.expiry_list/option_chain convenience methods (requires: symbol OR security_id as STRING, exchange_segment as STRING, optional: expiry)
       - no_action: Take no action if unclear what data is needed
 
-      Important:
+      CRITICAL: Each API call handles ONLY ONE symbol at a time. If you need data for multiple symbols, choose ONE symbol for this decision.
+      - symbol must be a SINGLE STRING value (e.g., "NIFTY" or "RELIANCE"), NOT an array
+      - exchange_segment must be a SINGLE STRING value (e.g., "NSE_EQ" or "IDX_I"), NOT an array
       - All APIs use Instrument.find() which expects SYMBOL (e.g., "NIFTY", "RELIANCE"), not security_id
       - Instrument convenience methods automatically use the instrument's security_id, exchange_segment, and instrument attributes
       - Use symbol when possible for better compatibility
-      Examples: NIFTY=symbol "NIFTY", exchange_segment "IDX_I"; RELIANCE=symbol "RELIANCE", exchange_segment "NSE_EQ"
+      Examples:
+        - For NIFTY: symbol="NIFTY", exchange_segment="IDX_I"
+        - For RELIANCE: symbol="RELIANCE", exchange_segment="NSE_EQ"
       Valid exchange_segments: NSE_EQ, NSE_FNO, NSE_CURRENCY, BSE_EQ, BSE_FNO, BSE_CURRENCY, MCX_COMM, IDX_I
 
       Decision Criteria:
@@ -287,6 +320,7 @@ class TradingAgent
         },
         "parameters" => {
           "type" => "object",
+          "additionalProperties" => true,
           "description" => "Parameters for the action (security_id, quantity, price, etc.)"
         }
       }
@@ -614,16 +648,23 @@ if __FILE__ == $PROGRAM_NAME
   # 4. Historical Data (uses symbol for Instrument.find)
   puts "4️⃣  Historical Data API"
   begin
+    # Use recent dates (last 30 days) for better data availability
+    to_date = Date.today.strftime("%Y-%m-%d")
+    from_date = (Date.today - 30).strftime("%Y-%m-%d")
     result = DhanHQDataTools.get_historical_data(
       symbol: test_symbol,
       exchange_segment: test_exchange,
-      from_date: "2024-01-01",
-      to_date: "2024-01-31"
+      from_date: from_date,
+      to_date: to_date
     )
     if result[:result]
       puts "   ✅ Historical data retrieved"
       puts "   📊 Type: #{result[:type]}"
       puts "   📊 Records: #{result[:result][:count]}"
+      if result[:result][:count] == 0
+        puts "   ⚠️  No data found for date range #{from_date} to #{to_date}"
+        puts "      (This may be normal if market was closed or data unavailable)"
+      end
     else
       puts "   ⚠️  #{result[:error]}"
     end
@@ -638,10 +679,13 @@ if __FILE__ == $PROGRAM_NAME
   puts "5️⃣  Expired Options Data API"
   begin
     # Use NSE_FNO for options
+    # Note: Options symbols may need different format (e.g., "NIFTY" for index options)
+    # For equity options, the symbol format might be different
+    # Try with NIFTY which typically has options
     result = DhanHQDataTools.get_expired_options_data(
-      symbol: test_symbol,
+      symbol: "NIFTY", # NIFTY typically has options, RELIANCE might not
       exchange_segment: "NSE_FNO",
-      expiry_date: "2024-01-31"
+      expiry_date: (Date.today - 7).strftime("%Y-%m-%d") # Use recent expired date
     )
     if result[:result]
       puts "   ✅ Expired options data retrieved"
@@ -649,6 +693,7 @@ if __FILE__ == $PROGRAM_NAME
       puts "   📊 Data: #{result[:result][:data].inspect[0..150]}"
     else
       puts "   ⚠️  #{result[:error]}"
+      puts "      (Note: Options may require specific symbol format or may not exist for this instrument)"
     end
   rescue StandardError => e
     puts "   ❌ Error: #{e.message}"
@@ -660,8 +705,10 @@ if __FILE__ == $PROGRAM_NAME
   # 6. Option Chain (uses symbol for Instrument.find)
   puts "6️⃣  Option Chain API"
   begin
+    # NOTE: Options symbols may need different format
+    # Try with NIFTY which typically has options
     result = DhanHQDataTools.get_option_chain(
-      symbol: test_symbol,
+      symbol: "NIFTY", # NIFTY typically has options, RELIANCE might not
       exchange_segment: "NSE_FNO"
     )
     if result[:result]
@@ -675,6 +722,7 @@ if __FILE__ == $PROGRAM_NAME
       end
     else
       puts "   ⚠️  #{result[:error]}"
+      puts "      (Note: Options may require specific symbol format or may not exist for this instrument)"
     end
   rescue StandardError => e
     puts "   ❌ Error: #{e.message}"

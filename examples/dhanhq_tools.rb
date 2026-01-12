@@ -301,13 +301,13 @@ class DhanHQDataTools
     end
     # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
-    # 4. Historical Data API - Get historical data using Instrument convenience methods
-    # These methods automatically use instrument's security_id, exchange_segment, and instrument attributes
-    # Note: Instrument.find(exchange_segment, symbol) expects symbol (e.g., "NIFTY", "RELIANCE"), not security_id
-    # rubocop:disable Metrics/ParameterLists
+    # 4. Historical Data API - Get historical data using HistoricalData class directly
+    # Requires: security_id, exchange_segment, instrument (type), from_date, to_date
+    # Optional: interval (for intraday), expiry_code (for futures/options)
+    # rubocop:disable Metrics/ParameterLists, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def get_historical_data(exchange_segment:, from_date:, to_date:, security_id: nil, symbol: nil, interval: nil,
-                            expiry_code: nil)
-      # Instrument.find expects symbol, support both for backward compatibility
+                            expiry_code: nil, instrument: nil)
+      # Need security_id - get it from instrument if we only have symbol
       instrument_symbol = symbol || security_id
       unless instrument_symbol
         return {
@@ -319,56 +319,135 @@ class DhanHQDataTools
 
       instrument_symbol = instrument_symbol.to_s
       exchange_segment = exchange_segment.to_s
-      instrument = DhanHQ::Models::Instrument.find(exchange_segment, instrument_symbol)
 
-      if instrument
-        if interval
-          # Intraday data - automatically uses instrument's attributes
-          data = instrument.intraday(
-            from_date: from_date,
-            to_date: to_date,
-            interval: interval
-          )
-          {
-            action: "get_historical_data",
-            type: "intraday",
-            params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment,
-                      from_date: from_date, to_date: to_date, interval: interval },
-            result: {
-              data: data,
-              count: data.is_a?(Array) ? data.length : 0,
-              instrument_info: {
-                trading_symbol: safe_instrument_attr(instrument, :trading_symbol),
-                instrument_type: safe_instrument_attr(instrument, :instrument_type)
-              }
-            }
-          }
-        else
-          # Daily data - automatically uses instrument's attributes
-          # expiry_code is optional for futures/options
-          daily_params = { from_date: from_date, to_date: to_date }
-          daily_params[:expiry_code] = expiry_code if expiry_code
-          data = instrument.daily(**daily_params)
-          {
-            action: "get_historical_data",
-            type: "daily",
-            params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment,
-                      from_date: from_date, to_date: to_date, expiry_code: expiry_code },
-            result: {
-              data: data,
-              count: data.is_a?(Array) ? data.length : 0,
-              instrument_info: {
-                trading_symbol: safe_instrument_attr(instrument, :trading_symbol),
-                instrument_type: safe_instrument_attr(instrument, :instrument_type)
-              }
-            }
-          }
-        end
-      else
-        {
+      # Find instrument to get security_id and instrument type if not provided
+      found_instrument = DhanHQ::Models::Instrument.find(exchange_segment, instrument_symbol)
+      unless found_instrument
+        return {
           action: "get_historical_data",
           error: "Instrument not found",
           params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment }
+        }
+      end
+
+      # Get security_id from instrument if not provided
+      resolved_security_id = security_id || safe_instrument_attr(found_instrument, :security_id)
+      unless resolved_security_id
+        return {
+          action: "get_historical_data",
+          error: "security_id is required and could not be determined from instrument",
+          params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment }
+        }
+      end
+
+      # Determine instrument type if not provided
+      # Valid instrument types: INDEX, FUTIDX, OPTIDX, EQUITY, FUTSTK, OPTSTK, FUTCOM, OPTFUT, FUTCUR, OPTCUR
+      valid_instruments = %w[INDEX FUTIDX OPTIDX EQUITY FUTSTK OPTSTK FUTCOM OPTFUT FUTCUR OPTCUR]
+
+      # Try to get from instrument object first, validate it
+      instrument_type_from_obj = safe_instrument_attr(found_instrument, :instrument_type)
+      instrument_type_from_obj = instrument_type_from_obj.to_s.upcase if instrument_type_from_obj
+      instrument_type_from_obj = nil unless valid_instruments.include?(instrument_type_from_obj)
+
+      # Use provided instrument, or validated instrument from object, or map from exchange_segment
+      resolved_instrument = if instrument
+                              instrument.to_s.upcase
+                            elsif instrument_type_from_obj
+                              instrument_type_from_obj
+                            else
+                              case exchange_segment
+                              when "IDX_I" then "INDEX"
+                              when "NSE_EQ", "BSE_EQ" then "EQUITY"
+                              # For FNO, default to FUTIDX (can be overridden with expiry_code for options)
+                              when "NSE_FNO", "BSE_FNO" then "FUTIDX"
+                              # For currency, default to FUTCUR
+                              when "NSE_CURRENCY", "BSE_CURRENCY" then "FUTCUR"
+                              # For commodity, default to FUTCOM
+                              when "MCX_COMM" then "FUTCOM"
+                              else "EQUITY"
+                              end
+                            end
+
+      # Final validation - ensure the resolved instrument type is valid
+      resolved_instrument = if valid_instruments.include?(resolved_instrument.to_s.upcase)
+                              resolved_instrument.to_s.upcase
+                            else
+                              # Fallback to EQUITY if invalid
+                              "EQUITY"
+                            end
+
+      resolved_security_id = resolved_security_id.to_s
+
+      if interval
+        # Intraday data using HistoricalData.intraday
+        # Returns hash with :open, :high, :low, :close, :volume, :timestamp arrays
+        intraday_params = {
+          security_id: resolved_security_id,
+          exchange_segment: exchange_segment,
+          instrument: resolved_instrument,
+          interval: interval.to_s,
+          from_date: from_date,
+          to_date: to_date
+        }
+        intraday_params[:expiry_code] = expiry_code if expiry_code
+        data = DhanHQ::Models::HistoricalData.intraday(intraday_params)
+
+        # Count is based on the length of one of the arrays (e.g., :open or :close)
+        count = if data.is_a?(Hash)
+                  data[:open]&.length || data[:close]&.length || data["open"]&.length || data["close"]&.length || 0
+                else
+                  0
+                end
+
+        {
+          action: "get_historical_data",
+          type: "intraday",
+          params: { security_id: resolved_security_id, symbol: symbol, exchange_segment: exchange_segment,
+                    instrument: resolved_instrument, from_date: from_date, to_date: to_date, interval: interval },
+          result: {
+            data: data,
+            count: count,
+            instrument_info: {
+              security_id: resolved_security_id,
+              trading_symbol: safe_instrument_attr(found_instrument, :trading_symbol),
+              instrument_type: resolved_instrument
+            }
+          }
+        }
+      else
+        # Daily data using HistoricalData.daily
+        # Returns hash with :open, :high, :low, :close, :volume, :timestamp arrays
+        daily_params = {
+          security_id: resolved_security_id,
+          exchange_segment: exchange_segment,
+          instrument: resolved_instrument,
+          from_date: from_date,
+          to_date: to_date
+        }
+        daily_params[:expiry_code] = expiry_code if expiry_code
+        data = DhanHQ::Models::HistoricalData.daily(daily_params)
+
+        # Count is based on the length of one of the arrays (e.g., :open or :close)
+        count = if data.is_a?(Hash)
+                  data[:open]&.length || data[:close]&.length || data["open"]&.length || data["close"]&.length || 0
+                else
+                  0
+                end
+
+        {
+          action: "get_historical_data",
+          type: "daily",
+          params: { security_id: resolved_security_id, symbol: symbol, exchange_segment: exchange_segment,
+                    instrument: resolved_instrument, from_date: from_date, to_date: to_date, expiry_code: expiry_code },
+          result: {
+            data: data,
+            count: count,
+            instrument_info: {
+              security_id: resolved_security_id,
+              trading_symbol: safe_instrument_attr(found_instrument, :trading_symbol),
+              instrument_type: resolved_instrument
+            }
+          }
         }
       end
     rescue StandardError => e
@@ -378,7 +457,7 @@ class DhanHQDataTools
         params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment }
       }
     end
-    # rubocop:enable Metrics/ParameterLists
+    # rubocop:enable Metrics/ParameterLists, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
     # 6. Option Chain API - Get option chain using Instrument convenience methods
     # These methods automatically use instrument's security_id, exchange_segment, and instrument attributes
