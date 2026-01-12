@@ -8,10 +8,12 @@ Gem::Specification.new do |spec|
   spec.authors = ["Shubham Taywade"]
   spec.email = ["shubhamtaywade82@gmail.com"]
 
-  spec.summary = "A low-level, opinionated Ollama client for LLM-based hybrid agents"
-  spec.description = "A production-ready Ruby client for Ollama API with schema validation, " \
-                     "retries, and agent-safe defaults. Designed for LLM-based hybrid agents, " \
-                     "not chatbots."
+  spec.summary = "An agent-first Ruby client for Ollama (planner/executor + safe tool loops)"
+  spec.description = "A production-ready, agent-first Ruby client for the Ollama API with schema validation, " \
+                     "bounded retries, and explicit safety defaults. Includes a minimal agent layer " \
+                     "(Ollama::Agent::Planner for deterministic /api/generate, and Ollama::Agent::Executor for " \
+                     "stateful /api/chat tool loops with disciplined, observer-only streaming). " \
+                     "Not a chatbot UI and not a promise of full Ollama endpoint coverage."
   spec.homepage = "https://github.com/shubhamtaywade82/ollama-client"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.2.0"
