@@ -765,16 +765,28 @@ module Ollama
         end
       end
 
-      # If we saw a final object, prefer it when it already contains a complete message.
-      if final_obj.is_a?(Hash) && final_obj["message"].is_a?(Hash)
-        # If the final message content is empty, fall back to our aggregation.
-        if final_obj.dig("message", "content").to_s.empty? && !aggregated.dig("message", "content").to_s.empty?
-          final_obj["message"]["content"] = aggregated["message"]["content"]
-        end
-        if final_obj.dig("message", "tool_calls").nil? && aggregated.dig("message", "tool_calls")
-          final_obj["message"]["tool_calls"] = aggregated["message"]["tool_calls"]
-        end
-        return final_obj
+      # Prefer returning the final "done: true" frame (it typically contains
+      # useful metadata like durations), but always use our aggregated message
+      # content/tool_calls since streaming payloads often send deltas.
+      if final_obj.is_a?(Hash)
+        combined = final_obj.dup
+        combined_message =
+          if combined["message"].is_a?(Hash)
+            combined["message"].dup
+          else
+            {}
+          end
+
+        agg_message = aggregated["message"] || {}
+
+        agg_content = agg_message["content"].to_s
+        combined_message["content"] = agg_content unless agg_content.empty?
+
+        combined_message["tool_calls"] = agg_message["tool_calls"] if agg_message.key?("tool_calls")
+        combined_message["role"] ||= agg_message["role"] if agg_message["role"]
+
+        combined["message"] = combined_message unless combined_message.empty?
+        return combined
       end
 
       aggregated
