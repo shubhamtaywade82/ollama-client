@@ -694,7 +694,7 @@ module Ollama
       aggregated = {
         "message" => {
           "role" => "assistant",
-          "content" => ""
+          "content" => +""
         }
       }
 

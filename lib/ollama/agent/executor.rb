@@ -76,13 +76,13 @@ module Ollama
             callable = @tools[name]
             raise Ollama::Error, "Tool '#{name}' not found. Available: #{@tools.keys.sort.join(', ')}" unless callable
 
-            @stream.emit(:state, state: :tool_executing)
+            @stream.emit(:state, state: :tool_executing) if @stream
             result = invoke_tool(callable, args_hash)
             tool_content = encode_tool_result(result)
 
             tool_call_id = call["id"] || call["tool_call_id"]
             @messages << Messages.tool(content: tool_content, name: name, tool_call_id: tool_call_id)
-            @stream.emit(:state, state: :tool_result_injected)
+            @stream.emit(:state, state: :tool_result_injected) if @stream
           end
         end
 
