@@ -128,6 +128,26 @@ answer = executor.run(
 puts answer
 ```
 
+### Streaming (Executor only; presentation-only)
+
+Streaming is treated as **presentation**, not control. The agent buffers the full assistant message and only
+executes tools after the streamed message is complete and parsed.
+
+```ruby
+observer = Ollama::StreamingObserver.new do |event|
+  case event.type
+  when :token
+    print event.text
+  when :tool_call_detected
+    puts "\n[Tool requested: #{event.name}]"
+  when :final
+    puts "\n--- DONE ---"
+  end
+end
+
+executor = Ollama::Agent::Executor.new(client, tools: tools, stream: observer)
+```
+
 ### Basic Configuration
 
 ```ruby

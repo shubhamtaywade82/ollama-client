@@ -85,5 +85,61 @@ RSpec.describe Ollama::Agent::Executor do
     expect(tool_message["name"]).to eq("fetch_weather")
     expect(tool_message["content"]).to include("sunny")
   end
+
+  it "streams tokens for display but only executes tools after the full message is buffered" do
+    events = []
+    observer = Ollama::StreamingObserver.new do |e|
+      # record just the high-signal bits for ordering
+      events << [e.type, e.state, e.name, e.text]
+    end
+
+    tool_called_at = nil
+    tools = {
+      "fetch_weather" => lambda do |city:|
+        tool_called_at = events.length
+        { city: city, forecast: "sunny" }
+      end
+    }
+
+    # Stream response #1: emits tokens then requests a tool call.
+    stream_body_1 = [
+      { message: { role: "assistant", content: "Checking weather..." }, done: false }.to_json,
+      {
+        message: {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            {
+              id: "call_1",
+              type: "function",
+              function: { name: "fetch_weather", arguments: "{\"city\":\"Paris\"}" }
+            }
+          ]
+        },
+        done: true
+      }.to_json
+    ].join("\n") + "\n"
+
+    # Stream response #2: final assistant answer after tool result is injected.
+    stream_body_2 = [
+      { message: { role: "assistant", content: "Paris will be sunny." }, done: true }.to_json
+    ].join("\n") + "\n"
+
+    stub_request(:post, "http://localhost:11434/api/chat")
+      .to_return(
+        { status: 200, body: stream_body_1 },
+        { status: 200, body: stream_body_2 }
+      )
+
+    executor = described_class.new(client, tools: tools, max_steps: 5, stream: observer)
+    result = executor.run(system: "You are helpful.", user: "What's the weather in Paris?")
+
+    expect(result).to include("sunny")
+
+    tool_detected_idx = events.index { |t, _state, name, _text| t == :tool_call_detected && name == "fetch_weather" }
+    expect(tool_detected_idx).not_to be_nil
+    expect(tool_called_at).not_to be_nil
+    expect(tool_called_at).to be > tool_detected_idx
+  end
 end
 

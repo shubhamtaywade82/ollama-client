@@ -12,10 +12,11 @@ module Ollama
     class Executor
       attr_reader :messages
 
-      def initialize(client, tools:, max_steps: 20)
+      def initialize(client, tools:, max_steps: 20, stream: nil)
         @client = client
         @tools = tools || {}
         @max_steps = max_steps
+        @stream = stream
         @messages = []
       end
 
@@ -28,11 +29,32 @@ module Ollama
         last_assistant_content = nil
 
         @max_steps.times do
-          response = @client.chat_raw(
-            messages: @messages,
-            tools: tool_definitions,
-            allow_chat: true
-          )
+          if @stream
+            @stream.emit(:state, state: :assistant_streaming)
+          end
+
+          response =
+            if @stream
+              @client.chat_raw(
+                messages: @messages,
+                tools: tool_definitions,
+                allow_chat: true,
+                stream: true
+              ) do |chunk|
+                delta = chunk.dig("message", "content")
+                @stream.emit(:token, text: delta.to_s) if delta && !delta.to_s.empty?
+
+                calls = chunk.dig("message", "tool_calls")
+                if calls.is_a?(Array)
+                  calls.each do |call|
+                    name = dig(call, %w[function name]) || call["name"]
+                    @stream.emit(:tool_call_detected, name: name, data: call) if name
+                  end
+                end
+              end
+            else
+              @client.chat_raw(messages: @messages, tools: tool_definitions, allow_chat: true)
+            end
 
           message = response["message"] || {}
           content = message["content"]
@@ -54,16 +76,19 @@ module Ollama
             callable = @tools[name]
             raise Ollama::Error, "Tool '#{name}' not found. Available: #{@tools.keys.sort.join(', ')}" unless callable
 
+            @stream.emit(:state, state: :tool_executing)
             result = invoke_tool(callable, args_hash)
             tool_content = encode_tool_result(result)
 
             tool_call_id = call["id"] || call["tool_call_id"]
             @messages << Messages.tool(content: tool_content, name: name, tool_call_id: tool_call_id)
+            @stream.emit(:state, state: :tool_result_injected)
           end
         end
 
         raise Ollama::Error, "Executor exceeded max_steps=#{@max_steps} (possible infinite tool loop)" if last_assistant_content.nil?
 
+        @stream.emit(:final, text: last_assistant_content.to_s) if @stream
         last_assistant_content
       end
 

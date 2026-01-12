@@ -103,7 +103,7 @@ module Ollama
     # @param options [Hash, nil] Additional options (temperature, top_p, etc.)
     # @return [Hash] Full parsed JSON response body from Ollama
     def chat_raw(messages:, model: nil, format: nil, tools: nil, options: {}, strict: false, allow_chat: false,
-                 return_meta: false)
+                 return_meta: false, stream: false, &on_chunk)
       unless allow_chat || strict
         raise Error,
               "chat_raw() is intentionally gated because it is easy to misuse inside agents. " \
@@ -117,11 +117,23 @@ module Ollama
       begin
         attempts += 1
         attempt_started_at = monotonic_time
-        raw_body = call_chat_api_raw(model: model, messages: messages, format: format, tools: tools, options: options)
+        raw_body =
+          if stream
+            call_chat_api_raw_stream(
+              model: model,
+              messages: messages,
+              format: format,
+              tools: tools,
+              options: options,
+              &on_chunk
+            )
+          else
+            call_chat_api_raw(model: model, messages: messages, format: format, tools: tools, options: options)
+          end
         attempt_latency_ms = elapsed_ms(attempt_started_at)
 
         emit_response_hook(
-          raw_body,
+          raw_body.is_a?(Hash) ? raw_body.to_json : raw_body,
           {
             endpoint: "/api/chat",
             model: model || @config.model,
@@ -130,7 +142,8 @@ module Ollama
           }
         )
 
-        parsed_body = JSON.parse(raw_body)
+        # `raw_body` is either a JSON string (non-stream) or a Hash (stream).
+        parsed_body = raw_body.is_a?(Hash) ? raw_body : JSON.parse(raw_body)
 
         # If a format schema is provided, validate the assistant content JSON (when present).
         if format
@@ -649,6 +662,115 @@ module Ollama
       end
 
       res.body
+    rescue Net::ReadTimeout, Net::OpenTimeout
+      raise TimeoutError, "Request timed out after #{@config.timeout}s"
+    rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
+      raise Error, "Connection failed: #{e.message}"
+    end
+
+    def call_chat_api_raw_stream(model:, messages:, format:, tools:, options:)
+      req = Net::HTTP::Post.new(@chat_uri)
+      req["Content-Type"] = "application/json"
+
+      body = {
+        model: model || @config.model,
+        messages: messages,
+        stream: true
+      }
+
+      body_options = {
+        temperature: options[:temperature] || @config.temperature,
+        top_p: options[:top_p] || @config.top_p,
+        num_ctx: options[:num_ctx] || @config.num_ctx
+      }
+      body[:options] = body_options
+
+      body[:format] = format if format
+      body[:tools] = tools if tools
+
+      req.body = body.to_json
+
+      final_obj = nil
+      aggregated = {
+        "message" => {
+          "role" => "assistant",
+          "content" => ""
+        }
+      }
+
+      buffer = +""
+
+      Net::HTTP.start(
+        @chat_uri.hostname,
+        @chat_uri.port,
+        read_timeout: @config.timeout,
+        open_timeout: @config.timeout
+      ) do |http|
+        http.request(req) do |res|
+          unless res.is_a?(Net::HTTPSuccess)
+            status_code = res.code.to_i
+            requested_model = model || @config.model
+
+            case status_code
+            when 404
+              raise NotFoundError.new(res.message, requested_model: requested_model)
+            when 400, 401, 403
+              raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
+            when 408, 429, 500, 503
+              raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
+            else
+              raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
+            end
+          end
+
+          res.read_body do |chunk|
+            buffer << chunk
+
+            while (newline_idx = buffer.index("\n"))
+              line = buffer.slice!(0, newline_idx + 1).strip
+              next if line.empty?
+
+              obj = JSON.parse(line)
+
+              # Expose the raw chunk to callers (presentation only).
+              yield(obj) if block_given?
+
+              msg = obj["message"]
+              if msg.is_a?(Hash)
+                delta_content = msg["content"]
+                aggregated["message"]["content"] << delta_content.to_s if delta_content
+
+                if msg["tool_calls"]
+                  aggregated["message"]["tool_calls"] = msg["tool_calls"]
+                end
+
+                aggregated["message"]["role"] = msg["role"] if msg["role"]
+              end
+
+              # Many Ollama stream payloads include `done: true` on the last line.
+              if obj["done"] == true
+                final_obj = obj
+              end
+            end
+          end
+        end
+      end
+
+      # If we saw a final object, prefer it when it already contains a complete message.
+      if final_obj.is_a?(Hash) && final_obj["message"].is_a?(Hash)
+        # If the final message content is empty, fall back to our aggregation.
+        if final_obj.dig("message", "content").to_s.empty? && !aggregated.dig("message", "content").to_s.empty?
+          final_obj["message"]["content"] = aggregated["message"]["content"]
+        end
+        if final_obj.dig("message", "tool_calls").nil? && aggregated.dig("message", "tool_calls")
+          final_obj["message"]["tool_calls"] = aggregated["message"]["tool_calls"]
+        end
+        return final_obj
+      end
+
+      aggregated
+    rescue JSON::ParserError => e
+      raise InvalidJSONError, "Failed to parse streaming response: #{e.message}"
     rescue Net::ReadTimeout, Net::OpenTimeout
       raise TimeoutError, "Request timed out after #{@config.timeout}s"
     rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e

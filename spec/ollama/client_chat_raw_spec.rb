@@ -57,5 +57,24 @@ RSpec.describe Ollama::Client, "#chat_raw" do
     expect(result.dig("message", "tool_calls")).to be_a(Array)
     expect(result.dig("message", "tool_calls", 0, "function", "name")).to eq("fetch_weather")
   end
+
+  it "supports streaming mode by yielding chunks and returning the final parsed body" do
+    chunks = []
+
+    body = [
+      { message: { role: "assistant", content: "Hello" }, done: false }.to_json,
+      { message: { role: "assistant", content: " world" }, done: true }.to_json
+    ].join("\n") + "\n"
+
+    stub_request(:post, "http://localhost:11434/api/chat")
+      .to_return(status: 200, body: body)
+
+    result = client.chat_raw(messages: messages, allow_chat: true, stream: true) do |chunk|
+      chunks << chunk
+    end
+
+    expect(chunks.length).to eq(2)
+    expect(result.dig("message", "content")).to include("Hello")
+  end
 end
 
