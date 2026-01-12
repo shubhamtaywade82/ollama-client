@@ -8,6 +8,7 @@
 # - Trading Tools: Order parameter building (does not place orders)
 
 require "json"
+require "date"
 require "dhan_hq"
 
 # Helper to get valid exchange segments from DhanHQ constants
@@ -524,11 +525,14 @@ class DhanHQDataTools
       }
     end
 
-    # 5. Expired Options Data API - Get historical expired options data
-    # Uses Instrument convenience method which automatically uses instrument's attributes
-    # Note: Instrument.find(exchange_segment, symbol) expects symbol (e.g., "NIFTY", "RELIANCE"), not security_id
-    def get_expired_options_data(exchange_segment:, expiry_date:, security_id: nil, symbol: nil, expiry_code: nil)
-      # Instrument.find expects symbol, support both for backward compatibility
+    # 5. Expired Options Data API - Get historical expired options data using ExpiredOptionsData.fetch
+    # Requires: exchange_segment, interval, security_id, instrument (OPTIDX/OPTSTK), expiry_flag, expiry_code,
+    #           strike, drv_option_type, required_data, from_date, to_date
+    # rubocop:disable Metrics/ParameterLists, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+    def get_expired_options_data(exchange_segment:, expiry_date:, security_id: nil, symbol: nil, expiry_code: nil,
+                                 interval: "1", instrument: nil, expiry_flag: "MONTH", strike: "ATM",
+                                 drv_option_type: "CALL", required_data: nil)
+      # Need security_id - get it from instrument if we only have symbol
       instrument_symbol = symbol || security_id
       unless instrument_symbol
         return {
@@ -541,37 +545,114 @@ class DhanHQDataTools
 
       instrument_symbol = instrument_symbol.to_s
       exchange_segment = exchange_segment.to_s
-      instrument = DhanHQ::Models::Instrument.find(exchange_segment, instrument_symbol)
 
-      if instrument
-        # Get historical data for the expiry date - automatically uses instrument's attributes
-        daily_params = { from_date: expiry_date, to_date: expiry_date }
-        daily_params[:expiry_code] = expiry_code if expiry_code
-        expired_data = instrument.daily(**daily_params)
-        {
-          action: "get_expired_options_data",
-          params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment,
-                    expiry_date: expiry_date, expiry_code: expiry_code },
-          result: {
-            security_id: security_id,
-            exchange_segment: exchange_segment,
-            expiry_date: expiry_date,
-            data: expired_data,
-            instrument_info: {
-              trading_symbol: safe_instrument_attr(instrument, :trading_symbol),
-              instrument_type: safe_instrument_attr(instrument, :instrument_type),
-              expiry_flag: safe_instrument_attr(instrument, :expiry_flag)
-            }
+      # If security_id is provided directly, use it; otherwise find instrument
+      if security_id
+        resolved_security_id = security_id.to_s
+        found_instrument = nil # Don't need to find instrument if we have security_id
+      else
+        # Find instrument to get security_id - try original exchange_segment first, then try IDX_I for indices
+        found_instrument = DhanHQ::Models::Instrument.find(exchange_segment, instrument_symbol)
+        # If not found and exchange_segment is NSE_FNO/BSE_FNO, try IDX_I for index options
+        if !found_instrument && %w[NSE_FNO BSE_FNO].include?(exchange_segment)
+          found_instrument = DhanHQ::Models::Instrument.find("IDX_I", instrument_symbol)
+        end
+
+        unless found_instrument
+          return {
+            action: "get_expired_options_data",
+            error: "Instrument not found. For options, you may need to provide security_id directly.",
+            params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment,
+                      expiry_date: expiry_date }
+          }
+        end
+
+        # Get security_id from instrument
+        resolved_security_id = safe_instrument_attr(found_instrument, :security_id)
+        unless resolved_security_id
+          return {
+            action: "get_expired_options_data",
+            error: "security_id is required and could not be determined from instrument",
+            params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment,
+                      expiry_date: expiry_date }
+          }
+        end
+        resolved_security_id = resolved_security_id.to_s
+      end
+
+      # Determine instrument type - must be OPTIDX or OPTSTK
+      resolved_instrument = instrument || safe_instrument_attr(found_instrument, :instrument_type)
+      resolved_instrument = resolved_instrument.to_s.upcase if resolved_instrument
+
+      # Validate and set default instrument type
+      unless %w[OPTIDX OPTSTK].include?(resolved_instrument)
+        # Default to OPTIDX for index options (IDX_I), OPTSTK for others
+        resolved_instrument = if exchange_segment == "IDX_I"
+                                "OPTIDX"
+                              else
+                                "OPTSTK"
+                              end
+      end
+
+      # Set default required_data if not provided
+      resolved_required_data = required_data || %w[open high low close volume iv oi strike spot]
+
+      # expiry_code is required - use provided value or default to 1 (near month)
+      # Valid values: 0 (far month), 1 (near month), 2 (current month)
+      # Must be explicitly set, cannot be nil
+      resolved_expiry_code = if expiry_code.nil?
+                               1 # Default to near month
+                             else
+                               expiry_code.to_i
+                             end
+
+      # Ensure expiry_code is within valid range
+      unless [0, 1, 2].include?(resolved_expiry_code)
+        resolved_expiry_code = 1 # Fallback to near month if invalid
+      end
+
+      # Calculate to_date (expiry_date + 1 day, or same day if single day range)
+      from_date_str = expiry_date.to_s
+      to_date_obj = Date.parse(from_date_str) + 1
+      to_date_str = to_date_obj.strftime("%Y-%m-%d")
+
+      # Call ExpiredOptionsData.fetch with all required parameters
+      expired_data = DhanHQ::Models::ExpiredOptionsData.fetch(
+        exchange_segment: exchange_segment,
+        interval: interval.to_s,
+        security_id: resolved_security_id.to_i,
+        instrument: resolved_instrument,
+        expiry_flag: expiry_flag.to_s.upcase,
+        expiry_code: resolved_expiry_code.to_i,
+        strike: strike.to_s.upcase,
+        drv_option_type: drv_option_type.to_s.upcase,
+        required_data: resolved_required_data,
+        from_date: from_date_str,
+        to_date: to_date_str
+      )
+
+      {
+        action: "get_expired_options_data",
+        params: { security_id: resolved_security_id, symbol: symbol, exchange_segment: exchange_segment,
+                  expiry_date: expiry_date, expiry_code: resolved_expiry_code, interval: interval,
+                  instrument: resolved_instrument, expiry_flag: expiry_flag, strike: strike,
+                  drv_option_type: drv_option_type },
+        result: {
+          security_id: resolved_security_id,
+          exchange_segment: exchange_segment,
+          expiry_date: expiry_date,
+          data: expired_data.data,
+          call_data: expired_data.call_data,
+          put_data: expired_data.put_data,
+          ohlc_data: expired_data.ohlc_data,
+          volume_data: expired_data.volume_data,
+          summary_stats: expired_data.summary_stats,
+          instrument_info: {
+            trading_symbol: found_instrument ? safe_instrument_attr(found_instrument, :trading_symbol) : symbol,
+            instrument_type: resolved_instrument
           }
         }
-      else
-        {
-          action: "get_expired_options_data",
-          error: "Instrument not found",
-          params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment,
-                    expiry_date: expiry_date }
-        }
-      end
+      }
     rescue StandardError => e
       {
         action: "get_expired_options_data",
@@ -580,6 +661,7 @@ class DhanHQDataTools
                   expiry_date: expiry_date }
       }
     end
+    # rubocop:enable Metrics/ParameterLists, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
   end
 end
 

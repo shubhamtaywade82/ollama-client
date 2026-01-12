@@ -213,7 +213,13 @@ class DataAgent
           security_id: params["security_id"],
           exchange_segment: params["exchange_segment"] || "NSE_FNO",
           expiry_date: params["expiry_date"],
-          expiry_code: params["expiry_code"]
+          expiry_code: params["expiry_code"],
+          interval: params["interval"] || "1",
+          instrument: params["instrument"],
+          expiry_flag: params["expiry_flag"] || "MONTH",
+          strike: params["strike"] || "ATM",
+          drv_option_type: params["drv_option_type"] || "CALL",
+          required_data: params["required_data"]
         )
       end
 
@@ -267,7 +273,7 @@ class DataAgent
       - get_live_ltp: Get live last traded price using Instrument.ltp convenience method (requires: symbol OR security_id as STRING, exchange_segment as STRING)
       - get_market_depth: Get full market depth (bid/ask levels) using Instrument.quote convenience method (requires: symbol OR security_id as STRING, exchange_segment as STRING)
       - get_historical_data: Get historical data using Instrument.daily/intraday convenience methods (requires: symbol OR security_id as STRING, exchange_segment as STRING, from_date, to_date, optional: interval, expiry_code)
-      - get_expired_options_data: Get expired options historical data using Instrument.daily convenience method (requires: symbol OR security_id as STRING, exchange_segment as STRING, expiry_date, optional: expiry_code)
+      - get_expired_options_data: Get expired options historical data (requires: symbol OR security_id as STRING, exchange_segment as STRING, expiry_date; optional: expiry_code, interval, instrument, expiry_flag, strike, drv_option_type, required_data)
       - get_option_chain: Get option chain using Instrument.expiry_list/option_chain convenience methods (requires: symbol OR security_id as STRING, exchange_segment as STRING, optional: expiry)
       - no_action: Take no action if unclear what data is needed
 
@@ -494,7 +500,7 @@ if __FILE__ == $PROGRAM_NAME
         puts "  ✅ NIFTY: LTP=#{ltp}"
       else
         puts "  ⚠️  NIFTY: Data retrieved but LTP is null/empty (may be outside market hours)"
-        puts "     Result: #{nifty_result[:result].inspect[0..200]}"
+        puts "     Result: #{JSON.pretty_generate(nifty_result[:result])}"
       end
     elsif nifty_result && nifty_result[:error]
       puts "  ⚠️  NIFTY data error: #{nifty_result[:error]}"
@@ -518,7 +524,7 @@ if __FILE__ == $PROGRAM_NAME
         puts "  ✅ RELIANCE: LTP=#{ltp}"
       else
         puts "  ⚠️  RELIANCE: Data retrieved but LTP is null/empty (may be outside market hours)"
-        puts "     Result: #{reliance_result[:result].inspect[0..200]}"
+        puts "     Result: #{JSON.pretty_generate(reliance_result[:result])}"
       end
     elsif reliance_result && reliance_result[:error]
       puts "  ⚠️  RELIANCE data error: #{reliance_result[:error]}"
@@ -597,7 +603,7 @@ if __FILE__ == $PROGRAM_NAME
     result = DhanHQDataTools.get_market_quote(symbol: test_symbol, exchange_segment: test_exchange)
     if result[:result]
       puts "   ✅ Market Quote retrieved"
-      puts "   📊 Quote data: #{result[:result][:quote].inspect[0..150]}"
+      puts "   📊 Quote data: #{JSON.pretty_generate(result[:result][:quote])}"
     else
       puts "   ⚠️  #{result[:error]}"
     end
@@ -679,18 +685,35 @@ if __FILE__ == $PROGRAM_NAME
   puts "5️⃣  Expired Options Data API"
   begin
     # Use NSE_FNO for options
-    # Note: Options symbols may need different format (e.g., "NIFTY" for index options)
-    # For equity options, the symbol format might be different
+    # Note: For NIFTY index options, use security_id=13 directly (NIFTY is in IDX_I, not NSE_FNO)
     # Try with NIFTY which typically has options
     result = DhanHQDataTools.get_expired_options_data(
-      symbol: "NIFTY", # NIFTY typically has options, RELIANCE might not
+      security_id: "13", # NIFTY security_id (use directly since symbol lookup might fail in NSE_FNO)
       exchange_segment: "NSE_FNO",
-      expiry_date: (Date.today - 7).strftime("%Y-%m-%d") # Use recent expired date
+      expiry_date: (Date.today - 7).strftime("%Y-%m-%d"), # Use recent expired date
+      instrument: "OPTIDX", # Index options
+      expiry_flag: "MONTH",
+      expiry_code: 1, # Use 1 (near month) as default
+      strike: "ATM",
+      drv_option_type: "CALL",
+      interval: "1"
     )
     if result[:result]
       puts "   ✅ Expired options data retrieved"
       puts "   📊 Expiry: #{result[:result][:expiry_date]}"
-      puts "   📊 Data: #{result[:result][:data].inspect[0..150]}"
+      # Show summary of expired options data instead of full data (can be very large)
+      data_summary = if result[:result][:data].is_a?(Hash)
+                       {
+                         call_data_points: result[:result][:call_data]&.dig(:open)&.length || 0,
+                         put_data_points: result[:result][:put_data]&.dig(:open)&.length || 0,
+                         has_ohlc: !result[:result][:ohlc_data].empty?,
+                         has_volume: !result[:result][:volume_data].empty?,
+                         summary_stats: result[:result][:summary_stats]
+                       }
+                     else
+                       "Data available (#{result[:result][:data].class})"
+                     end
+      puts "   📊 Data summary: #{JSON.pretty_generate(data_summary)}"
     else
       puts "   ⚠️  #{result[:error]}"
       puts "      (Note: Options may require specific symbol format or may not exist for this instrument)"
@@ -718,7 +741,7 @@ if __FILE__ == $PROGRAM_NAME
         expiries = result[:result][:expiries]
         puts "   📊 First few expiries: #{expiries.first(3).inspect}" if expiries.is_a?(Array)
       elsif result[:result][:chain]
-        puts "   📊 Option chain: #{result[:result][:chain].inspect[0..150]}"
+        puts "   📊 Option chain: #{JSON.pretty_generate(result[:result][:chain])}"
       end
     else
       puts "   ⚠️  #{result[:error]}"
