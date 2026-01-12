@@ -10,6 +10,16 @@ require_relative "ollama/agent/planner"
 require_relative "ollama/agent/executor"
 
 # Main entry point for OllamaClient gem
+#
+# ⚠️ THREAD SAFETY WARNING:
+# Global configuration via OllamaClient.configure is NOT thread-safe.
+# For concurrent agents or multi-threaded applications, use per-client
+# configuration instead:
+#
+#   config = Ollama::Config.new
+#   config.model = "llama3.1"
+#   client = Ollama::Client.new(config: config)
+#
 module OllamaClient
   @config_mutex = Mutex.new
   @warned_thread_config = false

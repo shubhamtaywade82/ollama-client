@@ -20,10 +20,15 @@ module Ollama
     # Chat API method matching JavaScript ollama.chat() interface
     # Supports structured outputs via format parameter
     #
+    # ⚠️ WARNING: chat() is NOT recommended for agent planning or tool routing.
+    # Use generate() instead for stateless, explicit state injection.
+    #
     # @param model [String] Model name (overrides config.model)
     # @param messages [Array<Hash>] Array of message hashes with :role and :content
     # @param format [Hash, nil] JSON Schema for structured outputs
     # @param options [Hash, nil] Additional options (temperature, top_p, etc.)
+    # @param strict [Boolean] If true, requires explicit opt-in and disables retries on schema violations
+    # @param include_meta [Boolean] If true, returns hash with :data and :meta keys
     # @return [Hash] Parsed and validated JSON response matching the format schema
     def chat(messages:, model: nil, format: nil, options: {}, strict: false, allow_chat: false, return_meta: false)
       unless allow_chat || strict
@@ -325,6 +330,36 @@ module Ollama
       raise TimeoutError, "Request timed out after #{@config.timeout}s"
     rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
       raise Error, "Connection failed: #{e.message}"
+    end
+
+    # Health check: verify Ollama server is reachable and responding
+    #
+    # @return [Hash] Health status with :status, :latency_ms, and optional :error
+    def health
+      start_time = Time.now
+      ping_uri = URI("#{@config.base_url}/api/tags")
+
+      req = Net::HTTP::Get.new(ping_uri)
+      res = Net::HTTP.start(
+        ping_uri.hostname,
+        ping_uri.port,
+        read_timeout: 5, # Short timeout for health checks
+        open_timeout: 5
+      ) { |http| http.request(req) }
+
+      latency_ms = ((Time.now - start_time) * 1000).round(2)
+
+      if res.is_a?(Net::HTTPSuccess)
+        { status: "healthy", latency_ms: latency_ms }
+      else
+        { status: "unhealthy", latency_ms: latency_ms, error: "HTTP #{res.code}" }
+      end
+    rescue Net::ReadTimeout, Net::OpenTimeout
+      { status: "unhealthy", latency_ms: ((Time.now - start_time) * 1000).round(2), error: "timeout" }
+    rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
+      { status: "unhealthy", latency_ms: ((Time.now - start_time) * 1000).round(2), error: e.message }
+    rescue StandardError => e
+      { status: "unhealthy", latency_ms: ((Time.now - start_time) * 1000).round(2), error: e.message }
     end
 
     private

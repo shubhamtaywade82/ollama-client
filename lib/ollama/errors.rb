@@ -17,10 +17,12 @@ module Ollama
     end
 
     def retryable?
-      # Retry on server errors (5xx) and some client errors (408, 429)
-      return true if @status_code.nil?
-      return true if @status_code >= 500
-      return true if [408, 429].include?(@status_code)
+      # Explicit retry policy:
+      # - Retry: 408 (Request Timeout), 429 (Too Many Requests), 500 (Internal Server Error), 502 (Bad Gateway), 503 (Service Unavailable)
+      # - Never retry: 400-407, 409-428, 430-499 (client errors)
+      # - Never retry: 501, 504-599 (other server errors - may indicate permanent issues)
+      return true if @status_code.nil? # Unknown status - retry for safety
+      return true if [408, 429, 500, 502, 503].include?(@status_code)
 
       false
     end

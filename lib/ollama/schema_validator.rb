@@ -5,6 +5,10 @@ require_relative "errors"
 
 module Ollama
   # Validates JSON data against JSON Schema
+  #
+  # For agent-grade usage, enforces strict schemas by default:
+  # - additionalProperties: false (unless explicitly set)
+  # - Prevents LLMs from adding unexpected fields
   class SchemaValidator
     def self.validate!(data, schema)
       JSON::Validator.validate!(prepare_schema(schema), data)

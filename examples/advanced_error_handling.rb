@@ -32,19 +32,15 @@ class ResilientAgent
         @stats[:successes] += 1
         puts "✅ Success on attempt #{attempt}"
         return { success: true, result: result, attempts: attempt }
-
       rescue Ollama::NotFoundError => e
         @stats[:failures] += 1
         @stats[:errors_by_type]["NotFoundError"] ||= 0
         @stats[:errors_by_type]["NotFoundError"] += 1
 
         puts "❌ Model not found: #{e.message}"
-        if e.suggestions && !e.suggestions.empty?
-          puts "   Suggestions: #{e.suggestions.join(', ')}"
-        end
+        puts "   Suggestions: #{e.suggestions.join(', ')}" if e.suggestions && !e.suggestions.empty?
         # Don't retry 404s
         return { success: false, error: e, error_type: "NotFoundError", attempts: attempt }
-
       rescue Ollama::HTTPError => e
         @stats[:failures] += 1
         @stats[:errors_by_type]["HTTPError"] ||= 0
@@ -54,14 +50,17 @@ class ResilientAgent
         if e.retryable?
           @stats[:retries] += 1
           puts "   → Retryable, will retry..."
-          return { success: false, error: e, error_type: "HTTPError", retryable: true, attempts: attempt } if attempt >= max_attempts
-          sleep(2 ** attempt) # Exponential backoff
+          if attempt > max_attempts
+            return { success: false, error: e, error_type: "HTTPError", retryable: true,
+                     attempts: attempt }
+          end
+
+          sleep(2**attempt) # Exponential backoff
           next
         else
           puts "   → Non-retryable, aborting"
           return { success: false, error: e, error_type: "HTTPError", retryable: false, attempts: attempt }
         end
-
       rescue Ollama::TimeoutError => e
         @stats[:failures] += 1
         @stats[:errors_by_type]["TimeoutError"] ||= 0
@@ -69,14 +68,11 @@ class ResilientAgent
 
         puts "⏱️  Timeout: #{e.message}"
         @stats[:retries] += 1
-        if attempt < max_attempts
-          puts "   → Retrying with exponential backoff..."
-          sleep(2 ** attempt)
-          next
-        else
-          return { success: false, error: e, error_type: "TimeoutError", attempts: attempt }
-        end
+        return { success: false, error: e, error_type: "TimeoutError", attempts: attempt } unless attempt < max_attempts
 
+        puts "   → Retrying with exponential backoff..."
+        sleep(2**attempt)
+        next
       rescue Ollama::SchemaViolationError => e
         @stats[:failures] += 1
         @stats[:errors_by_type]["SchemaViolationError"] ||= 0
@@ -85,18 +81,17 @@ class ResilientAgent
         puts "🔴 Schema violation: #{e.message}"
         # Schema violations are usually not worth retrying (model issue)
         # But we could try with a simpler schema as fallback
-        if attempt < max_attempts
-          puts "   → Attempting with simplified schema..."
-          simplified_schema = create_fallback_schema(schema)
-          return execute_with_resilience(
-            prompt: prompt,
-            schema: simplified_schema,
-            max_attempts: 1
-          )
-        else
+        unless attempt < max_attempts
           return { success: false, error: e, error_type: "SchemaViolationError", attempts: attempt }
         end
 
+        puts "   → Attempting with simplified schema..."
+        simplified_schema = create_fallback_schema(schema)
+        return execute_with_resilience(
+          prompt: prompt,
+          schema: simplified_schema,
+          max_attempts: 1
+        )
       rescue Ollama::InvalidJSONError => e
         @stats[:failures] += 1
         @stats[:errors_by_type]["InvalidJSONError"] ||= 0
@@ -104,14 +99,13 @@ class ResilientAgent
 
         puts "📄 Invalid JSON: #{e.message}"
         @stats[:retries] += 1
-        if attempt < max_attempts
-          puts "   → Retrying..."
-          sleep(1)
-          next
-        else
+        unless attempt < max_attempts
           return { success: false, error: e, error_type: "InvalidJSONError", attempts: attempt }
         end
 
+        puts "   → Retrying..."
+        sleep(1)
+        next
       rescue Ollama::RetryExhaustedError => e
         @stats[:failures] += 1
         @stats[:errors_by_type]["RetryExhaustedError"] ||= 0
@@ -119,7 +113,6 @@ class ResilientAgent
 
         puts "🔄 Retries exhausted: #{e.message}"
         return { success: false, error: e, error_type: "RetryExhaustedError", attempts: attempt }
-
       rescue Ollama::Error => e
         @stats[:failures] += 1
         @stats[:errors_by_type]["Error"] ||= 0
@@ -127,7 +120,6 @@ class ResilientAgent
 
         puts "❌ General error: #{e.message}"
         return { success: false, error: e, error_type: "Error", attempts: attempt }
-
       rescue StandardError => e
         @stats[:failures] += 1
         @stats[:errors_by_type]["StandardError"] ||= 0
