@@ -41,7 +41,7 @@ class EdgeCaseTester
     }
 
     begin
-      result = @client.generate(prompt: long_prompt, schema: schema)
+      @client.generate(prompt: long_prompt, schema: schema)
       puts "  ✅ Handled long prompt (#{long_prompt.length} chars)"
     rescue Ollama::Error => e
       puts "  ❌ Error: #{e.class} - #{e.message}"
@@ -60,7 +60,7 @@ class EdgeCaseTester
     }
 
     begin
-      result = @client.generate(prompt: special_prompt, schema: schema)
+      @client.generate(prompt: special_prompt, schema: schema)
       puts "  ✅ Handled special characters"
     rescue Ollama::Error => e
       puts "  ❌ Error: #{e.class} - #{e.message}"
@@ -79,7 +79,7 @@ class EdgeCaseTester
     }
 
     begin
-      result = @client.generate(prompt: unicode_prompt, schema: schema)
+      @client.generate(prompt: unicode_prompt, schema: schema)
       puts "  ✅ Handled unicode characters"
     rescue Ollama::Error => e
       puts "  ❌ Error: #{e.class} - #{e.message}"
@@ -137,8 +137,11 @@ class EdgeCaseTester
     }
 
     begin
+      prompt_text = "Generate a valid object with id (1-1000), " \
+                    "name (3-20 alphanumeric chars), " \
+                    "and values (2-5 numbers 0-100)"
       result = @client.generate(
-        prompt: "Generate a valid object with id (1-1000), name (3-20 alphanumeric chars), and values (2-5 numbers 0-100)",
+        prompt: prompt_text,
         schema: strict_schema
       )
       puts "  ✅ Handled strict schema"
@@ -168,7 +171,7 @@ class EdgeCaseTester
     }
 
     begin
-      result = @client.generate(
+      @client.generate(
         prompt: "Generate a 2x2x2 matrix of integers",
         schema: nested_schema
       )

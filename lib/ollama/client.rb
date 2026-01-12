@@ -61,7 +61,11 @@ module Ollama
 
         # CRITICAL: If format is provided, free-text output is forbidden
         if format
-          raise SchemaViolationError, "Empty or nil response when format schema is required" if parsed.nil? || parsed.empty?
+          if parsed.nil? || parsed.empty?
+            raise SchemaViolationError,
+                  "Empty or nil response when format schema is required"
+          end
+
           SchemaValidator.validate!(parsed, format)
         end
 
@@ -71,7 +75,7 @@ module Ollama
           "data" => parsed,
           "meta" => {
             "endpoint" => "/api/chat",
-            "model" => (model || @config.model),
+            "model" => model || @config.model,
             "attempts" => attempts,
             "latency_ms" => elapsed_ms(started_at)
           }
@@ -153,10 +157,17 @@ module Ollama
         # If a format schema is provided, validate the assistant content JSON (when present).
         if format
           content = parsed_body.dig("message", "content")
-          raise SchemaViolationError, "Empty or nil response when format schema is required" if content.nil? || content.empty?
+          if content.nil? || content.empty?
+            raise SchemaViolationError,
+                  "Empty or nil response when format schema is required"
+          end
 
           parsed_content = parse_json_response(content)
-          raise SchemaViolationError, "Empty or nil response when format schema is required" if parsed_content.nil? || parsed_content.empty?
+          if parsed_content.nil? || parsed_content.empty?
+            raise SchemaViolationError,
+                  "Empty or nil response when format schema is required"
+          end
+
           SchemaValidator.validate!(parsed_content, format)
         end
 
@@ -166,7 +177,7 @@ module Ollama
           "data" => parsed_body,
           "meta" => {
             "endpoint" => "/api/chat",
-            "model" => (model || @config.model),
+            "model" => model || @config.model,
             "attempts" => attempts,
             "latency_ms" => elapsed_ms(started_at)
           }
@@ -221,6 +232,7 @@ module Ollama
 
         # CRITICAL: If schema is provided, free-text output is forbidden
         raise SchemaViolationError, "Empty or nil response when schema is required" if parsed.nil? || parsed.empty?
+
         SchemaValidator.validate!(parsed, schema)
         return parsed unless return_meta
 
@@ -784,17 +796,13 @@ module Ollama
                 delta_content = msg["content"]
                 aggregated["message"]["content"] << delta_content.to_s if delta_content
 
-                if msg["tool_calls"]
-                  aggregated["message"]["tool_calls"] = msg["tool_calls"]
-                end
+                aggregated["message"]["tool_calls"] = msg["tool_calls"] if msg["tool_calls"]
 
                 aggregated["message"]["role"] = msg["role"] if msg["role"]
               end
 
               # Many Ollama stream payloads include `done: true` on the last line.
-              if obj["done"] == true
-                final_obj = obj
-              end
+              final_obj = obj if obj["done"] == true
             end
           end
         end

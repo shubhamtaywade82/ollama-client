@@ -35,4 +35,3 @@ RSpec.describe Ollama::Agent::Planner do
     expect(request_body).to have_key("format")
   end
 end
-

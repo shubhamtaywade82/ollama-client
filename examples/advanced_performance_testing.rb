@@ -119,12 +119,12 @@ class PerformanceMonitor
       puts "  P99: #{latencies.sort[(latencies.length * 0.99).to_i].round(2)}"
     end
 
-    if @metrics[:errors].any?
-      puts "\nErrors by type:"
-      error_counts = @metrics[:errors].group_by { |e| e[:error] }
-      error_counts.each do |error_type, errors|
-        puts "  #{error_type}: #{errors.length}"
-      end
+    return unless @metrics[:errors].any?
+
+    puts "\nErrors by type:"
+    error_counts = @metrics[:errors].group_by { |e| e[:error] }
+    error_counts.each do |error_type, errors|
+      puts "  #{error_type}: #{errors.length}"
     end
   end
 

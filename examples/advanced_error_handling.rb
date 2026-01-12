@@ -19,6 +19,7 @@ class ResilientAgent
     }
   end
 
+  # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
   def execute_with_resilience(prompt:, schema:, max_attempts: 3)
     @stats[:total_calls] += 1
     attempt = 0
@@ -130,8 +131,9 @@ class ResilientAgent
       end
     end
   end
+  # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
-  def create_fallback_schema(original_schema)
+  def create_fallback_schema(_original_schema)
     # Create a minimal fallback schema
     {
       "type" => "object",
@@ -147,7 +149,7 @@ class ResilientAgent
     puts "Successes: #{@stats[:successes]}"
     puts "Failures: #{@stats[:failures]}"
     puts "Retries: #{@stats[:retries]}"
-    success_rate = @stats[:total_calls] > 0 ? (@stats[:successes].to_f / @stats[:total_calls] * 100).round(2) : 0
+    success_rate = @stats[:total_calls].positive? ? (@stats[:successes].to_f / @stats[:total_calls] * 100).round(2) : 0
     puts "Success rate: #{success_rate}%"
     puts "\nErrors by type:"
     @stats[:errors_by_type].each do |type, count|

@@ -122,7 +122,6 @@ class MultiStepAgent
         if decision["risk_assessment"] && decision["risk_assessment"]["level"] == "high"
           puts "⚠️  High risk detected - proceeding with caution"
         end
-
       rescue Ollama::SchemaViolationError => e
         puts "❌ Schema violation: #{e.message}"
         @state[:errors] << { step: step_count, error: "schema_violation", message: e.message }
@@ -148,7 +147,7 @@ class MultiStepAgent
 
   private
 
-  def build_context(goal:)
+  def build_context(_goal:)
     {
       steps_completed: @state[:steps_completed].map { |s| s[:action] },
       data_collected: @state[:data_collected].keys,
@@ -188,9 +187,9 @@ class MultiStepAgent
         puts "   Risk Factors: #{decision['risk_assessment']['factors'].join(', ')}"
       end
     end
-    if decision["next_steps"] && !decision["next_steps"].empty?
-      puts "   Next Steps: #{decision['next_steps'].join(' → ')}"
-    end
+    return unless decision["next_steps"] && !decision["next_steps"].empty?
+
+    puts "   Next Steps: #{decision['next_steps'].join(' → ')}"
   end
 
   def execute_action(decision)
@@ -235,11 +234,11 @@ class MultiStepAgent
     puts "Steps completed: #{@state[:steps_completed].length}"
     puts "Data collected: #{@state[:data_collected].keys.join(', ') || 'none'}"
     puts "Errors: #{@state[:errors].length}"
-    if @state[:errors].any?
-      puts "\nErrors:"
-      @state[:errors].each do |error|
-        puts "  Step #{error[:step]}: #{error[:error]} - #{error[:message]}"
-      end
+    return unless @state[:errors].any?
+
+    puts "\nErrors:"
+    @state[:errors].each do |error|
+      puts "  Step #{error[:step]}: #{error[:error]} - #{error[:message]}"
     end
   end
 end

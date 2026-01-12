@@ -29,9 +29,7 @@ module Ollama
         last_assistant_content = nil
 
         @max_steps.times do
-          if @stream
-            @stream.emit(:state, state: :assistant_streaming)
-          end
+          @stream&.emit(:state, state: :assistant_streaming)
 
           response =
             if @stream
@@ -74,21 +72,24 @@ module Ollama
             args_hash = normalize_arguments(args)
 
             callable = @tools[name]
-            raise Ollama::Error, "Tool '#{name}' not found. Available: #{@tools.keys.sort.join(', ')}" unless callable
+            raise Ollama::Error, "Tool '#{name}' not found. Available: #{@tools.keys.sort.join(", ")}" unless callable
 
-            @stream.emit(:state, state: :tool_executing) if @stream
+            @stream&.emit(:state, state: :tool_executing)
             result = invoke_tool(callable, args_hash)
             tool_content = encode_tool_result(result)
 
             tool_call_id = call["id"] || call["tool_call_id"]
             @messages << Messages.tool(content: tool_content, name: name, tool_call_id: tool_call_id)
-            @stream.emit(:state, state: :tool_result_injected) if @stream
+            @stream&.emit(:state, state: :tool_result_injected)
           end
         end
 
-        raise Ollama::Error, "Executor exceeded max_steps=#{@max_steps} (possible infinite tool loop)" if last_assistant_content.nil?
+        if last_assistant_content.nil?
+          raise Ollama::Error,
+                "Executor exceeded max_steps=#{@max_steps} (possible infinite tool loop)"
+        end
 
-        @stream.emit(:final, text: last_assistant_content.to_s) if @stream
+        @stream&.emit(:final, text: last_assistant_content.to_s)
         last_assistant_content
       end
 
@@ -114,6 +115,7 @@ module Ollama
         cur = obj
         path.each do |k|
           return nil unless cur.is_a?(Hash)
+
           cur = cur[k] || cur[k.to_sym]
         end
         cur
@@ -151,4 +153,3 @@ module Ollama
     end
   end
 end
-

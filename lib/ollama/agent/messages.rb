@@ -29,4 +29,3 @@ module Ollama
     end
   end
 end
-

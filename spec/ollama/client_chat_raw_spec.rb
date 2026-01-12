@@ -77,4 +77,3 @@ RSpec.describe Ollama::Client, "#chat_raw" do
     expect(result.dig("message", "content")).to include("Hello")
   end
 end
-

@@ -32,4 +32,3 @@ RSpec.describe Ollama::Agent::Planner do
     end.to raise_error(Ollama::InvalidJSONError)
   end
 end
-

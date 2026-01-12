@@ -30,17 +30,18 @@ rescue StandardError
 end
 
 # Helper to build market context from data
+# rubocop:disable Metrics/PerceivedComplexity
 def build_market_context_from_data(market_data)
   context_parts = []
 
   if market_data[:nifty]
     ltp = market_data[:nifty][:ltp]
     change = market_data[:nifty][:change_percent]
-    if ltp && ltp != 0
-      context_parts << "NIFTY is trading at #{ltp} (#{change || 'unknown'}% change)"
-    else
-      context_parts << "NIFTY data retrieved but LTP is not available (may be outside market hours)"
-    end
+    context_parts << if ltp && ltp != 0
+                       "NIFTY is trading at #{ltp} (#{change || 'unknown'}% change)"
+                     else
+                       "NIFTY data retrieved but LTP is not available (may be outside market hours)"
+                     end
   else
     context_parts << "NIFTY data not available"
   end
@@ -49,11 +50,11 @@ def build_market_context_from_data(market_data)
     ltp = market_data[:reliance][:ltp]
     change = market_data[:reliance][:change_percent]
     volume = market_data[:reliance][:volume]
-    if ltp && ltp != 0
-      context_parts << "RELIANCE is at #{ltp} (#{change || 'unknown'}% change, Volume: #{volume || 'N/A'})"
-    else
-      context_parts << "RELIANCE data retrieved but LTP is not available (may be outside market hours)"
-    end
+    context_parts << if ltp && ltp != 0
+                       "RELIANCE is at #{ltp} (#{change || 'unknown'}% change, Volume: #{volume || 'N/A'})"
+                     else
+                       "RELIANCE data retrieved but LTP is not available (may be outside market hours)"
+                     end
   else
     context_parts << "RELIANCE data not available"
   end
@@ -69,6 +70,7 @@ def build_market_context_from_data(market_data)
 
   context_parts.join("\n")
 end
+# rubocop:enable Metrics/PerceivedComplexity
 
 # Data-focused Agent using Ollama for reasoning
 class DataAgent
@@ -80,7 +82,8 @@ class DataAgent
       "properties" => {
         "action" => {
           "type" => "string",
-          "enum" => ["get_market_quote", "get_live_ltp", "get_market_depth", "get_historical_data", "get_expired_options_data", "get_option_chain", "no_action"]
+          "enum" => ["get_market_quote", "get_live_ltp", "get_market_depth", "get_historical_data",
+                     "get_expired_options_data", "get_option_chain", "no_action"]
         },
         "reasoning" => {
           "type" => "string",
@@ -110,13 +113,11 @@ class DataAgent
       )
 
       # Validate confidence threshold
-      if decision && decision.is_a?(Hash) && decision["confidence"]
-        if decision["confidence"] < 0.6
-          puts "⚠️  Low confidence (#{(decision["confidence"] * 100).round}%) - skipping action"
-          return { action: "no_action", reason: "low_confidence" }
-        end
-      else
-        return { action: "no_action", reason: "invalid_decision" }
+      return { action: "no_action", reason: "invalid_decision" } unless decision.is_a?(Hash) && decision["confidence"]
+
+      if decision["confidence"] < 0.6
+        puts "⚠️  Low confidence (#{(decision["confidence"] * 100).round}%) - skipping action"
+        return { action: "no_action", reason: "low_confidence" }
       end
 
       decision
@@ -129,6 +130,7 @@ class DataAgent
     end
   end
 
+  # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
   def execute_decision(decision)
     action = decision["action"]
     params = decision["parameters"] || {}
@@ -195,8 +197,14 @@ class DataAgent
       end
 
     when "get_expired_options_data"
-      if (params["symbol"].nil? && (params["security_id"].nil? || params["security_id"].to_s.empty?)) || params["expiry_date"].nil?
-        { action: "get_expired_options_data", error: "Either symbol or security_id, and expiry_date are required", params: params }
+      symbol_or_id_missing = params["symbol"].nil? &&
+                             (params["security_id"].nil? || params["security_id"].to_s.empty?)
+      if symbol_or_id_missing || params["expiry_date"].nil?
+        {
+          action: "get_expired_options_data",
+          error: "Either symbol or security_id, and expiry_date are required",
+          params: params
+        }
       else
         DhanHQDataTools.get_expired_options_data(
           symbol: params["symbol"],
@@ -214,6 +222,7 @@ class DataAgent
       { action: "unknown", error: "Unknown action: #{action}" }
     end
   end
+  # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
   private
 
@@ -294,13 +303,11 @@ class TradingAgent
       )
 
       # Validate confidence threshold
-      if decision && decision.is_a?(Hash) && decision["confidence"]
-        if decision["confidence"] < 0.6
-          puts "⚠️  Low confidence (#{(decision["confidence"] * 100).round}%) - skipping action"
-          return { action: "no_action", reason: "low_confidence" }
-        end
-      else
-        return { action: "no_action", reason: "invalid_decision" }
+      return { action: "no_action", reason: "invalid_decision" } unless decision.is_a?(Hash) && decision["confidence"]
+
+      if decision["confidence"] < 0.6
+        puts "⚠️  Low confidence (#{(decision["confidence"] * 100).round}%) - skipping action"
+        return { action: "no_action", reason: "low_confidence" }
       end
 
       decision
@@ -319,42 +326,58 @@ class TradingAgent
 
     case action
     when "place_order"
-      DhanHQTradingTools.build_order_params(
-        transaction_type: params["transaction_type"] || "BUY",
-        exchange_segment: params["exchange_segment"] || "NSE_EQ",
-        product_type: params["product_type"] || "MARGIN",
-        order_type: params["order_type"] || "LIMIT",
-        security_id: params["security_id"],
-        quantity: params["quantity"] || 1,
-        price: params["price"]
-      )
-
+      handle_place_order(params)
     when "place_super_order"
-      DhanHQTradingTools.build_super_order_params(
-        transaction_type: params["transaction_type"] || "BUY",
-        exchange_segment: params["exchange_segment"] || "NSE_EQ",
-        product_type: params["product_type"] || "MARGIN",
-        order_type: params["order_type"] || "LIMIT",
-        security_id: params["security_id"],
-        quantity: params["quantity"] || 1,
-        price: params["price"],
-        target_price: params["target_price"],
-        stop_loss_price: params["stop_loss_price"],
-        trailing_jump: params["trailing_jump"] || 10
-      )
-
+      handle_place_super_order(params)
     when "cancel_order"
-      DhanHQTradingTools.build_cancel_params(order_id: params["order_id"])
-
+      handle_cancel_order(params)
     when "no_action"
-      { action: "no_action", message: "No action taken" }
-
+      handle_no_action
     else
-      { action: "unknown", error: "Unknown action: #{action}" }
+      handle_unknown_action(action)
     end
   end
 
   private
+
+  def handle_place_order(params)
+    DhanHQTradingTools.build_order_params(
+      transaction_type: params["transaction_type"] || "BUY",
+      exchange_segment: params["exchange_segment"] || "NSE_EQ",
+      product_type: params["product_type"] || "MARGIN",
+      order_type: params["order_type"] || "LIMIT",
+      security_id: params["security_id"],
+      quantity: params["quantity"] || 1,
+      price: params["price"]
+    )
+  end
+
+  def handle_place_super_order(params)
+    DhanHQTradingTools.build_super_order_params(
+      transaction_type: params["transaction_type"] || "BUY",
+      exchange_segment: params["exchange_segment"] || "NSE_EQ",
+      product_type: params["product_type"] || "MARGIN",
+      order_type: params["order_type"] || "LIMIT",
+      security_id: params["security_id"],
+      quantity: params["quantity"] || 1,
+      price: params["price"],
+      target_price: params["target_price"],
+      stop_loss_price: params["stop_loss_price"],
+      trailing_jump: params["trailing_jump"] || 10
+    )
+  end
+
+  def handle_cancel_order(params)
+    DhanHQTradingTools.build_cancel_params(order_id: params["order_id"])
+  end
+
+  def handle_no_action
+    { action: "no_action", message: "No action taken" }
+  end
+
+  def handle_unknown_action(action)
+    { action: "unknown", error: "Unknown action: #{action}" }
+  end
 
   def build_analysis_prompt(market_context:)
     <<~PROMPT
@@ -429,8 +452,8 @@ if __FILE__ == $PROGRAM_NAME
     # Note: Instrument.find expects symbol "NIFTY", not security_id
     # Rate limiting is handled automatically in DhanHQDataTools
     nifty_result = DhanHQDataTools.get_live_ltp(symbol: "NIFTY", exchange_segment: "IDX_I")
-    sleep(1.2)  # Rate limit: 1 request per second for MarketFeed APIs
-    if nifty_result && nifty_result.is_a?(Hash) && nifty_result[:result] && !nifty_result[:error]
+    sleep(1.2) # Rate limit: 1 request per second for MarketFeed APIs
+    if nifty_result.is_a?(Hash) && nifty_result[:result] && !nifty_result[:error]
       market_data[:nifty] = nifty_result[:result]
       ltp = nifty_result[:result][:ltp]
       if ltp && ltp != 0
@@ -453,8 +476,8 @@ if __FILE__ == $PROGRAM_NAME
     # Note: Instrument.find expects symbol "RELIANCE", not security_id
     # Rate limiting is handled automatically in DhanHQDataTools
     reliance_result = DhanHQDataTools.get_live_ltp(symbol: "RELIANCE", exchange_segment: "NSE_EQ")
-    sleep(1.2)  # Rate limit: 1 request per second for MarketFeed APIs
-    if reliance_result && reliance_result.is_a?(Hash) && reliance_result[:result] && !reliance_result[:error]
+    sleep(1.2) # Rate limit: 1 request per second for MarketFeed APIs
+    if reliance_result.is_a?(Hash) && reliance_result[:result] && !reliance_result[:error]
       market_data[:reliance] = reliance_result[:result]
       ltp = reliance_result[:result][:ltp]
       if ltp && ltp != 0
@@ -472,9 +495,10 @@ if __FILE__ == $PROGRAM_NAME
     puts "  ⚠️  RELIANCE data error: #{e.message}"
   end
 
-  # Note: Positions and holdings are not part of the 6 Data APIs
+  # NOTE: Positions and holdings are not part of the 6 Data APIs
   begin
-    positions_result = { action: "check_positions", result: { positions: [], count: 0 }, note: "Positions API not available in Data Tools" }
+    positions_result = { action: "check_positions", result: { positions: [], count: 0 },
+                         note: "Positions API not available in Data Tools" }
     if positions_result[:result]
       market_data[:positions] = positions_result[:result][:positions] || []
       puts "  ✅ Positions: #{positions_result[:result][:count] || 0} active"
@@ -501,10 +525,10 @@ if __FILE__ == $PROGRAM_NAME
     decision = data_agent.analyze_and_decide(market_context: market_context)
 
     puts "\n📋 Decision:"
-    if decision && decision.is_a?(Hash)
+    if decision.is_a?(Hash)
       puts "   Action: #{decision['action'] || 'N/A'}"
       puts "   Reasoning: #{decision['reasoning'] || 'N/A'}"
-      if decision['confidence']
+      if decision["confidence"]
         puts "   Confidence: #{(decision['confidence'] * 100).round}%"
       else
         puts "   Confidence: N/A"
@@ -530,7 +554,7 @@ if __FILE__ == $PROGRAM_NAME
   puts "Demonstrating all available DhanHQ Data APIs:"
   puts
 
-  test_symbol = "RELIANCE"  # RELIANCE symbol for Instrument.find
+  test_symbol = "RELIANCE" # RELIANCE symbol for Instrument.find
   test_exchange = "NSE_EQ"
 
   # 1. Market Quote (uses Instrument convenience method)
@@ -548,7 +572,7 @@ if __FILE__ == $PROGRAM_NAME
   end
 
   puts
-  sleep(1.2)  # Rate limit: 1 request per second for MarketFeed APIs
+  sleep(1.2) # Rate limit: 1 request per second for MarketFeed APIs
 
   # 2. Live Market Feed (LTP) (uses Instrument convenience method)
   puts "2️⃣  Live Market Feed API (LTP)"
@@ -565,7 +589,7 @@ if __FILE__ == $PROGRAM_NAME
   end
 
   puts
-  sleep(1.2)  # Rate limit: 1 request per second for MarketFeed APIs
+  sleep(1.2) # Rate limit: 1 request per second for MarketFeed APIs
 
   # 3. Full Market Depth (uses Instrument convenience method)
   puts "3️⃣  Full Market Depth API"
@@ -585,7 +609,7 @@ if __FILE__ == $PROGRAM_NAME
   end
 
   puts
-  sleep(1.2)  # Rate limit: 1 request per second for MarketFeed APIs
+  sleep(1.2) # Rate limit: 1 request per second for MarketFeed APIs
 
   # 4. Historical Data (uses symbol for Instrument.find)
   puts "4️⃣  Historical Data API"
@@ -608,7 +632,7 @@ if __FILE__ == $PROGRAM_NAME
   end
 
   puts
-  sleep(0.5)  # Small delay for Instrument APIs
+  sleep(0.5) # Small delay for Instrument APIs
 
   # 5. Expired Options Data (uses symbol for Instrument.find)
   puts "5️⃣  Expired Options Data API"
@@ -631,7 +655,7 @@ if __FILE__ == $PROGRAM_NAME
   end
 
   puts
-  sleep(0.5)  # Small delay for Instrument APIs
+  sleep(0.5) # Small delay for Instrument APIs
 
   # 6. Option Chain (uses symbol for Instrument.find)
   puts "6️⃣  Option Chain API"
@@ -644,7 +668,8 @@ if __FILE__ == $PROGRAM_NAME
       puts "   ✅ Option chain data retrieved"
       if result[:result][:expiries]
         puts "   📊 Available expiries: #{result[:result][:count]}"
-        puts "   📊 First few expiries: #{result[:result][:expiries].first(3).inspect}" if result[:result][:expiries].is_a?(Array)
+        expiries = result[:result][:expiries]
+        puts "   📊 First few expiries: #{expiries.first(3).inspect}" if expiries.is_a?(Array)
       elsif result[:result][:chain]
         puts "   📊 Option chain: #{result[:result][:chain].inspect[0..150]}"
       end
@@ -690,12 +715,10 @@ if __FILE__ == $PROGRAM_NAME
     decision = trading_agent.analyze_and_decide(market_context: market_context)
 
     puts "\n📋 Decision:"
-    if decision && decision.is_a?(Hash)
+    if decision.is_a?(Hash)
       puts "   Action: #{decision['action'] || 'N/A'}"
       puts "   Reasoning: #{decision['reasoning'] || 'N/A'}"
-      if decision['confidence']
-        puts "   Confidence: #{(decision['confidence'] * 100).round}%"
-      end
+      puts "   Confidence: #{(decision['confidence'] * 100).round}%" if decision["confidence"]
       puts "   Parameters: #{JSON.pretty_generate(decision['parameters'] || {})}"
     end
 
@@ -703,7 +726,7 @@ if __FILE__ == $PROGRAM_NAME
       puts "\n⚡ Building order parameters (order not placed)..."
       result = trading_agent.execute_decision(decision)
       puts "   Result: #{JSON.pretty_generate(result)}"
-      if result && result.is_a?(Hash) && result[:order_params]
+      if result.is_a?(Hash) && result[:order_params]
         puts "\n   📝 Order Parameters Ready:"
         puts "      #{JSON.pretty_generate(result[:order_params])}"
         puts "   💡 To place order: DhanHQ::Models::Order.new(result[:order_params]).save"
@@ -720,7 +743,8 @@ if __FILE__ == $PROGRAM_NAME
   puts "DhanHQ Agent Summary:"
   puts "  ✅ Ollama: Reasoning & Decision Making"
   puts "  ✅ DhanHQ: Data Retrieval & Order Building"
-  puts "  ✅ Data APIs: Market Quote, Live Market Feed, Full Market Depth, Historical Data, Expired Options Data, Option Chain"
+  puts "  ✅ Data APIs: Market Quote, Live Market Feed, Full Market Depth, " \
+       "Historical Data, Expired Options Data, Option Chain"
   puts "  ✅ Trading Tools: Order parameters, Super order parameters, Cancel parameters"
   puts "  ✅ Instrument Convenience Methods: ltp, ohlc, quote, daily, intraday, expiry_list, option_chain"
   puts "=" * 60

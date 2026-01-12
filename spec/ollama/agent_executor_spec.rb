@@ -142,4 +142,3 @@ RSpec.describe Ollama::Agent::Executor do
     expect(tool_called_at).to be > tool_detected_idx
   end
 end
-

@@ -47,22 +47,16 @@ module Ollama
           h["patternProperties"] = h["patternProperties"].transform_values { |v| enforce_no_additional_properties(v) }
         end
 
-        if h["items"]
-          h["items"] = enforce_no_additional_properties(h["items"])
-        end
+        h["items"] = enforce_no_additional_properties(h["items"]) if h["items"]
 
-        if h["additionalItems"]
-          h["additionalItems"] = enforce_no_additional_properties(h["additionalItems"])
-        end
+        h["additionalItems"] = enforce_no_additional_properties(h["additionalItems"]) if h["additionalItems"]
 
         # JSON Schema draft variants
         if h["definitions"].is_a?(Hash)
           h["definitions"] = h["definitions"].transform_values { |v| enforce_no_additional_properties(v) }
         end
 
-        if h["$defs"].is_a?(Hash)
-          h["$defs"] = h["$defs"].transform_values { |v| enforce_no_additional_properties(v) }
-        end
+        h["$defs"] = h["$defs"].transform_values { |v| enforce_no_additional_properties(v) } if h["$defs"].is_a?(Hash)
 
         # Enforce strict object shape by default.
         is_objectish =
@@ -70,9 +64,7 @@ module Ollama
           h.key?("properties") ||
           h.key?("patternProperties")
 
-        if is_objectish && !h.key?("additionalProperties")
-          h["additionalProperties"] = false
-        end
+        h["additionalProperties"] = false if is_objectish && !h.key?("additionalProperties")
 
         h
       else

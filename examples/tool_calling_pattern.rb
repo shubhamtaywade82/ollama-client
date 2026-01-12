@@ -47,7 +47,7 @@ class SearchTool < Tool
     super(name: "search", description: "Search for information")
   end
 
-  def call(input:, context:)
+  def call(input:, context: nil) # rubocop:disable Lint/UnusedMethodArgument
     query = input["query"] || "default"
     # In real code, this would call your search API
     {
@@ -67,7 +67,7 @@ class CalculateTool < Tool
     super(name: "calculate", description: "Perform calculations")
   end
 
-  def call(input:, context:)
+  def call(input:, context: nil) # rubocop:disable Lint/UnusedMethodArgument
     operation = input["operation"] || "add"
     a = input["a"] || 0
     b = input["b"] || 0
@@ -94,7 +94,7 @@ class StoreTool < Tool
     @storage = {}
   end
 
-  def call(input:, context:)
+  def call(input:, context: nil) # rubocop:disable Lint/UnusedMethodArgument
     key = input["key"] || "default"
     value = input["value"] || {}
     @storage[key] = value
@@ -110,7 +110,7 @@ end
 # Tool Router - matches README example exactly
 class ToolRouter
   def initialize(llm:, registry:)
-    @llm = llm  # Ollama::Client instance
+    @llm = llm # Ollama::Client instance
     @registry = registry
   end
 
