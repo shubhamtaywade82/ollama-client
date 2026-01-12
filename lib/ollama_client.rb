@@ -4,6 +4,9 @@ require_relative "ollama/config"
 require_relative "ollama/errors"
 require_relative "ollama/schema_validator"
 require_relative "ollama/client"
+require_relative "ollama/agent/messages"
+require_relative "ollama/agent/planner"
+require_relative "ollama/agent/executor"
 
 # Main entry point for OllamaClient gem
 module OllamaClient

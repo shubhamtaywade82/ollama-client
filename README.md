@@ -13,7 +13,7 @@ This gem provides:
 * ✅ Zero hidden state
 * ✅ Extensible schemas
 
-Everything else (tools, agents, domains) lives **outside** this gem.
+Domain tools and application logic live **outside** this gem. For convenience, it also includes a small `Ollama::Agent` layer (Planner + Executor) for common agent patterns.
 
 ## 🎯 What This Gem IS
 
@@ -24,8 +24,7 @@ Everything else (tools, agents, domains) lives **outside** this gem.
 
 ## 🚫 What This Gem IS NOT
 
-* ❌ Agent loop
-* ❌ Tool router
+* ❌ Domain tool implementations
 * ❌ Domain logic
 * ❌ Memory store
 * ❌ Chat UI
@@ -77,6 +76,57 @@ gem install ollama-client
 - ✅ No implicit memory or conversation history
 
 **This is the method you should use for hybrid agents.**
+
+### Choosing the Correct API (generate vs chat)
+
+- **Use `/api/generate`** (via `Ollama::Client#generate` or `Ollama::Agent::Planner`) for **stateless planner/router** steps where you want strict, deterministic structured outputs.
+- **Use `/api/chat`** (via `Ollama::Agent::Executor`) for **stateful tool-using** workflows where the model may request tool calls across multiple turns.
+
+**Warnings:**
+- Don’t use `generate()` for tool-calling loops (you’ll end up re-implementing message/tool lifecycles).
+- Don’t use `chat()` for deterministic planners unless you’re intentionally managing conversation state.
+
+### Planner Agent (stateless, /api/generate)
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+planner = Ollama::Agent::Planner.new(client)
+
+plan = planner.run(
+  prompt: <<~PROMPT,
+    Given the user request, output a JSON plan with steps.
+    Return ONLY valid JSON.
+  PROMPT
+  context: { user_request: "Plan a weekend trip to Rome" }
+)
+
+puts plan
+```
+
+### Executor Agent (tool loop, /api/chat)
+
+```ruby
+require "ollama_client"
+require "json"
+
+client = Ollama::Client.new
+
+tools = {
+  "fetch_weather" => ->(city:) { { city: city, forecast: "sunny", high_c: 18, low_c: 10 } },
+  "find_hotels" => ->(city:, max_price:) { [{ name: "Hotel Example", city: city, price_per_night: max_price }] }
+}
+
+executor = Ollama::Agent::Executor.new(client, tools: tools)
+
+answer = executor.run(
+  system: "You are a travel assistant. Use tools when you need real data.",
+  user: "Plan a 3-day trip to Paris in October. Use tools for weather and hotels."
+)
+
+puts answer
+```
 
 ### Basic Configuration
 
@@ -432,11 +482,11 @@ end
 
 ## Architecture: Tool Calling Pattern
 
-**Important:** This gem does **NOT** include tool calling. Here's why and how to do it correctly:
+**Important:** This gem includes a tool-calling *loop helper* (`Ollama::Agent::Executor`), but it still does **not** include any domain tools. Tool execution remains **pure Ruby** and **outside the LLM**.
 
-### Why Tools Don't Belong Here
+### Why Tools Still Don’t “Belong in the LLM”
 
-Ollama does not have native tool calling. Tool execution is an **orchestration concern**, not an LLM concern. The correct pattern is:
+Tool execution is an **orchestration concern**, not an LLM concern. The correct pattern is:
 
 ```
 ┌──────────────────────────┐
@@ -457,10 +507,10 @@ Ollama does not have native tool calling. Tool execution is an **orchestration c
 
 ### The Correct Pattern
 
-1. **LLM outputs structured intent** (via this gem with schema validation)
-2. **Agent validates and routes** to the appropriate tool
-3. **Tool executes deterministically** (pure Ruby, no LLM calls)
-4. **Agent observes results** and decides next step
+1. **LLM requests a tool call** (via `/api/chat` + tool definitions)
+2. **Your agent executes the tool deterministically** (pure Ruby, no LLM calls)
+3. **Tool result is appended as `role: "tool"`**
+4. **LLM continues** until no more tool calls
 
 **Key principle:** LLMs describe intent. Agents execute tools.
 
