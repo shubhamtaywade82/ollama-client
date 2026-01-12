@@ -123,7 +123,10 @@ class ToolRouter
         "required" => ["action"],
         "properties" => {
           "action" => { "type" => "string" },
-          "input" => { "type" => "object" }
+          "input" => {
+            "type" => "object",
+            "additionalProperties" => true
+          }
         }
       }
     )

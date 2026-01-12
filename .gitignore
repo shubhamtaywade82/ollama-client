@@ -31,3 +31,4 @@ lib/bundler/man/
 # Environment
 .env
 .env.local
+metrics.json

@@ -118,6 +118,45 @@ class MultiStepAgent
           break
         end
 
+        # Prevent infinite loops - if we've done the same action 3+ times, force progression
+        recent_actions = @state[:steps_completed].last(3).map { |s| s[:action] }
+        if recent_actions.length == 3 && recent_actions.uniq.length == 1
+          puts "⚠️  Detected repetitive actions - forcing workflow progression"
+          # Force next phase
+          if recent_actions.first == "collect"
+            puts "   → Moving to analysis phase"
+            decision["action"]["type"] = "analyze"
+            decision["action"]["parameters"] = { "target" => "collected_data" }
+            result = execute_action(decision)
+            @state[:steps_completed] << {
+              step: decision["step"],
+              action: "analyze",
+              result: result
+            }
+          elsif recent_actions.first == "analyze"
+            puts "   → Moving to validation phase"
+            decision["action"]["type"] = "validate"
+            decision["action"]["parameters"] = { "type" => "results" }
+            result = execute_action(decision)
+            @state[:steps_completed] << {
+              step: decision["step"],
+              action: "validate",
+              result: result
+            }
+          elsif recent_actions.first == "validate"
+            puts "   → Completing workflow"
+            decision["action"]["type"] = "complete"
+            result = execute_action(decision)
+            @state[:steps_completed] << {
+              step: decision["step"],
+              action: "complete",
+              result: result
+            }
+            puts "\n✅ Workflow completed successfully!"
+            break
+          end
+        end
+
         # Handle risk
         if decision["risk_assessment"] && decision["risk_assessment"]["level"] == "high"
           puts "⚠️  High risk detected - proceeding with caution"
@@ -147,31 +186,61 @@ class MultiStepAgent
 
   private
 
-  def build_context(_goal:)
+  def build_context(goal:) # rubocop:disable Lint/UnusedMethodArgument
     {
       steps_completed: @state[:steps_completed].map { |s| s[:action] },
       data_collected: @state[:data_collected].keys,
-      error_count: @state[:errors].length
+      error_count: @state[:errors].length,
+      step_count: @state[:steps_completed].length
     }
   end
 
   def build_prompt(goal:, context:)
+    step_count = context[:step_count]
+    completed_actions = context[:steps_completed]
+    collected_data = context[:data_collected]
+
+    # Determine current phase based on what's been done
+    phase = if completed_actions.empty?
+              "collection"
+            elsif completed_actions.include?("collect") && !completed_actions.include?("analyze")
+              "analysis"
+            elsif completed_actions.include?("analyze") && !completed_actions.include?("validate")
+              "validation"
+            else
+              "completion"
+            end
+
     <<~PROMPT
       Goal: #{goal}
 
-      Workflow State:
-      - Steps completed: #{context[:steps_completed].join(", ") || "none"}
-      - Data collected: #{context[:data_collected].join(", ") || "none"}
-      - Errors encountered: #{context[:error_count]}
+      Current Phase: #{phase}
+      Steps completed: #{step_count}
+      Actions taken: #{completed_actions.join(", ") || "none"}
+      Data collected: #{collected_data.join(", ") || "none"}
+      Errors encountered: #{context[:error_count]}
 
-      Analyze the current state and decide the next action.
-      Consider:
-      1. What data still needs to be collected?
-      2. What analysis is needed?
-      3. What validation is required?
-      4. When should the workflow complete?
+      Workflow Phases (in order):
+      1. COLLECTION: Collect initial data (user data, patterns, etc.)
+      2. ANALYSIS: Analyze collected data for patterns and insights
+      3. VALIDATION: Validate the analysis results
+      4. COMPLETION: Finish the workflow
+
+      Current State Analysis:
+      - You are in the #{phase} phase
+      - You have completed #{step_count} steps
+      - You have collected: #{collected_data.any? ? collected_data.join(", ") : "nothing yet"}
+
+      Decision Guidelines:
+      - If in COLLECTION phase and no data collected: use action "collect" with specific data_type (e.g., "user_data", "patterns")
+      - If data collected but not analyzed: use action "analyze" with target
+      - If analyzed but not validated: use action "validate"
+      - If all phases done: use action "complete"
+      - AVOID repeating the same action multiple times unless necessary
+      - Progress through phases: collect → analyze → validate → complete
 
       Provide a structured decision with high confidence (>0.7) if possible.
+      Set step number to #{step_count + 1}.
     PROMPT
   end
 
@@ -198,15 +267,21 @@ class MultiStepAgent
 
     case action_type
     when "collect"
-      data_key = params["data_type"] || "unknown"
+      data_key = params["data_type"] || params["key"] || "user_data"
+      # Prevent collecting the same generic data repeatedly
+      if @state[:data_collected].key?(data_key) && data_key.match?(/^(missing|unknown|data)$/i) && !@state[:data_collected].key?("user_data")
+        data_key = "user_data"
+      end
       puts "   📥 Collecting: #{data_key}"
       @state[:data_collected][data_key] = "collected_at_#{Time.now.to_i}"
       { status: "collected", key: data_key }
 
     when "analyze"
-      target = params["target"] || "data"
+      target = params["target"] || "collected_data"
       puts "   🔍 Analyzing: #{target}"
-      { status: "analyzed", target: target, insights: "analysis_complete" }
+      # Mark that analysis has been done
+      @state[:data_collected]["analysis_complete"] = true
+      { status: "analyzed", target: target, insights: "Patterns identified in collected data" }
 
     when "transform"
       transformation = params["type"] || "default"
@@ -214,9 +289,11 @@ class MultiStepAgent
       { status: "transformed", type: transformation }
 
     when "validate"
-      validation_type = params["type"] || "general"
+      validation_type = params["type"] || "results"
       puts "   ✓ Validating: #{validation_type}"
-      { status: "validated", type: validation_type }
+      # Mark that validation has been done
+      @state[:data_collected]["validation_complete"] = true
+      { status: "validated", type: validation_type, result: "All checks passed" }
 
     when "complete"
       puts "   ✅ Completing workflow"
