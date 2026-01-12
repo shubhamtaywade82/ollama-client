@@ -46,6 +46,8 @@ This keeps it **clean and future-proof**.
 | Tools run in Ruby (not in the LLM)     | ✅   |
 | Streaming is display-only (Executor)   | ✅   |
 
+**Non-negotiable safety rule:** the **LLM never executes side effects**. It may request a tool call; **your Ruby code** executes the tool.
+
 ## Installation
 
 Add this line to your application's Gemfile:
@@ -97,6 +99,15 @@ This gem intentionally focuses on **agent building blocks**:
 
 - **Supported**: `/api/generate`, `/api/chat`, `/api/tags`, `/api/ping`
 - **Not guaranteed**: full endpoint parity with every Ollama release (embeddings, advanced model mgmt, etc.)
+
+### Agent endpoint mapping (unambiguous)
+
+Within `Ollama::Agent`:
+
+- `Ollama::Agent::Planner` **always** uses `/api/generate`
+- `Ollama::Agent::Executor` **always** uses `/api/chat`
+
+(`Ollama::Client` remains the low-level API surface.)
 
 ### Planner Agent (stateless, /api/generate)
 
@@ -163,6 +174,17 @@ end
 
 executor = Ollama::Agent::Executor.new(client, tools: tools, stream: observer)
 ```
+
+### JSON & schema contracts (including “no extra fields”)
+
+This gem is contract-first:
+
+- **JSON parsing**: invalid JSON raises `Ollama::InvalidJSONError` (no silent fallback to text).
+- **Schema validation**: invalid outputs raise `Ollama::SchemaViolationError`.
+- **No extra fields by default**: object schemas are treated as strict shapes unless you explicitly allow more fields.
+  - To allow extras, set `"additionalProperties" => true` on the relevant object schema.
+
+**Strictness control:** methods accept `strict:` to fail fast (no retries on invalid JSON/schema) vs retry within configured bounds.
 
 ### Basic Configuration
 
