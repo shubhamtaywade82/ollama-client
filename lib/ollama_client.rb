@@ -7,11 +7,24 @@ require_relative "ollama/client"
 
 # Main entry point for OllamaClient gem
 module OllamaClient
+  @config_mutex = Mutex.new
+  @warned_thread_config = false
+
   def self.config
-    @config ||= Ollama::Config.new
+    @config_mutex.synchronize do
+      @config ||= Ollama::Config.new
+    end
   end
 
   def self.configure
-    yield(config)
+    if Thread.current != Thread.main && !@warned_thread_config
+      @warned_thread_config = true
+      warn("[ollama-client] Global OllamaClient.configure is not thread-safe. Prefer per-client config (Ollama::Client.new(config: ...)).")
+    end
+
+    @config_mutex.synchronize do
+      @config ||= Ollama::Config.new
+      yield(@config)
+    end
   end
 end

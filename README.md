@@ -211,6 +211,8 @@ end
 
 ⚠️ **Warning:** `chat()` is **NOT recommended** for agent planning or tool routing.
 
+**Safety gate:** `chat()` requires explicit opt-in (`allow_chat: true`) so you don’t accidentally use it inside agent internals.
+
 **Why?**
 - Chat encourages implicit memory and conversation history
 - Message history grows silently over time
@@ -234,7 +236,7 @@ result = client.generate(
 
 # ❌ AVOID: Implicit conversation history
 messages = [{ role: "user", content: "..." }]
-result = client.chat(messages: messages, format: schema)  # History grows silently
+result = client.chat(messages: messages, format: schema, allow_chat: true)  # History grows silently
 ```
 
 ### Example: Chat API (Advanced Use Case)
@@ -278,6 +280,7 @@ begin
     model: "llama3.1:8b",
     messages: messages,
     format: friend_list_schema,
+    allow_chat: true,
     options: {
       temperature: 0  # More deterministic
     }
