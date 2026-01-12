@@ -64,7 +64,8 @@ RSpec.describe Ollama::Client, "#chat_raw" do
     body = [
       { message: { role: "assistant", content: "Hello" }, done: false }.to_json,
       { message: { role: "assistant", content: " world" }, done: true }.to_json
-    ].join("\n") + "\n"
+    ].join("\n")
+    body = "#{body}\n"
 
     stub_request(:post, "http://localhost:11434/api/chat")
       .to_return(status: 200, body: body)

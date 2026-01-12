@@ -102,7 +102,7 @@ RSpec.describe Ollama::Agent::Executor do
     }
 
     # Stream response #1: emits tokens then requests a tool call.
-    stream_body_1 = [
+    stream_body_one = [
       { message: { role: "assistant", content: "Checking weather..." }, done: false }.to_json,
       {
         message: {
@@ -118,17 +118,19 @@ RSpec.describe Ollama::Agent::Executor do
         },
         done: true
       }.to_json
-    ].join("\n") + "\n"
+    ].join("\n")
+    stream_body_one = "#{stream_body_one}\n"
 
     # Stream response #2: final assistant answer after tool result is injected.
-    stream_body_2 = [
+    stream_body_two = [
       { message: { role: "assistant", content: "Paris will be sunny." }, done: true }.to_json
-    ].join("\n") + "\n"
+    ].join("\n")
+    stream_body_two = "#{stream_body_two}\n"
 
     stub_request(:post, "http://localhost:11434/api/chat")
       .to_return(
-        { status: 200, body: stream_body_1 },
-        { status: 200, body: stream_body_2 }
+        { status: 200, body: stream_body_one },
+        { status: 200, body: stream_body_two }
       )
 
     executor = described_class.new(client, tools: tools, max_steps: 5, stream: observer)
