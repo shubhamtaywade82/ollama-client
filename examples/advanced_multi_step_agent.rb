@@ -123,7 +123,8 @@ class MultiStepAgent
         if recent_actions.length == 3 && recent_actions.uniq.length == 1
           puts "⚠️  Detected repetitive actions - forcing workflow progression"
           # Force next phase
-          if recent_actions.first == "collect"
+          case recent_actions.first
+          when "collect"
             puts "   → Moving to analysis phase"
             decision["action"]["type"] = "analyze"
             decision["action"]["parameters"] = { "target" => "collected_data" }
@@ -133,7 +134,7 @@ class MultiStepAgent
               action: "analyze",
               result: result
             }
-          elsif recent_actions.first == "analyze"
+          when "analyze"
             puts "   → Moving to validation phase"
             decision["action"]["type"] = "validate"
             decision["action"]["parameters"] = { "type" => "results" }
@@ -143,7 +144,7 @@ class MultiStepAgent
               action: "validate",
               result: result
             }
-          elsif recent_actions.first == "validate"
+          when "validate"
             puts "   → Completing workflow"
             decision["action"]["type"] = "complete"
             result = execute_action(decision)

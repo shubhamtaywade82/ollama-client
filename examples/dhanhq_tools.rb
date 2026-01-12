@@ -495,8 +495,6 @@ class DhanHQDataTools
                                security_id.to_i
                              elsif found_instrument
                                safe_instrument_attr(found_instrument, :security_id)&.to_i
-                             else
-                               nil
                              end
 
       unless resolved_security_id
