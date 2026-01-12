@@ -17,6 +17,7 @@ module Ollama
       @config = config || default_config
       @uri = URI("#{@config.base_url}/api/generate")
       @chat_uri = URI("#{@config.base_url}/api/chat")
+      @base_uri = URI(@config.base_url)
     end
 
     # Chat API method matching JavaScript ollama.chat() interface
@@ -27,13 +28,33 @@ module Ollama
     # @param format [Hash, nil] JSON Schema for structured outputs
     # @param options [Hash, nil] Additional options (temperature, top_p, etc.)
     # @return [Hash] Parsed and validated JSON response matching the format schema
-    def chat(messages:, model: nil, format: nil, options: {})
+    def chat(messages:, model: nil, format: nil, options: {}, strict: false, allow_chat: false, return_meta: false)
+      unless allow_chat || strict
+        raise Error,
+              "chat() is intentionally gated because it is easy to misuse inside agents. " \
+              "Prefer generate(). If you really want chat(), pass allow_chat: true (or strict: true)."
+      end
+
       attempts = 0
       @current_schema = format # Store for validation
+      started_at = monotonic_time
 
       begin
         attempts += 1
+        attempt_started_at = monotonic_time
         raw = call_chat_api(model: model, messages: messages, format: format, options: options)
+        attempt_latency_ms = elapsed_ms(attempt_started_at)
+
+        emit_response_hook(
+          raw,
+          {
+            endpoint: "/api/chat",
+            model: model || @config.model,
+            attempt: attempts,
+            attempt_latency_ms: attempt_latency_ms
+          }
+        )
+
         parsed = parse_json_response(raw)
 
         # CRITICAL: If format is provided, free-text output is forbidden
@@ -42,7 +63,17 @@ module Ollama
           SchemaValidator.validate!(parsed, format)
         end
 
-        parsed
+        return parsed unless return_meta
+
+        {
+          "data" => parsed,
+          "meta" => {
+            "endpoint" => "/api/chat",
+            "model" => (model || @config.model),
+            "attempts" => attempts,
+            "latency_ms" => elapsed_ms(started_at)
+          }
+        }
       rescue NotFoundError => e
         enhanced_error = enhance_not_found_error(e)
         raise enhanced_error
@@ -51,26 +82,55 @@ module Ollama
         raise RetryExhaustedError, "Failed after #{attempts} attempts: #{e.message}" if attempts > @config.retries
 
         retry
-      rescue TimeoutError, InvalidJSONError, SchemaViolationError, Error => e
+      rescue InvalidJSONError, SchemaViolationError => e
+        raise e if strict
+        raise RetryExhaustedError, "Failed after #{attempts} attempts: #{e.message}" if attempts > @config.retries
+
+        retry
+      rescue TimeoutError, Error => e
         raise RetryExhaustedError, "Failed after #{attempts} attempts: #{e.message}" if attempts > @config.retries
 
         retry
       end
     end
 
-    def generate(prompt:, schema:)
+    def generate(prompt:, schema:, strict: false, return_meta: false)
       attempts = 0
       @current_schema = schema # Store for prompt enhancement
+      started_at = monotonic_time
 
       begin
         attempts += 1
+        attempt_started_at = monotonic_time
         raw = call_api(prompt)
+        attempt_latency_ms = elapsed_ms(attempt_started_at)
+
+        emit_response_hook(
+          raw,
+          {
+            endpoint: "/api/generate",
+            model: @config.model,
+            attempt: attempts,
+            attempt_latency_ms: attempt_latency_ms
+          }
+        )
+
         parsed = parse_json_response(raw)
 
         # CRITICAL: If schema is provided, free-text output is forbidden
         raise SchemaViolationError, "Empty or nil response when schema is required" if parsed.nil? || parsed.empty?
         SchemaValidator.validate!(parsed, schema)
-        parsed
+        return parsed unless return_meta
+
+        {
+          "data" => parsed,
+          "meta" => {
+            "endpoint" => "/api/generate",
+            "model" => @config.model,
+            "attempts" => attempts,
+            "latency_ms" => elapsed_ms(started_at)
+          }
+        }
       rescue NotFoundError => e
         # 404 errors are never retried, but we can suggest models
         enhanced_error = enhance_not_found_error(e)
@@ -81,11 +141,69 @@ module Ollama
         raise RetryExhaustedError, "Failed after #{attempts} attempts: #{e.message}" if attempts > @config.retries
 
         retry
-      rescue TimeoutError, InvalidJSONError, SchemaViolationError, Error => e
+      rescue InvalidJSONError, SchemaViolationError => e
+        raise e if strict
+        raise RetryExhaustedError, "Failed after #{attempts} attempts: #{e.message}" if attempts > @config.retries
+
+        retry
+      rescue TimeoutError, Error => e
         raise RetryExhaustedError, "Failed after #{attempts} attempts: #{e.message}" if attempts > @config.retries
 
         retry
       end
+    end
+
+    def generate_strict!(prompt:, schema:, return_meta: false)
+      generate(prompt: prompt, schema: schema, strict: true, return_meta: return_meta)
+    end
+
+    # Lightweight server health check.
+    # Returns true/false by default; pass return_meta: true for details.
+    def health(return_meta: false)
+      ping_uri = URI.join(@base_uri.to_s.end_with?("/") ? @base_uri.to_s : "#{@base_uri}/", "api/ping")
+      started_at = monotonic_time
+
+      req = Net::HTTP::Get.new(ping_uri)
+      res = Net::HTTP.start(
+        ping_uri.hostname,
+        ping_uri.port,
+        read_timeout: @config.timeout,
+        open_timeout: @config.timeout
+      ) { |http| http.request(req) }
+
+      ok = res.is_a?(Net::HTTPSuccess)
+      return ok unless return_meta
+
+      {
+        "ok" => ok,
+        "meta" => {
+          "endpoint" => "/api/ping",
+          "status_code" => res.code.to_i,
+          "latency_ms" => elapsed_ms(started_at)
+        }
+      }
+    rescue Net::ReadTimeout, Net::OpenTimeout
+      return false unless return_meta
+
+      {
+        "ok" => false,
+        "meta" => {
+          "endpoint" => "/api/ping",
+          "error" => "timeout",
+          "latency_ms" => elapsed_ms(started_at)
+        }
+      }
+    rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
+      return false unless return_meta
+
+      {
+        "ok" => false,
+        "meta" => {
+          "endpoint" => "/api/ping",
+          "error" => e.message,
+          "latency_ms" => elapsed_ms(started_at)
+        }
+      }
     end
 
     # Generate a schema-validated tool intent (no execution).
@@ -140,7 +258,10 @@ module Ollama
 
     def default_config
       if defined?(OllamaClient)
-        OllamaClient.config
+        # Avoid sharing a mutable global config object across clients/threads.
+        # The OllamaClient.config instance remains global for convenience,
+        # but each Client gets its own copy by default.
+        OllamaClient.config.dup
       else
         Config.new
       end
@@ -197,22 +318,85 @@ module Ollama
     end
 
     def parse_json_response(raw)
-      # CRITICAL: Never parse raw text directly - extract JSON first
-      # Ollama can return leading text, markdown fences, or explanations
-      json_start = raw.index("{")
-      json_end = raw.rindex("}")
+      json_text = extract_json_fragment(raw)
+      JSON.parse(json_text)
+    rescue JSON::ParserError => e
+      raise InvalidJSONError, "Failed to parse extracted JSON: #{e.message}. Extracted: #{json_text&.slice(0, 200)}..."
+    end
 
-      unless json_start && json_end && json_end > json_start
-        raise InvalidJSONError, "No JSON object found in response. Response: #{raw[0..200]}..."
+    def extract_json_fragment(text)
+      raise InvalidJSONError, "Empty response body" if text.nil? || text.empty?
+
+      stripped = text.lstrip
+
+      # Fast path: the whole (trimmed) body is valid JSON (including primitives).
+      if stripped.start_with?("{", "[", "\"", "-", "t", "f", "n") || stripped.match?(/\A\d/)
+        begin
+          JSON.parse(stripped)
+          return stripped
+        rescue JSON::ParserError
+          # Fall back to extraction below (common with prefix/suffix noise).
+        end
       end
 
-      # Extract only the JSON portion
-      json_text = raw[json_start..json_end]
-      begin
-        JSON.parse(json_text)
-      rescue JSON::ParserError => e
-        raise InvalidJSONError, "Failed to parse extracted JSON: #{e.message}. Extracted: #{json_text[0..200]}..."
+      start_idx = text.index(/[{\[]/)
+      raise InvalidJSONError, "No JSON found in response. Response: #{text[0..200]}..." unless start_idx
+
+      stack = []
+      in_string = false
+      escape = false
+
+      i = start_idx
+      while i < text.length
+        ch = text.getbyte(i)
+
+        if in_string
+          if escape
+            escape = false
+          elsif ch == 92 # backslash
+            escape = true
+          elsif ch == 34 # double-quote
+            in_string = false
+          end
+        else
+          case ch
+          when 34 # double-quote
+            in_string = true
+          when 123 # {
+            stack << 125 # }
+          when 91 # [
+            stack << 93 # ]
+          when 125, 93 # }, ]
+            expected = stack.pop
+            unless expected == ch
+              raise InvalidJSONError, "Malformed JSON in response. Response: #{text[start_idx, 200]}..."
+            end
+            return text[start_idx..i] if stack.empty?
+          end
+        end
+
+        i += 1
       end
+
+      raise InvalidJSONError, "Incomplete JSON in response. Response: #{text[start_idx, 200]}..."
+    end
+
+    def emit_response_hook(raw, meta)
+      hook = @config.on_response
+      return unless hook.respond_to?(:call)
+
+      hook.call(raw, meta)
+    rescue StandardError
+      # Observability hooks must never break the main flow.
+      nil
+    end
+
+    def monotonic_time
+      Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    end
+
+    def elapsed_ms(started_at)
+      ((monotonic_time - started_at) * 1000.0).round(1)
     end
 
     def find_similar_models(requested, available, limit: 5)
