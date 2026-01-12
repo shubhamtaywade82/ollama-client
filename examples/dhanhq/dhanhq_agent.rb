@@ -21,9 +21,17 @@ require_relative "schemas/agent_schemas"
 require_relative "services/base_service"
 require_relative "services/data_service"
 require_relative "services/trading_service"
+require_relative "indicators/technical_indicators"
+require_relative "analysis/market_structure"
+require_relative "analysis/pattern_recognizer"
+require_relative "analysis/trend_analyzer"
 require_relative "agents/base_agent"
 require_relative "agents/data_agent"
 require_relative "agents/trading_agent"
+require_relative "agents/technical_analysis_agent"
+require_relative "agents/orchestrator_agent"
+require_relative "scanners/swing_scanner"
+require_relative "scanners/intraday_options_scanner"
 
 module DhanHQ
   # Main agent orchestrator
@@ -33,9 +41,13 @@ module DhanHQ
       @trading_ollama_client = trading_ollama_client || create_trading_client
       @data_agent = Agents::DataAgent.new(ollama_client: @ollama_client)
       @trading_agent = Agents::TradingAgent.new(ollama_client: @trading_ollama_client)
+      @analysis_agent = Agents::TechnicalAnalysisAgent.new(ollama_client: @ollama_client)
+      @orchestrator_agent = Agents::OrchestratorAgent.new(ollama_client: @ollama_client)
+      @swing_scanner = Scanners::SwingScanner.new
+      @options_scanner = Scanners::IntradayOptionsScanner.new
     end
 
-    attr_reader :data_agent, :trading_agent
+    attr_reader :data_agent, :trading_agent, :analysis_agent, :orchestrator_agent, :swing_scanner, :options_scanner
 
     private
 
@@ -482,12 +494,139 @@ if __FILE__ == $PROGRAM_NAME
 
   puts
   puts "=" * 60
+  puts "TECHNICAL ANALYSIS EXAMPLES"
+  puts "=" * 60
+  puts
+
+  # ============================================================
+  # TECHNICAL ANALYSIS EXAMPLES
+  # ============================================================
+  puts "Example 1: Technical Analysis for RELIANCE"
+  puts "─" * 60
+
+  begin
+    analysis_result = agent.analysis_agent.analyze_symbol(
+      symbol: "RELIANCE",
+      exchange_segment: "NSE_EQ"
+    )
+
+    if analysis_result[:error]
+      puts "   ⚠️  Error: #{analysis_result[:error]}"
+    elsif analysis_result[:analysis].nil? || analysis_result[:analysis].empty?
+      puts "   ⚠️  Error: Analysis returned empty result"
+    else
+      analysis = analysis_result[:analysis]
+      puts "   ✅ Analysis Complete"
+      puts "   📊 Trend: #{analysis[:trend]&.dig(:trend) || 'N/A'} (#{analysis[:trend]&.dig(:strength) || 0}% strength)"
+      puts "   📊 RSI: #{analysis[:indicators]&.dig(:rsi)&.round(2) || 'N/A'}"
+      puts "   📊 MACD: #{analysis[:indicators]&.dig(:macd)&.round(2) || 'N/A'}"
+      puts "   📊 Current Price: #{analysis[:current_price] || 'N/A'}"
+      puts "   📊 Patterns Detected: #{analysis[:patterns]&.dig(:candlestick)&.length || 0} candlestick patterns"
+      puts "   📊 Structure Break: #{analysis[:structure_break]&.dig(:broken) ? 'Yes' : 'No'}"
+
+      # Generate swing trading recommendation
+      begin
+        recommendation = agent.analysis_agent.generate_recommendation(
+          analysis_result,
+          trading_style: :swing
+        )
+
+        if recommendation && !recommendation[:error] && recommendation.is_a?(Hash)
+          puts "\n   💡 Swing Trading Recommendation:"
+          puts "      Action: #{recommendation['recommendation']&.upcase || 'N/A'}"
+          puts "      Entry: #{recommendation['entry_price'] || 'N/A'}"
+          puts "      Stop Loss: #{recommendation['stop_loss'] || 'N/A'}"
+          puts "      Target: #{recommendation['target_price'] || 'N/A'}"
+          puts "      Risk/Reward: #{recommendation['risk_reward_ratio']&.round(2) || 'N/A'}"
+          puts "      Confidence: #{(recommendation['confidence'] * 100).round}%" if recommendation["confidence"]
+        end
+      rescue StandardError => e
+        puts "   ⚠️  Could not generate recommendation: #{e.message}"
+      end
+    end
+  rescue StandardError => e
+    puts "   ❌ Error: #{e.message}"
+  end
+
+  puts
+  puts "Example 2: Swing Trading Scanner"
+  puts "─" * 60
+
+  begin
+    # Scan a few symbols for swing opportunities
+    symbols_to_scan = ["RELIANCE", "TCS", "INFY"]
+    puts "   🔍 Scanning #{symbols_to_scan.length} symbols for swing opportunities..."
+
+    candidates = agent.swing_scanner.scan_symbols(
+      symbols_to_scan,
+      exchange_segment: "NSE_EQ",
+      min_score: 40,
+      verbose: true
+    )
+
+    if candidates.empty?
+      puts "   ⚠️  No swing candidates found above minimum score (40/100)"
+      puts "      Try lowering min_score or check rejected candidates above"
+    else
+      puts "   ✅ Found #{candidates.length} swing candidates:"
+      candidates.each do |candidate|
+        puts "      📈 #{candidate[:symbol]}: Score #{candidate[:score]}/100"
+        if candidate[:score_details]
+          details = candidate[:score_details]
+          puts "         Breakdown: Trend=#{details[:trend]}, RSI=#{details[:rsi]}, MACD=#{details[:macd]}, Structure=#{details[:structure]}, Patterns=#{details[:patterns]}"
+        end
+        trend = candidate[:analysis][:trend]
+        puts "         Trend: #{trend[:trend]} (#{trend[:strength]}% strength)"
+        puts "         #{candidate[:interpretation]}"
+      end
+    end
+  rescue StandardError => e
+    puts "   ❌ Error: #{e.message}"
+    puts "   #{e.backtrace.first(3).join("\n   ")}" if e.backtrace
+  end
+
+  puts
+  puts "Example 3: Intraday Options Scanner"
+  puts "─" * 60
+
+  begin
+    puts "   🔍 Scanning NIFTY for intraday options opportunities..."
+
+    options_setups = agent.options_scanner.scan_for_options_setups(
+      "NIFTY",
+      exchange_segment: "IDX_I",
+      min_score: 40,
+      verbose: true
+    )
+
+    if options_setups[:error]
+      puts "   ⚠️  #{options_setups[:error]}"
+    elsif options_setups[:setups] && !options_setups[:setups].empty?
+      puts "   ✅ Found #{options_setups[:setups].length} options setups:"
+      options_setups[:setups].each do |setup|
+        puts "      📊 #{setup[:type].to_s.upcase} @ #{setup[:strike]}"
+        puts "         IV: #{setup[:iv]&.round(2) || 'N/A'}% | OI: #{setup[:oi] || 'N/A'} | Volume: #{setup[:volume] || 'N/A'}"
+        puts "         Score: #{setup[:score]}/100 | Recommendation: #{setup[:recommendation]}"
+      end
+    else
+      puts "   ⚠️  No options setups found above minimum score (40/100)"
+      puts "      Check rejected setups above or try lowering min_score"
+    end
+  rescue StandardError => e
+    puts "   ❌ Error: #{e.message}"
+    puts "   #{e.backtrace.first(3).join("\n   ")}" if e.backtrace
+  end
+
+  puts
+  puts "=" * 60
   puts "DhanHQ Agent Summary:"
   puts "  ✅ Ollama: Reasoning & Decision Making"
   puts "  ✅ DhanHQ: Data Retrieval & Order Building"
   puts "  ✅ Data APIs: Market Quote, Live Market Feed, Full Market Depth, " \
        "Historical Data, Expired Options Data, Option Chain"
   puts "  ✅ Trading Tools: Order parameters, Super order parameters, Cancel parameters"
-  puts "  ✅ Instrument Convenience Methods: ltp, ohlc, quote, daily, intraday, expiry_list, option_chain"
+  puts "  ✅ Technical Analysis: Trend analysis, SMC concepts, Pattern recognition, Indicators (RSI, MACD, MA, etc.)"
+  puts "  ✅ Scanners: Swing trading scanner, Intraday options scanner"
+  puts "  ✅ Analysis Agents: Technical analysis agent with LLM interpretation"
   puts "=" * 60
 end
