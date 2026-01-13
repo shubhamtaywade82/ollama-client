@@ -16,7 +16,7 @@ Gem::Specification.new do |spec|
                      "Not a chatbot UI and not a promise of full Ollama endpoint coverage."
   spec.homepage = "https://github.com/shubhamtaywade82/ollama-client"
   spec.license = "MIT"
-  spec.required_ruby_version = ">= 3.2.0"
+  spec.required_ruby_version = ">= 3.0.0"
 
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/shubhamtaywade82/ollama-client"
