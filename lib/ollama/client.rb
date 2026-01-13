@@ -6,6 +6,8 @@ require "json"
 require_relative "errors"
 require_relative "schema_validator"
 require_relative "config"
+require_relative "embeddings"
+require_relative "response"
 
 module Ollama
   # Main client class for interacting with Ollama API
@@ -16,7 +18,15 @@ module Ollama
       @uri = URI("#{@config.base_url}/api/generate")
       @chat_uri = URI("#{@config.base_url}/api/chat")
       @base_uri = URI(@config.base_url)
+      @embeddings = Embeddings.new(@config)
     end
+
+    # Access embeddings API
+    #
+    # Example:
+    #   client = Ollama::Client.new
+    #   embedding = client.embeddings.embed(model: "all-minilm", input: "What is Ruby?")
+    attr_reader :embeddings
 
     # Chat API method matching JavaScript ollama.chat() interface
     # Supports structured outputs via format parameter
@@ -27,13 +37,15 @@ module Ollama
     # @param model [String] Model name (overrides config.model)
     # @param messages [Array<Hash>] Array of message hashes with :role and :content
     # @param format [Hash, nil] JSON Schema for structured outputs
+    # @param tools [Tool, Array<Tool>, Array<Hash>, nil] Tool definition(s) - can be Tool object(s) or hash(es)
     # @param options [Hash, nil] Additional options (temperature, top_p, etc.)
     # @param strict [Boolean] If true, requires explicit opt-in and disables retries on schema violations
     # @param include_meta [Boolean] If true, returns hash with :data and :meta keys
     # @return [Hash] Parsed and validated JSON response matching the format schema
     # rubocop:disable Metrics/MethodLength
     # rubocop:disable Metrics/ParameterLists
-    def chat(messages:, model: nil, format: nil, options: {}, strict: false, allow_chat: false, return_meta: false)
+    def chat(messages:, model: nil, format: nil, tools: nil, options: {}, strict: false, allow_chat: false,
+             return_meta: false)
       unless allow_chat || strict
         raise Error,
               "chat() is intentionally gated because it is easy to misuse inside agents. " \
@@ -47,7 +59,8 @@ module Ollama
       begin
         attempts += 1
         attempt_started_at = monotonic_time
-        raw = call_chat_api(model: model, messages: messages, format: format, tools: nil, options: options)
+        normalized_tools = normalize_tools(tools)
+        raw = call_chat_api(model: model, messages: messages, format: format, tools: normalized_tools, options: options)
         attempt_latency_ms = elapsed_ms(attempt_started_at)
 
         emit_response_hook(
@@ -59,6 +72,40 @@ module Ollama
             attempt_latency_ms: attempt_latency_ms
           }
         )
+
+        # When tools are used, response might have only tool_calls and no content
+        # In that case, return empty string (caller should use chat_raw() for tool_calls)
+        if raw.nil? || raw.empty?
+          return "" unless return_meta
+
+          return {
+            "data" => "",
+            "meta" => {
+              "endpoint" => "/api/chat",
+              "model" => model || @config.model,
+              "attempts" => attempts,
+              "latency_ms" => elapsed_ms(started_at),
+              "note" => "Empty content (likely tool_calls only - use chat_raw() to access tool_calls)"
+            }
+          }
+        end
+
+        # When tools are used, response might have only tool_calls and no content
+        # In that case, return empty string (caller should use chat_raw() for tool_calls)
+        if raw.nil? || raw.empty?
+          return "" unless return_meta
+
+          return {
+            "data" => "",
+            "meta" => {
+              "endpoint" => "/api/chat",
+              "model" => model || @config.model,
+              "attempts" => attempts,
+              "latency_ms" => elapsed_ms(started_at),
+              "note" => "Empty content (likely tool_calls only - use chat_raw() to access tool_calls)"
+            }
+          }
+        end
 
         parsed = parse_json_response(raw)
 
@@ -112,9 +159,9 @@ module Ollama
     # @param model [String] Model name (overrides config.model)
     # @param messages [Array<Hash>] Array of message hashes with :role and :content
     # @param format [Hash, nil] JSON Schema for structured outputs (validates message.content JSON when present)
-    # @param tools [Array<Hash>, nil] Tool definitions (OpenAI-style schema) sent to Ollama
+    # @param tools [Tool, Array<Tool>, Array<Hash>, nil] Tool definition(s) - can be Tool object(s) or hash(es)
     # @param options [Hash, nil] Additional options (temperature, top_p, etc.)
-    # @return [Hash] Full parsed JSON response body from Ollama
+    # @return [Hash] Full parsed JSON response body from Ollama with access to message.tool_calls
     # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/ParameterLists
     def chat_raw(messages:, model: nil, format: nil, tools: nil, options: {}, strict: false, allow_chat: false,
                  return_meta: false, stream: false, &on_chunk)
@@ -131,18 +178,20 @@ module Ollama
       begin
         attempts += 1
         attempt_started_at = monotonic_time
+        normalized_tools = normalize_tools(tools)
         raw_body =
           if stream
             call_chat_api_raw_stream(
               model: model,
               messages: messages,
               format: format,
-              tools: tools,
+              tools: normalized_tools,
               options: options,
               &on_chunk
             )
           else
-            call_chat_api_raw(model: model, messages: messages, format: format, tools: tools, options: options)
+            call_chat_api_raw(model: model, messages: messages, format: format, tools: normalized_tools,
+                              options: options)
           end
         attempt_latency_ms = elapsed_ms(attempt_started_at)
 
@@ -176,10 +225,13 @@ module Ollama
           SchemaValidator.validate!(parsed_content, format)
         end
 
-        return parsed_body unless return_meta
+        # Wrap in Response object for method access (e.g., response.message&.tool_calls)
+        response_obj = Response.new(parsed_body)
+
+        return response_obj unless return_meta
 
         {
-          "data" => parsed_body,
+          "data" => response_obj,
           "meta" => {
             "endpoint" => "/api/chat",
             "model" => model || @config.model,
@@ -354,6 +406,23 @@ module Ollama
     end
 
     private
+
+    # Normalize tools to array of hashes for API
+    # Supports: Tool object, Array of Tool objects, Array of hashes, or nil
+    def normalize_tools(tools)
+      return nil if tools.nil?
+
+      # Single Tool object
+      return [tools.to_h] if tools.is_a?(Tool)
+
+      # Array of tools
+      if tools.is_a?(Array)
+        return tools.map { |t| t.is_a?(Tool) ? t.to_h : t }
+      end
+
+      # Already a hash (shouldn't happen, but handle gracefully)
+      tools
+    end
 
     def handle_http_error(res, requested_model: nil)
       status_code = res.code.to_i
@@ -659,6 +728,7 @@ module Ollama
 
     # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity, Metrics/BlockLength
     def call_chat_api_raw_stream(model:, messages:, format:, tools:, options:)
+      # tools should already be normalized by caller
       req = Net::HTTP::Post.new(@chat_uri)
       req["Content-Type"] = "application/json"
 
