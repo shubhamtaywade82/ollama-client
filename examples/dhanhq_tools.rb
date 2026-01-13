@@ -79,6 +79,13 @@ end
 # 4. Historical Data
 # 5. Expired Options Data
 # 6. Option Chain
+#
+# NOTE: These tools are callable functions. For use with Ollama::Agent::Executor,
+# you can either:
+# 1. Use them directly as callables (auto-inferred schema)
+# 2. Wrap them with structured Ollama::Tool classes for explicit schemas
+#    See examples/dhanhq/technical_analysis_agentic_runner.rb for examples
+#    of structured Tool definitions with type safety and better LLM understanding.
 class DhanHQDataTools
   class << self
     # Rate limiting: MarketFeed APIs have a limit of 1 request per second

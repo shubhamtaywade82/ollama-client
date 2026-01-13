@@ -78,129 +78,205 @@ puts
 # Initialize agent
 agent = DhanHQ::Agent.new
 
-# Define tools as callable functions
+# Define tools using structured Tool classes for better type safety and LLM understanding
+# This provides explicit schemas with descriptions, types, and enums
+
+# Swing Scan Tool - Structured definition
+swing_scan_tool = Ollama::Tool.new(
+  type: "function",
+  function: Ollama::Tool::Function.new(
+    name: "swing_scan",
+    description: "Scans for swing trading opportunities in EQUITY STOCKS only. Use for stocks like RELIANCE, TCS, INFY, HDFC. Do NOT use for indices (NIFTY, SENSEX, BANKNIFTY).",
+    parameters: Ollama::Tool::Function::Parameters.new(
+      type: "object",
+      properties: {
+        symbol: Ollama::Tool::Function::Parameters::Property.new(
+          type: "string",
+          description: "Stock symbol to scan (e.g., RELIANCE, TCS, INFY). Must be a stock, not an index."
+        ),
+        exchange_segment: Ollama::Tool::Function::Parameters::Property.new(
+          type: "string",
+          description: "Exchange segment (default: NSE_EQ)",
+          enum: %w[NSE_EQ BSE_EQ]
+        ),
+        min_score: Ollama::Tool::Function::Parameters::Property.new(
+          type: "integer",
+          description: "Minimum score threshold (default: 40)"
+        ),
+        verbose: Ollama::Tool::Function::Parameters::Property.new(
+          type: "boolean",
+          description: "Verbose output (default: false)"
+        )
+      },
+      required: %w[symbol]
+    )
+  )
+)
+
+# Options Scan Tool - Structured definition
+options_scan_tool = Ollama::Tool.new(
+  type: "function",
+  function: Ollama::Tool::Function.new(
+    name: "options_scan",
+    description: "Scans for intraday options buying opportunities in INDICES only. Use for NIFTY, SENSEX, BANKNIFTY. Do NOT use for stocks.",
+    parameters: Ollama::Tool::Function::Parameters.new(
+      type: "object",
+      properties: {
+        symbol: Ollama::Tool::Function::Parameters::Property.new(
+          type: "string",
+          description: "Index symbol (NIFTY, SENSEX, or BANKNIFTY). Must be an index, not a stock.",
+          enum: %w[NIFTY SENSEX BANKNIFTY]
+        ),
+        exchange_segment: Ollama::Tool::Function::Parameters::Property.new(
+          type: "string",
+          description: "Exchange segment (default: IDX_I)",
+          enum: %w[IDX_I]
+        ),
+        min_score: Ollama::Tool::Function::Parameters::Property.new(
+          type: "integer",
+          description: "Minimum score threshold (default: 40)"
+        ),
+        verbose: Ollama::Tool::Function::Parameters::Property.new(
+          type: "boolean",
+          description: "Verbose output (default: false)"
+        )
+      },
+      required: %w[symbol]
+    )
+  )
+)
+
+# Technical Analysis Tool - Structured definition
+technical_analysis_tool = Ollama::Tool.new(
+  type: "function",
+  function: Ollama::Tool::Function.new(
+    name: "technical_analysis",
+    description: "Performs full technical analysis including trend, indicators, and patterns. Can be used for both stocks and indices.",
+    parameters: Ollama::Tool::Function::Parameters.new(
+      type: "object",
+      properties: {
+        symbol: Ollama::Tool::Function::Parameters::Property.new(
+          type: "string",
+          description: "Symbol to analyze (stock or index)"
+        ),
+        exchange_segment: Ollama::Tool::Function::Parameters::Property.new(
+          type: "string",
+          description: "Exchange segment (default: NSE_EQ)",
+          enum: %w[NSE_EQ BSE_EQ NSE_FNO BSE_FNO IDX_I]
+        )
+      },
+      required: %w[symbol]
+    )
+  )
+)
+
+# Define tools with structured Tool classes and callables
 tools = {
-  "swing_scan" => lambda do |args|
-    symbol = args["symbol"] || args[:symbol]
-    exchange_segment = args["exchange_segment"] || args[:exchange_segment] || "NSE_EQ"
-    min_score = args["min_score"] || args[:min_score] || 40
-    verbose = args["verbose"] || args[:verbose] || false
+  "swing_scan" => {
+    tool: swing_scan_tool,
+    callable: lambda do |symbol:, exchange_segment: "NSE_EQ", min_score: 40, verbose: false|
+      # CRITICAL: Only allow equity stocks, not indices
+      if %w[NIFTY SENSEX BANKNIFTY].include?(symbol.to_s.upcase)
+        return { error: "#{symbol} is an index, not a stock. Use options_scan for indices." }
+      end
 
-    unless symbol
-      return { error: "symbol is required for swing_scan" }
+      begin
+        candidates = agent.swing_scanner.scan_symbols(
+          [symbol.to_s],
+          exchange_segment: exchange_segment.to_s,
+          min_score: min_score.to_i,
+          verbose: verbose
+        )
+
+        {
+          symbol: symbol,
+          exchange_segment: exchange_segment,
+          candidates_found: candidates.length,
+          candidates: candidates.map do |c|
+            {
+              symbol: c[:symbol],
+              score: c[:score],
+              trend: c[:analysis][:trend][:trend],
+              recommendation: c[:recommendation]
+            }
+          end
+        }
+      rescue StandardError => e
+        { error: e.message, backtrace: e.backtrace.first(3) }
+      end
     end
+  },
 
-    # CRITICAL: Only allow equity stocks, not indices
-    if %w[NIFTY SENSEX BANKNIFTY].include?(symbol.to_s.upcase)
-      return { error: "#{symbol} is an index, not a stock. Use options_scan for indices." }
-    end
+  "options_scan" => {
+    tool: options_scan_tool,
+    callable: lambda do |symbol:, exchange_segment: "IDX_I", min_score: 40, verbose: false|
+      # CRITICAL: Only allow indices, not stocks
+      unless %w[NIFTY SENSEX BANKNIFTY].include?(symbol.to_s.upcase)
+        return { error: "#{symbol} is not an index. Use swing_scan for stocks. Options are only available for indices (NIFTY, SENSEX, BANKNIFTY)." }
+      end
 
-    begin
-      candidates = agent.swing_scanner.scan_symbols(
-        [symbol.to_s],
-        exchange_segment: exchange_segment.to_s,
-        min_score: min_score.to_i,
-        verbose: verbose
-      )
+      begin
+        options_setups = agent.options_scanner.scan_for_options_setups(
+          symbol.to_s,
+          exchange_segment: exchange_segment.to_s,
+          min_score: min_score.to_i,
+          verbose: verbose
+        )
 
-      {
-        symbol: symbol,
-        exchange_segment: exchange_segment,
-        candidates_found: candidates.length,
-        candidates: candidates.map do |c|
+        if options_setups[:error]
+          { error: options_setups[:error] }
+        else
           {
-            symbol: c[:symbol],
-            score: c[:score],
-            trend: c[:analysis][:trend][:trend],
-            recommendation: c[:recommendation]
+            symbol: symbol,
+            exchange_segment: exchange_segment,
+            setups_found: options_setups[:setups]&.length || 0,
+            setups: options_setups[:setups]&.map do |s|
+              {
+                type: s[:type],
+                strike: s[:strike],
+                score: s[:score],
+                iv: s[:iv],
+                recommendation: s[:recommendation]
+              }
+            end || []
           }
         end
-      }
-    rescue StandardError => e
-      { error: e.message, backtrace: e.backtrace.first(3) }
-    end
-  end,
-
-  "options_scan" => lambda do |args|
-    symbol = args["symbol"] || args[:symbol]
-    exchange_segment = args["exchange_segment"] || args[:exchange_segment] || "IDX_I"
-    min_score = args["min_score"] || args[:min_score] || 40
-    verbose = args["verbose"] || args[:verbose] || false
-
-    unless symbol
-      return { error: "symbol is required for options_scan" }
-    end
-
-    # CRITICAL: Only allow indices, not stocks
-    unless %w[NIFTY SENSEX BANKNIFTY].include?(symbol.to_s.upcase)
-      return { error: "#{symbol} is not an index. Use swing_scan for stocks. Options are only available for indices (NIFTY, SENSEX, BANKNIFTY)." }
-    end
-
-    begin
-      options_setups = agent.options_scanner.scan_for_options_setups(
-        symbol.to_s,
-        exchange_segment: exchange_segment.to_s,
-        min_score: min_score.to_i,
-        verbose: verbose
-      )
-
-      if options_setups[:error]
-        { error: options_setups[:error] }
-      else
-        {
-          symbol: symbol,
-          exchange_segment: exchange_segment,
-          setups_found: options_setups[:setups]&.length || 0,
-          setups: options_setups[:setups]&.map do |s|
-            {
-              type: s[:type],
-              strike: s[:strike],
-              score: s[:score],
-              iv: s[:iv],
-              recommendation: s[:recommendation]
-            }
-          end || []
-        }
+      rescue StandardError => e
+        { error: e.message, backtrace: e.backtrace.first(3) }
       end
-    rescue StandardError => e
-      { error: e.message, backtrace: e.backtrace.first(3) }
     end
-  end,
+  },
 
-  "technical_analysis" => lambda do |args|
-    symbol = args["symbol"] || args[:symbol]
-    exchange_segment = args["exchange_segment"] || args[:exchange_segment] || "NSE_EQ"
+  "technical_analysis" => {
+    tool: technical_analysis_tool,
+    callable: lambda do |symbol:, exchange_segment: "NSE_EQ"|
+      begin
+        analysis_result = agent.analysis_agent.analyze_symbol(
+          symbol: symbol.to_s,
+          exchange_segment: exchange_segment.to_s
+        )
 
-    unless symbol
-      return { error: "symbol is required for technical_analysis" }
-    end
-
-    begin
-      analysis_result = agent.analysis_agent.analyze_symbol(
-        symbol: symbol.to_s,
-        exchange_segment: exchange_segment.to_s
-      )
-
-      if analysis_result[:error]
-        { error: analysis_result[:error] }
-      else
-        analysis = analysis_result[:analysis]
-        {
-          symbol: symbol,
-          exchange_segment: exchange_segment,
-          trend: analysis[:trend]&.dig(:trend),
-          trend_strength: analysis[:trend]&.dig(:strength),
-          rsi: analysis[:indicators]&.dig(:rsi)&.round(2),
-          macd: analysis[:indicators]&.dig(:macd)&.round(2),
-          current_price: analysis[:current_price],
-          patterns_count: analysis[:patterns]&.dig(:candlestick)&.length || 0,
-          structure_break: analysis[:structure_break]&.dig(:broken) || false
-        }
+        if analysis_result[:error]
+          { error: analysis_result[:error] }
+        else
+          analysis = analysis_result[:analysis]
+          {
+            symbol: symbol,
+            exchange_segment: exchange_segment,
+            trend: analysis[:trend]&.dig(:trend),
+            trend_strength: analysis[:trend]&.dig(:strength),
+            rsi: analysis[:indicators]&.dig(:rsi)&.round(2),
+            macd: analysis[:indicators]&.dig(:macd)&.round(2),
+            current_price: analysis[:current_price],
+            patterns_count: analysis[:patterns]&.dig(:candlestick)&.length || 0,
+            structure_break: analysis[:structure_break]&.dig(:broken) || false
+          }
+        end
+      rescue StandardError => e
+        { error: e.message, backtrace: e.backtrace.first(3) }
       end
-    rescue StandardError => e
-      { error: e.message, backtrace: e.backtrace.first(3) }
     end
-  end
+  }
 }
 
 # Get user query and market context

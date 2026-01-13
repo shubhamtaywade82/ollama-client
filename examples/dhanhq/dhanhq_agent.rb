@@ -619,6 +619,161 @@ if __FILE__ == $PROGRAM_NAME
 
   puts
   puts "=" * 60
+  puts "TOOL CALLING EXAMPLE (Using Executor + Structured Tool Classes)"
+  puts "=" * 60
+  puts
+
+  # ============================================================
+  # TOOL CALLING WITH EXECUTOR
+  # ============================================================
+  puts "Example: Agentic Tool Calling with DhanHQ Tools"
+  puts "─" * 60
+  puts "This demonstrates the new tool calling pattern using:"
+  puts "  - Structured Tool classes (type-safe schemas)"
+  puts "  - Executor (automatic tool execution loop)"
+  puts "  - chat_raw() internally (via Executor)"
+  puts
+
+  # Define DhanHQ tools using structured Tool classes
+  market_quote_tool = Ollama::Tool.new(
+    type: "function",
+    function: Ollama::Tool::Function.new(
+      name: "get_market_quote",
+      description: "Get market quote for a symbol. Returns OHLC, depth, volume, and other market data. Finds instrument automatically using exchange_segment and symbol.",
+      parameters: Ollama::Tool::Function::Parameters.new(
+        type: "object",
+        properties: {
+          symbol: Ollama::Tool::Function::Parameters::Property.new(
+            type: "string",
+            description: "Stock or index symbol (e.g., RELIANCE, NIFTY)"
+          ),
+          exchange_segment: Ollama::Tool::Function::Parameters::Property.new(
+            type: "string",
+            description: "Exchange segment",
+            enum: %w[NSE_EQ NSE_FNO BSE_EQ BSE_FNO IDX_I]
+          )
+        },
+        required: %w[symbol exchange_segment]
+      )
+    )
+  )
+
+  live_ltp_tool = Ollama::Tool.new(
+    type: "function",
+    function: Ollama::Tool::Function.new(
+      name: "get_live_ltp",
+      description: "Get live last traded price (LTP) for a symbol. Fast API for current price. Finds instrument automatically using exchange_segment and symbol.",
+      parameters: Ollama::Tool::Function::Parameters.new(
+        type: "object",
+        properties: {
+          symbol: Ollama::Tool::Function::Parameters::Property.new(
+            type: "string",
+            description: "Stock or index symbol"
+          ),
+          exchange_segment: Ollama::Tool::Function::Parameters::Property.new(
+            type: "string",
+            description: "Exchange segment",
+            enum: %w[NSE_EQ NSE_FNO BSE_EQ BSE_FNO IDX_I]
+          )
+        },
+        required: %w[symbol exchange_segment]
+      )
+    )
+  )
+
+  # Define tools with structured Tool classes and callables
+  tools = {
+    "get_market_quote" => {
+      tool: market_quote_tool,
+      callable: lambda do |symbol:, exchange_segment:|
+        result = DhanHQDataTools.get_market_quote(
+          symbol: symbol.to_s,
+          exchange_segment: exchange_segment.to_s
+        )
+
+        if result[:error]
+          { error: result[:error] }
+        else
+          quote = result[:result][:quote]
+          {
+            symbol: symbol,
+            exchange_segment: exchange_segment,
+            last_price: quote[:last_price],
+            volume: quote[:volume],
+            ohlc: quote[:ohlc],
+            change_percent: quote[:net_change]
+          }
+        end
+      rescue StandardError => e
+        { error: e.message }
+      end
+    },
+
+    "get_live_ltp" => {
+      tool: live_ltp_tool,
+      callable: lambda do |symbol:, exchange_segment:|
+        result = DhanHQDataTools.get_live_ltp(
+          symbol: symbol.to_s,
+          exchange_segment: exchange_segment.to_s
+        )
+
+        if result[:error]
+          { error: result[:error] }
+        else
+          {
+            symbol: symbol,
+            exchange_segment: exchange_segment,
+            ltp: result[:result][:ltp],
+            timestamp: result[:result][:timestamp]
+          }
+        end
+      rescue StandardError => e
+        { error: e.message }
+      end
+    }
+  }
+
+  # Create executor with tools
+  # Create client with same configuration as other examples
+  executor_config = Ollama::Config.new
+  executor_config.model = ENV.fetch("OLLAMA_MODEL", "llama3.1:8b")
+  executor_config.temperature = 0.2
+  executor_config.timeout = 60
+  executor_client = Ollama::Client.new(config: executor_config)
+
+  executor = Ollama::Agent::Executor.new(
+    executor_client,
+    tools: tools,
+    max_steps: 10
+  )
+
+  begin
+    puts "🔄 Starting agentic tool-calling loop..."
+    puts "User query: Get market quote for RELIANCE and also check NIFTY's current price"
+    puts
+
+    result = executor.run(
+      system: "You are a market data assistant. Use the available tools to get market data. " \
+              "You can call multiple tools in sequence. When you have the data, summarize it for the user.",
+      user: "Get market quote for RELIANCE stock and also check NIFTY's current price"
+    )
+
+    puts
+    puts "=" * 60
+    puts "Tool Calling Result:"
+    puts "=" * 60
+    puts result
+    puts
+  rescue Ollama::Error => e
+    puts "❌ Error: #{e.message}"
+    puts e.backtrace.first(5).join("\n") if e.backtrace
+  rescue StandardError => e
+    puts "❌ Unexpected error: #{e.message}"
+    puts e.backtrace.first(3).join("\n") if e.backtrace
+  end
+
+  puts
+  puts "=" * 60
   puts "DhanHQ Agent Summary:"
   puts "  ✅ Ollama: Reasoning & Decision Making"
   puts "  ✅ DhanHQ: Data Retrieval & Order Building"
@@ -628,5 +783,6 @@ if __FILE__ == $PROGRAM_NAME
   puts "  ✅ Technical Analysis: Trend analysis, SMC concepts, Pattern recognition, Indicators (RSI, MACD, MA, etc.)"
   puts "  ✅ Scanners: Swing trading scanner, Intraday options scanner"
   puts "  ✅ Analysis Agents: Technical analysis agent with LLM interpretation"
+  puts "  ✅ Tool Calling: Executor with structured Tool classes (NEW!)"
   puts "=" * 60
 end
