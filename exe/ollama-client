@@ -1,4 +1,4 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require "ollama/client"
+require_relative "../examples/chat_console"

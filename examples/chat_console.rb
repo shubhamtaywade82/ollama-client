@@ -3,7 +3,6 @@
 
 require_relative "../lib/ollama_client"
 require "tty-reader"
-require "tty-spinner"
 require "tty-screen"
 require "tty-cursor"
 
