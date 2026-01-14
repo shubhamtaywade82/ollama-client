@@ -123,7 +123,8 @@ class MultiStepAgent
         if recent_actions.length == 3 && recent_actions.uniq.length == 1
           puts "⚠️  Detected repetitive actions - forcing workflow progression"
           # Force next phase
-          if recent_actions.first == "collect"
+          case recent_actions.first
+          when "collect"
             puts "   → Moving to analysis phase"
             decision["action"]["type"] = "analyze"
             decision["action"]["parameters"] = { "target" => "collected_data" }
@@ -133,7 +134,7 @@ class MultiStepAgent
               action: "analyze",
               result: result
             }
-          elsif recent_actions.first == "analyze"
+          when "analyze"
             puts "   → Moving to validation phase"
             decision["action"]["type"] = "validate"
             decision["action"]["parameters"] = { "type" => "results" }
@@ -143,7 +144,7 @@ class MultiStepAgent
               action: "validate",
               result: result
             }
-          elsif recent_actions.first == "validate"
+          when "validate"
             puts "   → Completing workflow"
             decision["action"]["type"] = "complete"
             result = execute_action(decision)
@@ -269,9 +270,7 @@ class MultiStepAgent
     when "collect"
       data_key = params["data_type"] || params["key"] || "user_data"
       # Prevent collecting the same generic data repeatedly
-      if @state[:data_collected].key?(data_key) && data_key.match?(/^(missing|unknown|data)$/i) && !@state[:data_collected].key?("user_data")
-        data_key = "user_data"
-      end
+      data_key = "user_data" if should_collect_user_data?(data_key)
       puts "   📥 Collecting: #{data_key}"
       @state[:data_collected][data_key] = "collected_at_#{Time.now.to_i}"
       { status: "collected", key: data_key }
@@ -302,6 +301,12 @@ class MultiStepAgent
     else
       { status: "unknown_action" }
     end
+  end
+
+  def should_collect_user_data?(data_key)
+    @state[:data_collected].key?(data_key) &&
+      data_key.match?(/^(missing|unknown|data)$/i) &&
+      !@state[:data_collected].key?("user_data")
   end
 
   def display_summary

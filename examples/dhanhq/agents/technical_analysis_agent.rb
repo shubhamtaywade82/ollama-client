@@ -69,8 +69,7 @@ module DhanHQ
 
       protected
 
-      def build_analysis_prompt(market_context:)
-        # Not used in this agent, but required by base class
+      def build_analysis_prompt(*)
         ""
       end
 
@@ -79,58 +78,72 @@ module DhanHQ
       def convert_to_ohlc(historical_data)
         return [] unless historical_data.is_a?(Hash)
 
-        # Navigate to the actual data: result -> result -> data
-        outer_result = historical_data[:result] || historical_data["result"]
-        return [] unless outer_result.is_a?(Hash)
-
-        data = outer_result[:data] || outer_result["data"]
+        data = extract_data_payload(historical_data)
         return [] unless data
 
-        # Handle DhanHQ format: {open: [...], high: [...], low: [...], close: [...], volume: [...]}
-        if data.is_a?(Hash)
-          opens = data[:open] || data["open"] || []
-          highs = data[:high] || data["high"] || []
-          lows = data[:low] || data["low"] || []
-          closes = data[:close] || data["close"] || []
-          volumes = data[:volume] || data["volume"] || []
-
-          return [] if closes.nil? || closes.empty?
-
-          # Convert parallel arrays to array of hashes
-          max_length = [opens.length, highs.length, lows.length, closes.length].max
-          return [] if max_length.zero?
-
-          ohlc_data = []
-
-          (0...max_length).each do |i|
-            ohlc_data << {
-              open: opens[i] || closes[i] || 0,
-              high: highs[i] || closes[i] || 0,
-              low: lows[i] || closes[i] || 0,
-              close: closes[i] || 0,
-              volume: volumes[i] || 0
-            }
-          end
-
-          return ohlc_data
-        end
-
-        # Handle array format: [{open, high, low, close, volume}, ...]
-        if data.is_a?(Array)
-          return data.map do |bar|
-            next nil unless bar.is_a?(Hash)
-
-            {
-              open: bar["open"] || bar[:open],
-              high: bar["high"] || bar[:high],
-              low: bar["low"] || bar[:low],
-              close: bar["close"] || bar[:close],
-              volume: bar["volume"] || bar[:volume]
-            }
-          end.compact
-        end
+        return ohlc_from_hash(data) if data.is_a?(Hash)
+        return ohlc_from_array(data) if data.is_a?(Array)
 
         []
+      end
+
+      def extract_data_payload(historical_data)
+        outer_result = historical_data[:result] || historical_data["result"]
+        return nil unless outer_result.is_a?(Hash)
+
+        outer_result[:data] || outer_result["data"]
+      end
+
+      def ohlc_from_hash(data)
+        series = extract_series(data)
+        return [] if series[:closes].nil? || series[:closes].empty?
+
+        max_length = series_lengths(series).max
+        return [] if max_length.zero?
+
+        build_ohlc_rows(series, max_length)
+      end
+
+      def extract_series(data)
+        {
+          opens: data[:open] || data["open"] || [],
+          highs: data[:high] || data["high"] || [],
+          lows: data[:low] || data["low"] || [],
+          closes: data[:close] || data["close"] || [],
+          volumes: data[:volume] || data["volume"] || []
+        }
+      end
+
+      def series_lengths(series)
+        [series[:opens].length, series[:highs].length, series[:lows].length, series[:closes].length]
+      end
+
+      def build_ohlc_rows(series, max_length)
+        (0...max_length).map do |index|
+          {
+            open: series[:opens][index] || series[:closes][index] || 0,
+            high: series[:highs][index] || series[:closes][index] || 0,
+            low: series[:lows][index] || series[:closes][index] || 0,
+            close: series[:closes][index] || 0,
+            volume: series[:volumes][index] || 0
+          }
+        end
+      end
+
+      def ohlc_from_array(data)
+        data.filter_map { |bar| normalize_bar(bar) }
+      end
+
+      def normalize_bar(bar)
+        return nil unless bar.is_a?(Hash)
+
+        {
+          open: bar["open"] || bar[:open],
+          high: bar["high"] || bar[:high],
+          low: bar["low"] || bar[:low],
+          close: bar["close"] || bar[:close],
+          volume: bar["volume"] || bar[:volume]
+        }
       end
 
       def interpret_analysis(symbol, analysis)
@@ -214,7 +227,7 @@ module DhanHQ
         }
       end
 
-      def build_recommendation_schema(trading_style)
+      def build_recommendation_schema(_trading_style)
         {
           "type" => "object",
           "properties" => {

@@ -20,9 +20,9 @@ module DhanHQ
         return {} if closes.nil? || closes.empty?
 
         # Technical indicators
-        sma_20 = DhanHQ::Indicators::TechnicalIndicators.sma(closes, 20)
-        sma_50 = DhanHQ::Indicators::TechnicalIndicators.sma(closes, 50)
-        ema_12 = DhanHQ::Indicators::TechnicalIndicators.ema(closes, 12)
+        sma20 = DhanHQ::Indicators::TechnicalIndicators.sma(closes, 20)
+        sma50 = DhanHQ::Indicators::TechnicalIndicators.sma(closes, 50)
+        ema12 = DhanHQ::Indicators::TechnicalIndicators.ema(closes, 12)
         rsi = DhanHQ::Indicators::TechnicalIndicators.rsi(closes, 14)
         macd = DhanHQ::Indicators::TechnicalIndicators.macd(closes)
 
@@ -43,9 +43,9 @@ module DhanHQ
           trend: trend,
           structure_break: structure_break,
           indicators: {
-            sma_20: sma_20.last,
-            sma_50: sma_50.last,
-            ema_12: ema_12.last,
+            sma20: sma20.last,
+            sma50: sma50.last,
+            ema12: ema12.last,
             rsi: rsi.last,
             macd: macd[:macd].last,
             macd_signal: macd[:signal].last,
@@ -63,8 +63,6 @@ module DhanHQ
           current_price: closes.last
         }
       end
-
-      private
 
       def self.extract_closes(data)
         data.map { |d| d[:close] || d["close"] || d["c"] || d[:c] }.compact

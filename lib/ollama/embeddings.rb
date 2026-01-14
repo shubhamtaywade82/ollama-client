@@ -70,6 +70,7 @@ module Ollama
     def handle_http_error(res, requested_model: nil)
       status_code = res.code.to_i
       raise NotFoundError.new(res.message, requested_model: requested_model) if status_code == 404
+
       raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
     end
   end

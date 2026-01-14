@@ -48,8 +48,6 @@ module Ollama
                        Function::Parameters.from_hash(params_hash)
                      elsif params_hash
                        params_hash
-                     else
-                       nil
                      end
 
         new(

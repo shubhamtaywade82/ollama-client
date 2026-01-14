@@ -21,7 +21,8 @@ module Ollama
   #   end
   module DTO
     def self.included(base)
-      require "set" unless defined?(Set)
+      unless defined?(Set)
+      end
       base.extend(ClassMethods)
       base.class_variable_set(:@@attributes, Set.new)
     end
@@ -136,7 +137,7 @@ module Ollama
         next if value.nil?
 
         # Check if it's an empty collection (responds to size and size is 0)
-        next if value.respond_to?(:size) && value.size == 0
+        next if value.respond_to?(:size) && value.empty?
 
         hash[attr] = value
       end
@@ -179,9 +180,8 @@ module Ollama
     #
     # @param args [Array] pass-through args
     # @return [String] a JSON string representation of the object
-    def to_json(*args)
-      as_json.to_json(*args)
+    def to_json(*)
+      as_json.to_json(*)
     end
   end
 end
-

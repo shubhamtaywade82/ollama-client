@@ -130,7 +130,6 @@ begin
     puts "⚠️  No tool calls detected"
     puts "Content: #{response.message&.content}\n"
   end
-
 rescue Ollama::Error => e
   puts "❌ Error: #{e.class.name}"
   puts "   Message: #{e.message}"
@@ -162,7 +161,6 @@ begin
     puts "⚠️  No tool calls detected"
     puts "Content: #{response.message&.content}\n"
   end
-
 rescue Ollama::Error => e
   puts "❌ Error: #{e.class.name}"
   puts "   Message: #{e.message}"
@@ -268,7 +266,6 @@ begin
   else
     puts "⚠️  No tool calls detected"
   end
-
 rescue Ollama::Error => e
   puts "❌ Error: #{e.class.name}"
   puts "   Message: #{e.message}"

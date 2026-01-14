@@ -17,9 +17,7 @@ module DhanHQ
         # Analyze underlying
         underlying_analysis = analyze_underlying(underlying_symbol, exchange_segment)
         if underlying_analysis[:error]
-          error_msg = "Failed to analyze underlying: #{underlying_analysis[:error]}"
-          puts "      ⚠️  #{error_msg}" if verbose
-          return { error: error_msg }
+          return error_result("Failed to analyze underlying: #{underlying_analysis[:error]}", verbose)
         end
 
         puts "      ✅ Underlying analysis complete" if verbose
@@ -27,20 +25,11 @@ module DhanHQ
         # Get option chain - first get expiry list, then fetch chain for first expiry
         expiry_list_result = get_option_chain(underlying_symbol, exchange_segment)
         if expiry_list_result[:error]
-          error_msg = "Failed to get expiry list: #{expiry_list_result[:error]}"
-          puts "      ⚠️  #{error_msg}" if verbose
-          return { error: error_msg }
+          return error_result("Failed to get expiry list: #{expiry_list_result[:error]}", verbose)
         end
 
-        # Extract expiry list
-        expiry_list = expiry_list_result[:result] || expiry_list_result["result"]
-        expiries = expiry_list[:expiries] || expiry_list["expiries"] if expiry_list.is_a?(Hash)
-
-        unless expiries && expiries.is_a?(Array) && !expiries.empty?
-          error_msg = "No expiries found in option chain"
-          puts "      ⚠️  #{error_msg}" if verbose
-          return { error: error_msg }
-        end
+        expiries = extract_expiries(expiry_list_result)
+        return error_result("No expiries found in option chain", verbose) unless expiries
 
         # Get chain for first expiry (next expiry)
         next_expiry = expiries.first
@@ -48,9 +37,7 @@ module DhanHQ
 
         option_chain = get_option_chain(underlying_symbol, exchange_segment, expiry: next_expiry)
         if option_chain[:error]
-          error_msg = "Failed to get option chain for expiry #{next_expiry}: #{option_chain[:error]}"
-          puts "      ⚠️  #{error_msg}" if verbose
-          return { error: error_msg }
+          return error_result("Failed to get option chain for expiry #{next_expiry}: #{option_chain[:error]}", verbose)
         end
 
         puts "      ✅ Option chain retrieved for expiry: #{next_expiry}" if verbose
@@ -107,280 +94,399 @@ module DhanHQ
       end
 
       def find_options_setups(analysis, option_chain, min_score: 50, verbose: false)
-        setups = []
-        rejected = []
-        strikes_evaluated = 0
-        strikes_within_range = 0
+        tracking = {
+          setups: [],
+          rejected: [],
+          strikes_evaluated: 0,
+          strikes_within_range: 0
+        }
 
-        if verbose
-          puts "      📊 Underlying Analysis:"
-          if analysis && !analysis.empty?
-            current_price = analysis[:current_price]
-            trend = analysis[:trend]&.dig(:trend)
-            rsi = analysis[:indicators]&.dig(:rsi)
-            puts "         Current Price: #{current_price || 'N/A'}"
-            puts "         Trend: #{trend || 'N/A'}"
-            puts "         RSI: #{rsi&.round(2) || 'N/A'}"
-          else
-            puts "         ⚠️  Analysis data not available"
-          end
+        log_underlying_analysis(analysis, verbose)
+        log_option_chain_debug(option_chain, verbose)
+
+        chain = extract_option_chain(option_chain, verbose)
+        return [] unless chain
+
+        context = build_analysis_context(analysis)
+        log_chain_summary(chain, context[:trend], verbose)
+
+        evaluation_context = {
+          tracking: tracking,
+          context: context,
+          min_score: min_score,
+          verbose: verbose
+        }
+
+        chain.each do |strike_key, strike_data|
+          strike = strike_key.to_f
+          next unless strike_within_range?(strike, context[:current_price])
+
+          tracking[:strikes_within_range] += 1
+          tracking[:strikes_evaluated] += 1
+
+          evaluate_strike_options(
+            strike: strike,
+            strike_data: strike_data,
+            evaluation_context: evaluation_context
+          )
         end
 
-        # Debug: Check the structure
-        if verbose
-          puts "      🔍 Option chain structure:"
-          puts "         Keys: #{option_chain.keys.inspect}" if option_chain.is_a?(Hash)
-          puts "         Has result?: #{option_chain.key?(:result) || option_chain.key?('result')}"
-          if option_chain[:result] || option_chain["result"]
-            result = option_chain[:result] || option_chain["result"]
-            puts "         Result keys: #{result.keys.inspect}" if result.is_a?(Hash)
-            puts "         Has chain?: #{result.key?(:chain) || result.key?('chain')}"
-            puts "         Has expiries?: #{result.key?(:expiries) || result.key?('expiries')}"
-          end
-        end
+        log_evaluation_summary(tracking, context, min_score, verbose)
 
-        # Extract chain from result
+        tracking[:setups].sort_by { |setup| -setup[:score] }.first(5)
+      end
+
+      def calculate_options_score(option_data, context)
+        score = 0
+        score += implied_volatility_points(option_data[:implied_volatility])
+        score += open_interest_points(option_data[:open_interest])
+        score += volume_points(option_data[:volume])
+        score += trend_points(option_data[:type], context[:trend], context[:relative_strength_index])
+        score += rsi_points(option_data[:type], context[:relative_strength_index])
+        score
+      end
+
+      def implied_volatility_points(implied_volatility)
+        return 0 unless implied_volatility
+
+        return 30 if implied_volatility < 15
+        return 20 if implied_volatility < 25
+        return 10 if implied_volatility < 35
+
+        0
+      end
+
+      def open_interest_points(open_interest)
+        return 0 unless open_interest
+        return 25 if open_interest > 1_000_000
+        return 15 if open_interest > 500_000
+        return 10 if open_interest > 100_000
+
+        0
+      end
+
+      def volume_points(volume)
+        return 0 unless volume
+        return 20 if volume > 10_000
+        return 10 if volume > 5_000
+
+        0
+      end
+
+      def trend_points(option_type, trend, relative_strength_index)
+        return 0 unless trend
+        return 15 if trend_alignment?(option_type, trend)
+        return 0 unless trend == :sideways
+
+        rsi_bias_points(option_type, relative_strength_index)
+      end
+
+      def trend_alignment?(option_type, trend)
+        (option_type == :call && trend == :uptrend) || (option_type == :put && trend == :downtrend)
+      end
+
+      def rsi_bias_points(option_type, relative_strength_index)
+        return 0 unless relative_strength_index
+        return 10 if option_type == :call && relative_strength_index > 50
+        return 10 if option_type == :put && relative_strength_index < 50
+
+        0
+      end
+
+      def rsi_points(option_type, relative_strength_index)
+        return 0 unless relative_strength_index
+        return 10 if option_type == :call && relative_strength_index.between?(50, 70)
+        return 10 if option_type == :put && relative_strength_index.between?(30, 50)
+
+        0
+      end
+
+      def error_result(message, verbose)
+        puts "      ⚠️  #{message}" if verbose
+        { error: message }
+      end
+
+      def extract_expiries(expiry_list_result)
+        expiry_list = expiry_list_result[:result] || expiry_list_result["result"]
+        return nil unless expiry_list.is_a?(Hash)
+
+        expiries = expiry_list[:expiries] || expiry_list["expiries"]
+        return nil unless expiries.is_a?(Array) && expiries.any?
+
+        expiries
+      end
+
+      def log_underlying_analysis(analysis, verbose)
+        return unless verbose
+
+        puts "      📊 Underlying Analysis:"
+        return puts("         ⚠️  Analysis data not available") unless analysis && !analysis.empty?
+
+        current_price = analysis[:current_price]
+        trend = analysis[:trend]&.dig(:trend)
+        relative_strength_index = analysis[:indicators]&.dig(:rsi)
+        puts "         Current Price: #{current_price || 'N/A'}"
+        puts "         Trend: #{trend || 'N/A'}"
+        puts "         RSI: #{relative_strength_index&.round(2) || 'N/A'}"
+      end
+
+      def log_option_chain_debug(option_chain, verbose)
+        return unless verbose
+
+        puts "      🔍 Option chain structure:"
+        return unless option_chain.is_a?(Hash)
+
+        puts "         Keys: #{option_chain.keys.inspect}"
+        puts "         Has result?: #{option_chain.key?(:result) || option_chain.key?('result')}"
         result = option_chain[:result] || option_chain["result"]
+        return unless result.is_a?(Hash)
 
+        puts "         Result keys: #{result.keys.inspect}"
+        puts "         Has chain?: #{result.key?(:chain) || result.key?('chain')}"
+        puts "         Has expiries?: #{result.key?(:expiries) || result.key?('expiries')}"
+      end
+
+      def extract_option_chain(option_chain, verbose)
+        result = option_chain[:result] || option_chain["result"]
         unless result
           puts "      ⚠️  Option chain data not available or invalid (no result)" if verbose
-          return setups
+          return nil
         end
 
         chain = result[:chain] || result["chain"]
+        return chain if chain
 
-        unless chain
-          puts "      ⚠️  Option chain data not available or invalid (no chain in result)" if verbose
-          if verbose
-            puts "         Available keys in result: #{result.keys.inspect}" if result.is_a?(Hash)
-            puts "         Result structure: #{result.inspect[0..200]}"
-          end
-          return setups
-        end
-        current_price = analysis[:current_price] if analysis
-        trend = analysis[:trend]&.dig(:trend) if analysis
-        rsi = analysis[:indicators]&.dig(:rsi) if analysis
+        return nil unless verbose
 
-        if verbose
-          puts "         Chain strikes: #{chain.keys.length}"
-          puts "         Looking for: #{if trend == :uptrend
-                                          'CALL options'
-                                        else
-                                          trend == :downtrend ? 'PUT options' : 'CALL or PUT (sideways trend)'
-                                        end}"
-        end
-
-        # For intraday options buying:
-        # - Look for ATM or near-ATM strikes
-        # - Prefer calls in uptrend, puts in downtrend
-        # - Consider IV (lower is better for buying)
-        # - Look for high volume/OI
-
-        chain.each do |strike_str, strike_data|
-          strike = strike_str.to_f
-          price_diff_pct = ((strike - current_price).abs / current_price * 100).round(2)
-
-          next unless (strike - current_price).abs / current_price < 0.02 # Within 2% of current price
-
-          strikes_within_range += 1
-
-          strikes_evaluated += 1
-
-          ce_data = strike_data["ce"] || strike_data[:ce]
-          pe_data = strike_data["pe"] || strike_data[:pe]
-
-          # Evaluate CALL options
-          if ce_data && (trend == :uptrend || trend == :sideways)
-            iv = ce_data["implied_volatility"] || ce_data[:implied_volatility]
-            oi = ce_data["oi"] || ce_data[:oi]
-            volume = ce_data["volume"] || ce_data[:volume]
-
-            score = calculate_options_score(iv, oi, volume, :call, trend, rsi)
-            if score >= min_score
-              setups << {
-                type: :call,
-                strike: strike,
-                iv: iv,
-                oi: oi,
-                volume: volume,
-                score: score,
-                recommendation: if score > 70
-                                  "Strong buy"
-                                else
-                                  score > 50 ? "Moderate buy" : "Weak"
-                                end
-              }
-            elsif verbose
-              rejected << { type: :call, strike: strike, score: score, reason: "Below min_score (#{min_score})" }
-            end
-          end
-
-          # Evaluate PUT options
-          if pe_data && (trend == :downtrend || trend == :sideways)
-            iv = pe_data["implied_volatility"] || pe_data[:implied_volatility]
-            oi = pe_data["oi"] || pe_data[:oi]
-            volume = pe_data["volume"] || pe_data[:volume]
-
-            score = calculate_options_score(iv, oi, volume, :put, trend, rsi)
-            if score >= min_score
-              setups << {
-                type: :put,
-                strike: strike,
-                iv: iv,
-                oi: oi,
-                volume: volume,
-                score: score,
-                recommendation: if score > 70
-                                  "Strong buy"
-                                else
-                                  score > 50 ? "Moderate buy" : "Weak"
-                                end
-              }
-            elsif verbose
-              rejected << { type: :put, strike: strike, score: score, reason: "Below min_score (#{min_score})" }
-            end
-          end
-        end
-
-        if verbose
-          puts "      📊 Evaluation Summary:"
-          puts "         Strikes within 2% of price: #{strikes_within_range}"
-          puts "         Strikes evaluated: #{strikes_evaluated}"
-          puts "         Setups found: #{setups.length}"
-
-          if !rejected.empty?
-            puts "      📋 Rejected setups: #{rejected.length} (below min_score #{min_score})"
-            rejected.first(5).each do |r|
-              puts "         ❌ #{r[:type].to_s.upcase} @ #{r[:strike]}: Score #{r[:score]}/100"
-            end
-          elsif strikes_evaluated == 0
-            if !trend || trend == :sideways
-              puts "      ⚠️  Sideways trend - no clear directional bias for calls/puts"
-            elsif trend == :uptrend && strikes_within_range == 0
-              puts "      ⚠️  No CALL strikes found within 2% of current price (#{current_price})"
-            elsif trend == :downtrend && strikes_within_range == 0
-              puts "      ⚠️  No PUT strikes found within 2% of current price (#{current_price})"
-            elsif strikes_within_range > 0 && strikes_evaluated == 0
-              puts "      ⚠️  Found #{strikes_within_range} strikes within range, but none match trend criteria"
-              puts "         (Trend: #{trend}, looking for #{trend == :uptrend ? 'CALL' : 'PUT'} options)"
-            else
-              puts "      ⚠️  No suitable strikes found for current trend (#{trend || 'unknown'})"
-            end
-          end
-        end
-
-        setups.sort_by { |s| -s[:score] }.first(5) # Top 5 setups
+        puts "      ⚠️  Option chain data not available or invalid (no chain in result)"
+        puts "         Available keys in result: #{result.keys.inspect}" if result.is_a?(Hash)
+        puts "         Result structure: #{result.inspect[0..200]}"
+        nil
       end
 
-      def calculate_options_score(iv, oi, volume, option_type, trend, rsi)
-        score = 0
+      def build_analysis_context(analysis)
+        return { current_price: nil, trend: nil, relative_strength_index: nil } unless analysis
 
-        # IV scoring (lower is better for buying) - 0-30 points
-        if iv
-          if iv < 15
-            score += 30
-          elsif iv < 25
-            score += 20
-          elsif iv < 35
-            score += 10
-          end
+        {
+          current_price: analysis[:current_price],
+          trend: analysis[:trend]&.dig(:trend),
+          relative_strength_index: analysis[:indicators]&.dig(:rsi)
+        }
+      end
+
+      def log_chain_summary(chain, trend, verbose)
+        return unless verbose
+
+        puts "         Chain strikes: #{chain.keys.length}"
+        puts "         Looking for: #{preferred_option_label(trend)}"
+      end
+
+      def preferred_option_label(trend)
+        return "CALL options" if trend == :uptrend
+        return "PUT options" if trend == :downtrend
+
+        "CALL or PUT (sideways trend)"
+      end
+
+      def strike_within_range?(strike, current_price)
+        return false unless current_price
+
+        (strike - current_price).abs / current_price < 0.02
+      end
+
+      def evaluate_strike_options(strike:, strike_data:, evaluation_context:)
+        evaluation_context[:tracking]
+        context = evaluation_context[:context]
+        evaluation_context[:min_score]
+        evaluation_context[:verbose]
+
+        call_data = strike_data["ce"] || strike_data[:ce]
+        put_data = strike_data["pe"] || strike_data[:pe]
+
+        if call_data && option_allowed?(:call, context[:trend])
+          evaluate_option_setup(
+            option_type: :call,
+            strike: strike,
+            raw_data: call_data,
+            evaluation_context: evaluation_context
+          )
         end
 
-        # OI scoring (higher is better) - 0-25 points
-        if oi && oi > 1_000_000
-          score += 25
-        elsif oi && oi > 500_000
-          score += 15
-        elsif oi && oi > 100_000
-          score += 10
+        return unless put_data && option_allowed?(:put, context[:trend])
+
+        evaluate_option_setup(
+          option_type: :put,
+          strike: strike,
+          raw_data: put_data,
+          evaluation_context: evaluation_context
+        )
+      end
+
+      def option_allowed?(option_type, trend)
+        return %i[uptrend sideways].include?(trend) if option_type == :call
+        return %i[downtrend sideways].include?(trend) if option_type == :put
+
+        false
+      end
+
+      def evaluate_option_setup(option_type:, strike:, raw_data:, evaluation_context:)
+        tracking = evaluation_context[:tracking]
+        context = evaluation_context[:context]
+        min_score = evaluation_context[:min_score]
+        verbose = evaluation_context[:verbose]
+
+        option_data = option_data_for(option_type, raw_data)
+        score = calculate_options_score(option_data, context)
+
+        if score >= min_score
+          tracking[:setups] << build_setup(option_data, strike, score)
+          return
         end
 
-        # Volume scoring - 0-20 points
-        if volume && volume > 10_000
-          score += 20
-        elsif volume && volume > 5_000
-          score += 10
-        end
+        return unless verbose
 
-        # Trend alignment - 0-15 points
-        if trend == :sideways
-          # In sideways markets, use RSI to bias scoring
-          if option_type == :call && rsi && rsi > 50
-            score += 10 # Slight bias toward calls if RSI > 50
-          elsif option_type == :put && rsi && rsi < 50
-            score += 10 # Slight bias toward puts if RSI < 50
-          end
+        tracking[:rejected] << {
+          type: option_type,
+          strike: strike,
+          score: score,
+          reason: "Below min_score (#{min_score})"
+        }
+      end
+
+      def option_data_for(option_type, raw_data)
+        {
+          type: option_type,
+          implied_volatility: raw_data["implied_volatility"] || raw_data[:implied_volatility],
+          open_interest: raw_data["oi"] || raw_data[:oi],
+          volume: raw_data["volume"] || raw_data[:volume]
+        }
+      end
+
+      def build_setup(option_data, strike, score)
+        {
+          type: option_data[:type],
+          strike: strike,
+          iv: option_data[:implied_volatility],
+          oi: option_data[:open_interest],
+          volume: option_data[:volume],
+          score: score,
+          recommendation: recommendation_for_score(score)
+        }
+      end
+
+      def recommendation_for_score(score)
+        return "Strong buy" if score > 70
+        return "Moderate buy" if score > 50
+
+        "Weak"
+      end
+
+      def log_evaluation_summary(tracking, context, min_score, verbose)
+        return unless verbose
+
+        puts "      📊 Evaluation Summary:"
+        puts "         Strikes within 2% of price: #{tracking[:strikes_within_range]}"
+        puts "         Strikes evaluated: #{tracking[:strikes_evaluated]}"
+        puts "         Setups found: #{tracking[:setups].length}"
+
+        if tracking[:rejected].any?
+          log_rejected_setups(tracking[:rejected], min_score)
+        elsif tracking[:strikes_evaluated].zero?
+          log_no_strike_message(tracking, context)
+        end
+      end
+
+      def log_rejected_setups(rejected, min_score)
+        puts "      📋 Rejected setups: #{rejected.length} (below min_score #{min_score})"
+        rejected.first(5).each do |rejection|
+          puts "         ❌ #{rejection[:type].to_s.upcase} @ #{rejection[:strike]}: Score #{rejection[:score]}/100"
+        end
+      end
+
+      def log_no_strike_message(tracking, context)
+        trend = context[:trend]
+        current_price = context[:current_price]
+
+        if !trend || trend == :sideways
+          puts "      ⚠️  Sideways trend - no clear directional bias for calls/puts"
+        elsif trend == :uptrend && tracking[:strikes_within_range].zero?
+          puts "      ⚠️  No CALL strikes found within 2% of current price (#{current_price})"
+        elsif trend == :downtrend && tracking[:strikes_within_range].zero?
+          puts "      ⚠️  No PUT strikes found within 2% of current price (#{current_price})"
         else
-          score += 15 if (option_type == :call && trend == :uptrend) || (option_type == :put && trend == :downtrend)
+          puts "      ⚠️  No suitable strikes found for current trend (#{trend || 'unknown'})"
         end
-
-        # RSI alignment - 0-10 points
-        if rsi
-          if option_type == :call && rsi < 70 && rsi > 50
-            score += 10
-          elsif option_type == :put && rsi > 30 && rsi < 50
-            score += 10
-          end
-        end
-
-        score
       end
 
       def convert_to_ohlc(historical_data)
         return [] unless historical_data.is_a?(Hash)
 
-        # Navigate to the actual data: result -> result -> data
-        outer_result = historical_data[:result] || historical_data["result"]
-        return [] unless outer_result.is_a?(Hash)
-
-        data = outer_result[:data] || outer_result["data"]
+        data = extract_data_payload(historical_data)
         return [] unless data
 
-        # Handle DhanHQ format: {open: [...], high: [...], low: [...], close: [...], volume: [...]}
-        if data.is_a?(Hash)
-          opens = data[:open] || data["open"] || []
-          highs = data[:high] || data["high"] || []
-          lows = data[:low] || data["low"] || []
-          closes = data[:close] || data["close"] || []
-          volumes = data[:volume] || data["volume"] || []
-
-          return [] if closes.nil? || closes.empty?
-
-          # Convert parallel arrays to array of hashes
-          max_length = [opens.length, highs.length, lows.length, closes.length].max
-          return [] if max_length.zero?
-
-          ohlc_data = []
-
-          (0...max_length).each do |i|
-            ohlc_data << {
-              open: opens[i] || closes[i] || 0,
-              high: highs[i] || closes[i] || 0,
-              low: lows[i] || closes[i] || 0,
-              close: closes[i] || 0,
-              volume: volumes[i] || 0
-            }
-          end
-
-          return ohlc_data
-        end
-
-        # Handle array format: [{open, high, low, close, volume}, ...]
-        if data.is_a?(Array)
-          return data.map do |bar|
-            next nil unless bar.is_a?(Hash)
-
-            {
-              open: bar["open"] || bar[:open],
-              high: bar["high"] || bar[:high],
-              low: bar["low"] || bar[:low],
-              close: bar["close"] || bar[:close],
-              volume: bar["volume"] || bar[:volume]
-            }
-          end.compact
-        end
+        return ohlc_from_hash(data) if data.is_a?(Hash)
+        return ohlc_from_array(data) if data.is_a?(Array)
 
         []
+      end
+
+      def extract_data_payload(historical_data)
+        outer_result = historical_data[:result] || historical_data["result"]
+        return nil unless outer_result.is_a?(Hash)
+
+        outer_result[:data] || outer_result["data"]
+      end
+
+      def ohlc_from_hash(data)
+        series = extract_series(data)
+        return [] if series[:closes].nil? || series[:closes].empty?
+
+        max_length = series_lengths(series).max
+        return [] if max_length.zero?
+
+        build_ohlc_rows(series, max_length)
+      end
+
+      def extract_series(data)
+        {
+          opens: data[:open] || data["open"] || [],
+          highs: data[:high] || data["high"] || [],
+          lows: data[:low] || data["low"] || [],
+          closes: data[:close] || data["close"] || [],
+          volumes: data[:volume] || data["volume"] || []
+        }
+      end
+
+      def series_lengths(series)
+        [series[:opens].length, series[:highs].length, series[:lows].length, series[:closes].length]
+      end
+
+      def build_ohlc_rows(series, max_length)
+        (0...max_length).map do |index|
+          {
+            open: series[:opens][index] || series[:closes][index] || 0,
+            high: series[:highs][index] || series[:closes][index] || 0,
+            low: series[:lows][index] || series[:closes][index] || 0,
+            close: series[:closes][index] || 0,
+            volume: series[:volumes][index] || 0
+          }
+        end
+      end
+
+      def ohlc_from_array(data)
+        data.filter_map { |bar| normalize_bar(bar) }
+      end
+
+      def normalize_bar(bar)
+        return nil unless bar.is_a?(Hash)
+
+        {
+          open: bar["open"] || bar[:open],
+          high: bar["high"] || bar[:high],
+          low: bar["low"] || bar[:low],
+          close: bar["close"] || bar[:close],
+          volume: bar["volume"] || bar[:volume]
+        }
       end
     end
   end

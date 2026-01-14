@@ -9,34 +9,8 @@ module DhanHQ
       def self.analyze_trend(highs, lows, closes)
         return { trend: :unknown, strength: 0 } if closes.nil? || closes.length < 3
 
-        # Higher highs and higher lows = Uptrend
-        # Lower highs and lower lows = Downtrend
-        recent_highs = highs.last(10) if highs
-        recent_lows = lows.last(10) if lows
-        recent_closes = closes.last(10)
-
-        higher_highs = recent_highs ? recent_highs.each_cons(2).all? { |a, b| b >= a } : false
-        higher_lows = recent_lows ? recent_lows.each_cons(2).all? { |a, b| b >= a } : false
-        lower_highs = recent_highs ? recent_highs.each_cons(2).all? { |a, b| b <= a } : false
-        lower_lows = recent_lows ? recent_lows.each_cons(2).all? { |a, b| b <= a } : false
-
-        trend = if higher_highs && higher_lows
-                  :uptrend
-                elsif lower_highs && lower_lows
-                  :downtrend
-                else
-                  :sideways
-                end
-
-        # Calculate trend strength using moving averages
-        sma_20 = DhanHQ::Indicators::TechnicalIndicators.sma(closes, 20)
-        sma_50 = DhanHQ::Indicators::TechnicalIndicators.sma(closes, 50)
-
-        strength = if sma_20.last && sma_50.last
-                     ((sma_20.last - sma_50.last) / sma_50.last * 100).abs
-                   else
-                     0
-                   end
+        trend = infer_trend(highs, lows)
+        strength = moving_average_strength(closes)
 
         { trend: trend, strength: strength.round(2) }
       end
@@ -116,6 +90,48 @@ module DhanHQ
         end
 
         { broken: broken, direction: direction, current_trend: trend[:trend] }
+      end
+
+      def self.infer_trend(highs, lows)
+        recent_highs = extract_recent(highs)
+        recent_lows = extract_recent(lows)
+
+        higher_highs = non_decreasing?(recent_highs)
+        higher_lows = non_decreasing?(recent_lows)
+        lower_highs = non_increasing?(recent_highs)
+        lower_lows = non_increasing?(recent_lows)
+
+        return :uptrend if higher_highs && higher_lows
+        return :downtrend if lower_highs && lower_lows
+
+        :sideways
+      end
+
+      def self.moving_average_strength(closes)
+        short_average = DhanHQ::Indicators::TechnicalIndicators.sma(closes, 20)
+        long_average = DhanHQ::Indicators::TechnicalIndicators.sma(closes, 50)
+
+        return 0 unless short_average.last && long_average.last
+
+        ((short_average.last - long_average.last) / long_average.last * 100).abs
+      end
+
+      def self.extract_recent(series, lookback = 10)
+        return nil unless series
+
+        series.last(lookback)
+      end
+
+      def self.non_decreasing?(series)
+        return false unless series
+
+        series.each_cons(2).all? { |first, second| second >= first }
+      end
+
+      def self.non_increasing?(series)
+        return false unless series
+
+        series.each_cons(2).all? { |first, second| second <= first }
       end
     end
   end

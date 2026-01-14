@@ -3,10 +3,6 @@
 require_relative "base_service"
 require_relative "../../dhanhq_tools"
 
-# Keep backward compatibility - these are still used by the service
-DhanHQDataTools = DhanHQDataTools unless defined?(DhanHQDataTools)
-DhanHQTradingTools = DhanHQTradingTools unless defined?(DhanHQTradingTools)
-
 module DhanHQ
   module Services
     # Service for executing data retrieval actions
@@ -85,9 +81,11 @@ module DhanHQ
       end
 
       def execute_expired_options_data(params)
-        return error_response("get_expired_options_data",
-                              "Either symbol or security_id, and expiry_date are required",
-                              params) if missing_expired_options_params?(params)
+        if missing_expired_options_params?(params)
+          return error_response("get_expired_options_data",
+                                "Either symbol or security_id, and expiry_date are required",
+                                params)
+        end
 
         DhanHQDataTools.get_expired_options_data(
           symbol: params["symbol"],

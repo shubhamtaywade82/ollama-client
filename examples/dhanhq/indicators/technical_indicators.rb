@@ -35,8 +35,8 @@ module DhanHQ
 
         prices.each_cons(2) do |prev, curr|
           change = curr - prev
-          gains << (change > 0 ? change : 0)
-          losses << (change < 0 ? -change : 0)
+          gains << [change, 0].max
+          losses << (change.negative? ? -change : 0)
         end
 
         rsi_values = []
@@ -81,7 +81,7 @@ module DhanHQ
         sma_values = sma(prices, period)
         bands = { upper: [], middle: sma_values, lower: [] }
 
-        prices.each_cons(period).each_with_index do |window, idx|
+        prices.each_cons(period).with_index do |window, idx|
           mean = sma_values[idx]
           variance = window.map { |p| (p - mean)**2 }.sum / period
           std = Math.sqrt(variance)
@@ -146,8 +146,6 @@ module DhanHQ
 
         { support: support_levels.uniq { |s| s[:price] }, resistance: resistance_levels.uniq { |r| r[:price] } }
       end
-
-      private
 
       def self.calculate_rsi_value(avg_gain, avg_loss)
         return 100 if avg_loss.zero?

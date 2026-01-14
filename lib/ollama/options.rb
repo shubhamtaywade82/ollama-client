@@ -68,33 +68,29 @@ module Ollama
     def validate_numeric_range(value, min, max, name)
       return if value.nil?
 
-      unless value.is_a?(Numeric)
-        raise ArgumentError, "#{name} must be numeric, got #{value.class}"
-      end
+      raise ArgumentError, "#{name} must be numeric, got #{value.class}" unless value.is_a?(Numeric)
 
-      unless value >= min && value <= max
-        raise ArgumentError, "#{name} must be between #{min} and #{max}, got #{value}"
-      end
+      return if value.between?(min, max)
+
+      raise ArgumentError, "#{name} must be between #{min} and #{max}, got #{value}"
     end
 
     def validate_integer_min(value, min, name)
       return if value.nil?
 
-      unless value.is_a?(Integer)
-        raise ArgumentError, "#{name} must be an integer, got #{value.class}"
-      end
+      raise ArgumentError, "#{name} must be an integer, got #{value.class}" unless value.is_a?(Integer)
 
-      unless value >= min
-        raise ArgumentError, "#{name} must be >= #{min}, got #{value}"
-      end
+      return if value >= min
+
+      raise ArgumentError, "#{name} must be >= #{min}, got #{value}"
     end
 
     def validate_integer(value, name)
       return if value.nil?
 
-      unless value.is_a?(Integer)
-        raise ArgumentError, "#{name} must be an integer, got #{value.class}"
-      end
+      return if value.is_a?(Integer)
+
+      raise ArgumentError, "#{name} must be an integer, got #{value.class}"
     end
   end
 end

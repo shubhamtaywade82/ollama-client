@@ -77,77 +77,64 @@ puts
 
 # Helper methods (defined before use)
 def perform_technical_analysis(agent, symbol, exchange_segment)
-  begin
-    analysis_result = agent.analysis_agent.analyze_symbol(
-      symbol: symbol,
-      exchange_segment: exchange_segment
-    )
+  analysis_result = agent.analysis_agent.analyze_symbol(
+    symbol: symbol,
+    exchange_segment: exchange_segment
+  )
 
-    if analysis_result[:error]
-      puts "   ⚠️  Error: #{analysis_result[:error]}"
-      return
-    end
+  return log_analysis_error(analysis_result) if analysis_result[:error]
 
-    analysis = analysis_result[:analysis]
-    puts "   ✅ Analysis Complete"
-    puts "   📊 Trend: #{analysis[:trend]&.dig(:trend) || 'N/A'} (#{analysis[:trend]&.dig(:strength) || 0}% strength)"
-    puts "   📊 RSI: #{analysis[:indicators]&.dig(:rsi)&.round(2) || 'N/A'}"
-    puts "   📊 MACD: #{analysis[:indicators]&.dig(:macd)&.round(2) || 'N/A'}"
-    puts "   📊 Current Price: #{analysis[:current_price] || 'N/A'}"
-    puts "   📊 Patterns: #{analysis[:patterns]&.dig(:candlestick)&.length || 0} patterns"
-    puts "   📊 Structure Break: #{analysis[:structure_break]&.dig(:broken) ? 'Yes' : 'No'}"
-  rescue StandardError => e
-    puts "   ❌ Error: #{e.message}"
-  end
+  analysis = analysis_result[:analysis]
+  return log_analysis_empty if analysis.nil? || analysis.empty?
+
+  log_analysis_summary(analysis)
+rescue StandardError => e
+  puts "   ❌ Error: #{e.message}"
 end
 
 def perform_swing_scan(agent, symbol, exchange_segment)
-  begin
-    candidates = agent.swing_scanner.scan_symbols(
-      [symbol],
-      exchange_segment: exchange_segment,
-      min_score: 40,
-      verbose: false
-    )
+  candidates = agent.swing_scanner.scan_symbols(
+    [symbol],
+    exchange_segment: exchange_segment,
+    min_score: 40,
+    verbose: false
+  )
 
-    if candidates.empty?
-      puts "   ⚠️  No swing candidates found (score < 40)"
-    else
-      candidate = candidates.first
-      puts "   ✅ Swing Candidate Found"
-      puts "   📈 Score: #{candidate[:score]}/100"
-      puts "   📊 Trend: #{candidate[:analysis][:trend][:trend]}"
-      puts "   💡 #{candidate[:recommendation] || 'Analysis complete'}"
-    end
-  rescue StandardError => e
-    puts "   ❌ Error: #{e.message}"
+  if candidates.empty?
+    puts "   ⚠️  No swing candidates found (score < 40)"
+  else
+    candidate = candidates.first
+    puts "   ✅ Swing Candidate Found"
+    puts "   📈 Score: #{candidate[:score]}/100"
+    puts "   📊 Trend: #{candidate[:analysis][:trend][:trend]}"
+    puts "   💡 #{candidate[:recommendation] || 'Analysis complete'}"
   end
+rescue StandardError => e
+  puts "   ❌ Error: #{e.message}"
 end
 
 def perform_options_scan(agent, symbol, exchange_segment)
-  begin
-    options_setups = agent.options_scanner.scan_for_options_setups(
-      symbol,
-      exchange_segment: exchange_segment,
-      min_score: 40,
-      verbose: true
-    )
+  options_setups = agent.options_scanner.scan_for_options_setups(
+    symbol,
+    exchange_segment: exchange_segment,
+    min_score: 40,
+    verbose: true
+  )
 
-    if options_setups[:error]
-      puts "   ⚠️  #{options_setups[:error]}"
-    elsif options_setups[:setups] && !options_setups[:setups].empty?
-      puts "   ✅ Found #{options_setups[:setups].length} options setups"
-      options_setups[:setups].first(3).each do |setup|
-        puts "      📊 #{setup[:type].to_s.upcase} @ #{setup[:strike]}: Score #{setup[:score]}/100"
-      end
-    else
-      puts "   ⚠️  No options setups found (min_score: 40)"
-      puts "      Try lowering min_score or check verbose output above for details"
+  if options_setups[:error]
+    puts "   ⚠️  #{options_setups[:error]}"
+  elsif options_setups[:setups] && !options_setups[:setups].empty?
+    puts "   ✅ Found #{options_setups[:setups].length} options setups"
+    options_setups[:setups].first(3).each do |setup|
+      puts "      📊 #{setup[:type].to_s.upcase} @ #{setup[:strike]}: Score #{setup[:score]}/100"
     end
-  rescue StandardError => e
-    puts "   ❌ Error: #{e.message}"
-    puts "   #{e.backtrace.first(3).join("\n   ")}" if e.backtrace
+  else
+    puts "   ⚠️  No options setups found (min_score: 40)"
+    puts "      Try lowering min_score or check verbose output above for details"
   end
+rescue StandardError => e
+  puts "   ❌ Error: #{e.message}"
+  puts "   #{e.backtrace.first(3).join("\n   ")}" if e.backtrace
 end
 
 # Initialize agent
@@ -160,11 +147,7 @@ puts "🤔 Letting LLM decide what to analyze..."
 puts "─" * 60
 
 # Get market context first (can be fetched from real data)
-market_context = if ARGV[1]
-                   ARGV[1]
-                 else
-                   "Current market: SENSEX, NIFTY and RELIANCE are active. Looking for trading opportunities."
-                 end
+market_context = ARGV[1] || "Current market: SENSEX, NIFTY and RELIANCE are active. Looking for trading opportunities."
 
 user_query = ARGV[0] || "Analyze SENSEX and find swing trading opportunities"
 
@@ -183,7 +166,8 @@ begin
     puts "   Falling back to default analysis..."
     plan = {
       "analysis_plan" => [
-        { "symbol" => "RELIANCE", "exchange_segment" => "NSE_EQ", "analysis_type" => "technical_analysis", "priority" => 1 },
+        { "symbol" => "RELIANCE", "exchange_segment" => "NSE_EQ", "analysis_type" => "technical_analysis",
+          "priority" => 1 },
         { "symbol" => "TCS", "exchange_segment" => "NSE_EQ", "analysis_type" => "swing_scan", "priority" => 2 },
         { "symbol" => "NIFTY", "exchange_segment" => "IDX_I", "analysis_type" => "options_scan", "priority" => 3 }
       ],
@@ -208,13 +192,19 @@ begin
     puts "Task #{idx + 1}: #{analysis_type} for #{symbol} (#{exchange_segment})"
     puts "─" * 60
 
-    case analysis_type
-    when "technical_analysis", "all"
+    if analysis_type == "all"
       perform_technical_analysis(agent, symbol, exchange_segment)
-    when "swing_scan", "all"
       perform_swing_scan(agent, symbol, exchange_segment)
-    when "options_scan", "all"
       perform_options_scan(agent, symbol, exchange_segment)
+    else
+      case analysis_type
+      when "technical_analysis"
+        perform_technical_analysis(agent, symbol, exchange_segment)
+      when "swing_scan"
+        perform_swing_scan(agent, symbol, exchange_segment)
+      when "options_scan"
+        perform_options_scan(agent, symbol, exchange_segment)
+      end
     end
 
     puts
@@ -222,6 +212,70 @@ begin
 rescue StandardError => e
   puts "   ❌ Error: #{e.message}"
   puts "   #{e.backtrace.first(3).join("\n   ")}" if e.backtrace
+end
+
+def log_analysis_error(analysis_result)
+  puts "   ⚠️  Error: #{analysis_result[:error]}"
+end
+
+def log_analysis_empty
+  puts "   ⚠️  Error: Analysis returned empty result"
+end
+
+def log_analysis_summary(analysis)
+  puts "   ✅ Analysis Complete"
+  puts trend_summary_text(analysis)
+  puts rsi_summary_text(analysis)
+  puts macd_summary_text(analysis)
+  puts current_price_text(analysis)
+  puts patterns_summary_text(analysis)
+  puts structure_break_text(analysis)
+end
+
+def trend_summary_text(analysis)
+  trend = analysis[:trend] || {}
+  trend_name = trend[:trend] || "N/A"
+  strength = trend[:strength] || 0
+  "   📊 Trend: #{trend_name} (#{strength}% strength)"
+end
+
+def rsi_summary_text(analysis)
+  rsi = analysis[:indicators]&.dig(:rsi)
+  rsi_text = rsi ? rsi.round(2) : "N/A"
+  "   📊 RSI: #{rsi_text}"
+end
+
+def macd_summary_text(analysis)
+  macd = analysis[:indicators]&.dig(:macd)
+  macd_text = macd ? macd.round(2) : "N/A"
+  "   📊 MACD: #{macd_text}"
+end
+
+def current_price_text(analysis)
+  current_price = analysis[:current_price] || "N/A"
+  "   📊 Current Price: #{current_price}"
+end
+
+def patterns_summary_text(analysis)
+  candlestick_patterns = analysis[:patterns]&.dig(:candlestick) || []
+  "   📊 Patterns: #{candlestick_patterns.length} patterns"
+end
+
+def structure_break_text(analysis)
+  broken = analysis[:structure_break]&.dig(:broken)
+  "   📊 Structure Break: #{broken ? 'Yes' : 'No'}"
+end
+
+def format_score_breakdown(details)
+  "Trend=#{details[:trend]}, RSI=#{details[:rsi]}, MACD=#{details[:macd]}, " \
+    "Structure=#{details[:structure]}, Patterns=#{details[:patterns]}"
+end
+
+def format_option_setup_details(setup)
+  iv = setup[:iv]&.round(2) || "N/A"
+  oi = setup[:oi] || "N/A"
+  volume = setup[:volume] || "N/A"
+  "IV: #{iv}% | OI: #{oi} | Volume: #{volume}"
 end
 
 # Uncomment below to also run manual examples for comparison
@@ -237,121 +291,121 @@ if ENV["SHOW_MANUAL_EXAMPLES"] == "true"
   puts "Example 1: Technical Analysis for RELIANCE"
   puts "─" * 60
 
-begin
-  analysis_result = agent.analysis_agent.analyze_symbol(
-    symbol: "RELIANCE",
-    exchange_segment: "NSE_EQ"
-  )
+  begin
+    analysis_result = agent.analysis_agent.analyze_symbol(
+      symbol: "RELIANCE",
+      exchange_segment: "NSE_EQ"
+    )
 
-  if analysis_result[:error]
-    puts "   ⚠️  Error: #{analysis_result[:error]}"
-  elsif analysis_result[:analysis].nil? || analysis_result[:analysis].empty?
-    puts "   ⚠️  Error: Analysis returned empty result"
-  else
-    analysis = analysis_result[:analysis]
-    puts "   ✅ Analysis Complete"
-    puts "   📊 Trend: #{analysis[:trend]&.dig(:trend) || 'N/A'} (#{analysis[:trend]&.dig(:strength) || 0}% strength)"
-    puts "   📊 RSI: #{analysis[:indicators]&.dig(:rsi)&.round(2) || 'N/A'}"
-    puts "   📊 MACD: #{analysis[:indicators]&.dig(:macd)&.round(2) || 'N/A'}"
-    puts "   📊 Current Price: #{analysis[:current_price] || 'N/A'}"
-    puts "   📊 Patterns Detected: #{analysis[:patterns]&.dig(:candlestick)&.length || 0} candlestick patterns"
-    puts "   📊 Structure Break: #{analysis[:structure_break]&.dig(:broken) ? 'Yes' : 'No'}"
+    if analysis_result[:error]
+      puts "   ⚠️  Error: #{analysis_result[:error]}"
+    elsif analysis_result[:analysis].nil? || analysis_result[:analysis].empty?
+      puts "   ⚠️  Error: Analysis returned empty result"
+    else
+      analysis = analysis_result[:analysis]
+      puts "   ✅ Analysis Complete"
+      puts "   📊 Trend: #{analysis[:trend]&.dig(:trend) || 'N/A'} (#{analysis[:trend]&.dig(:strength) || 0}% strength)"
+      puts "   📊 RSI: #{analysis[:indicators]&.dig(:rsi)&.round(2) || 'N/A'}"
+      puts "   📊 MACD: #{analysis[:indicators]&.dig(:macd)&.round(2) || 'N/A'}"
+      puts "   📊 Current Price: #{analysis[:current_price] || 'N/A'}"
+      puts "   📊 Patterns Detected: #{analysis[:patterns]&.dig(:candlestick)&.length || 0} candlestick patterns"
+      puts "   📊 Structure Break: #{analysis[:structure_break]&.dig(:broken) ? 'Yes' : 'No'}"
 
-    # Generate swing trading recommendation
-    begin
-      recommendation = agent.analysis_agent.generate_recommendation(
-        analysis_result,
-        trading_style: :swing
-      )
+      # Generate swing trading recommendation
+      begin
+        recommendation = agent.analysis_agent.generate_recommendation(
+          analysis_result,
+          trading_style: :swing
+        )
 
-      if recommendation && !recommendation[:error] && recommendation.is_a?(Hash)
-        puts "\n   💡 Swing Trading Recommendation:"
-        puts "      Action: #{recommendation['recommendation']&.upcase || 'N/A'}"
-        puts "      Entry: #{recommendation['entry_price'] || 'N/A'}"
-        puts "      Stop Loss: #{recommendation['stop_loss'] || 'N/A'}"
-        puts "      Target: #{recommendation['target_price'] || 'N/A'}"
-        puts "      Risk/Reward: #{recommendation['risk_reward_ratio']&.round(2) || 'N/A'}"
-        puts "      Confidence: #{(recommendation['confidence'] * 100).round}%" if recommendation["confidence"]
+        if recommendation && !recommendation[:error] && recommendation.is_a?(Hash)
+          puts "\n   💡 Swing Trading Recommendation:"
+          puts "      Action: #{recommendation['recommendation']&.upcase || 'N/A'}"
+          puts "      Entry: #{recommendation['entry_price'] || 'N/A'}"
+          puts "      Stop Loss: #{recommendation['stop_loss'] || 'N/A'}"
+          puts "      Target: #{recommendation['target_price'] || 'N/A'}"
+          puts "      Risk/Reward: #{recommendation['risk_reward_ratio']&.round(2) || 'N/A'}"
+          puts "      Confidence: #{(recommendation['confidence'] * 100).round}%" if recommendation["confidence"]
+        end
+      rescue StandardError => e
+        puts "   ⚠️  Could not generate recommendation: #{e.message}"
       end
-    rescue StandardError => e
-      puts "   ⚠️  Could not generate recommendation: #{e.message}"
     end
-  end
-rescue StandardError => e
-  puts "   ❌ Error: #{e.message}"
-  puts "   #{e.backtrace.first(3).join("\n   ")}" if e.backtrace
-end
-
-puts
-puts "Example 2: Swing Trading Scanner"
-puts "─" * 60
-
-begin
-  # Scan a few symbols for swing opportunities
-  symbols_to_scan = ["RELIANCE", "TCS", "INFY"]
-  puts "   🔍 Scanning #{symbols_to_scan.length} symbols for swing opportunities..."
-
-  candidates = agent.swing_scanner.scan_symbols(
-    symbols_to_scan,
-    exchange_segment: "NSE_EQ",
-    min_score: 40,
-    verbose: true
-  )
-
-  if candidates.empty?
-    puts "   ⚠️  No swing candidates found above minimum score (40/100)"
-    puts "      Try lowering min_score or check rejected candidates above"
-  else
-    puts "   ✅ Found #{candidates.length} swing candidates:"
-    candidates.each do |candidate|
-      puts "      📈 #{candidate[:symbol]}: Score #{candidate[:score]}/100"
-      if candidate[:score_details]
-        details = candidate[:score_details]
-        puts "         Breakdown: Trend=#{details[:trend]}, RSI=#{details[:rsi]}, MACD=#{details[:macd]}, Structure=#{details[:structure]}, Patterns=#{details[:patterns]}"
-      end
-      trend = candidate[:analysis][:trend]
-      puts "         Trend: #{trend[:trend]} (#{trend[:strength]}% strength)"
-      puts "         #{candidate[:interpretation]}"
-    end
-  end
-rescue StandardError => e
-  puts "   ❌ Error: #{e.message}"
-  puts "   #{e.backtrace.first(3).join("\n   ")}" if e.backtrace
-end
-
-puts
-puts "Example 3: Intraday Options Scanner"
-puts "─" * 60
-
-begin
-  puts "   🔍 Scanning NIFTY for intraday options opportunities..."
-
-  options_setups = agent.options_scanner.scan_for_options_setups(
-    "NIFTY",
-    exchange_segment: "IDX_I",
-    min_score: 40,
-    verbose: true
-  )
-
-  if options_setups[:error]
-    puts "   ⚠️  #{options_setups[:error]}"
-  elsif options_setups[:setups] && !options_setups[:setups].empty?
-    puts "   ✅ Found #{options_setups[:setups].length} options setups:"
-    options_setups[:setups].each do |setup|
-      puts "      📊 #{setup[:type].to_s.upcase} @ #{setup[:strike]}"
-      puts "         IV: #{setup[:iv]&.round(2) || 'N/A'}% | OI: #{setup[:oi] || 'N/A'} | Volume: #{setup[:volume] || 'N/A'}"
-      puts "         Score: #{setup[:score]}/100 | Recommendation: #{setup[:recommendation]}"
-    end
-  else
-    puts "   ⚠️  No options setups found above minimum score (40/100)"
-    puts "      Check rejected setups above or try lowering min_score"
-  end
   rescue StandardError => e
     puts "   ❌ Error: #{e.message}"
     puts "   #{e.backtrace.first(3).join("\n   ")}" if e.backtrace
   end
 
-end # End of SHOW_MANUAL_EXAMPLES block
+  puts
+  puts "Example 2: Swing Trading Scanner"
+  puts "─" * 60
+
+  begin
+    # Scan a few symbols for swing opportunities
+    symbols_to_scan = ["RELIANCE", "TCS", "INFY"]
+    puts "   🔍 Scanning #{symbols_to_scan.length} symbols for swing opportunities..."
+
+    candidates = agent.swing_scanner.scan_symbols(
+      symbols_to_scan,
+      exchange_segment: "NSE_EQ",
+      min_score: 40,
+      verbose: true
+    )
+
+    if candidates.empty?
+      puts "   ⚠️  No swing candidates found above minimum score (40/100)"
+      puts "      Try lowering min_score or check rejected candidates above"
+    else
+      puts "   ✅ Found #{candidates.length} swing candidates:"
+      candidates.each do |candidate|
+        puts "      📈 #{candidate[:symbol]}: Score #{candidate[:score]}/100"
+        if candidate[:score_details]
+          details = candidate[:score_details]
+          puts "         Breakdown: #{format_score_breakdown(details)}"
+        end
+        trend = candidate[:analysis][:trend]
+        puts "         Trend: #{trend[:trend]} (#{trend[:strength]}% strength)"
+        puts "         #{candidate[:interpretation]}"
+      end
+    end
+  rescue StandardError => e
+    puts "   ❌ Error: #{e.message}"
+    puts "   #{e.backtrace.first(3).join("\n   ")}" if e.backtrace
+  end
+
+  puts
+  puts "Example 3: Intraday Options Scanner"
+  puts "─" * 60
+
+  begin
+    puts "   🔍 Scanning NIFTY for intraday options opportunities..."
+
+    options_setups = agent.options_scanner.scan_for_options_setups(
+      "NIFTY",
+      exchange_segment: "IDX_I",
+      min_score: 40,
+      verbose: true
+    )
+
+    if options_setups[:error]
+      puts "   ⚠️  #{options_setups[:error]}"
+    elsif options_setups[:setups] && !options_setups[:setups].empty?
+      puts "   ✅ Found #{options_setups[:setups].length} options setups:"
+      options_setups[:setups].each do |setup|
+        puts "      📊 #{setup[:type].to_s.upcase} @ #{setup[:strike]}"
+        puts "         #{format_option_setup_details(setup)}"
+        puts "         Score: #{setup[:score]}/100 | Recommendation: #{setup[:recommendation]}"
+      end
+    else
+      puts "   ⚠️  No options setups found above minimum score (40/100)"
+      puts "      Check rejected setups above or try lowering min_score"
+    end
+  rescue StandardError => e
+    puts "   ❌ Error: #{e.message}"
+    puts "   #{e.backtrace.first(3).join("\n   ")}" if e.backtrace
+  end
+
+end
 
 puts
 puts "=" * 60

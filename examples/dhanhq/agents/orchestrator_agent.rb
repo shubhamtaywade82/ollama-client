@@ -30,8 +30,7 @@ module DhanHQ
 
       protected
 
-      def build_analysis_prompt(market_context:)
-        # Not used, but required by base class
+      def build_analysis_prompt(*)
         ""
       end
 

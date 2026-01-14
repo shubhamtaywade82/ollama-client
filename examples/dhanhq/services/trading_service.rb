@@ -3,9 +3,6 @@
 require_relative "base_service"
 require_relative "../../dhanhq_tools"
 
-# Keep backward compatibility
-DhanHQTradingTools = DhanHQTradingTools unless defined?(DhanHQTradingTools)
-
 module DhanHQ
   module Services
     # Service for executing trading order actions

@@ -86,7 +86,9 @@ swing_scan_tool = Ollama::Tool.new(
   type: "function",
   function: Ollama::Tool::Function.new(
     name: "swing_scan",
-    description: "Scans for swing trading opportunities in EQUITY STOCKS only. Use for stocks like RELIANCE, TCS, INFY, HDFC. Do NOT use for indices (NIFTY, SENSEX, BANKNIFTY).",
+    description: "Scans for swing trading opportunities in EQUITY STOCKS only. " \
+                 "Use for stocks like RELIANCE, TCS, INFY, HDFC. " \
+                 "Do NOT use for indices (NIFTY, SENSEX, BANKNIFTY).",
     parameters: Ollama::Tool::Function::Parameters.new(
       type: "object",
       properties: {
@@ -118,7 +120,8 @@ options_scan_tool = Ollama::Tool.new(
   type: "function",
   function: Ollama::Tool::Function.new(
     name: "options_scan",
-    description: "Scans for intraday options buying opportunities in INDICES only. Use for NIFTY, SENSEX, BANKNIFTY. Do NOT use for stocks.",
+    description: "Scans for intraday options buying opportunities in INDICES only. " \
+                 "Use for NIFTY, SENSEX, BANKNIFTY. Do NOT use for stocks.",
     parameters: Ollama::Tool::Function::Parameters.new(
       type: "object",
       properties: {
@@ -151,7 +154,8 @@ technical_analysis_tool = Ollama::Tool.new(
   type: "function",
   function: Ollama::Tool::Function.new(
     name: "technical_analysis",
-    description: "Performs full technical analysis including trend, indicators, and patterns. Can be used for both stocks and indices.",
+    description: "Performs full technical analysis including trend, indicators, and patterns. " \
+                 "Can be used for both stocks and indices.",
     parameters: Ollama::Tool::Function::Parameters.new(
       type: "object",
       properties: {
@@ -212,7 +216,9 @@ tools = {
     callable: lambda do |symbol:, exchange_segment: "IDX_I", min_score: 40, verbose: false|
       # CRITICAL: Only allow indices, not stocks
       unless %w[NIFTY SENSEX BANKNIFTY].include?(symbol.to_s.upcase)
-        return { error: "#{symbol} is not an index. Use swing_scan for stocks. Options are only available for indices (NIFTY, SENSEX, BANKNIFTY)." }
+        error_message = "#{symbol} is not an index. Use swing_scan for stocks. " \
+                        "Options are only available for indices (NIFTY, SENSEX, BANKNIFTY)."
+        return { error: error_message }
       end
 
       begin
@@ -250,31 +256,29 @@ tools = {
   "technical_analysis" => {
     tool: technical_analysis_tool,
     callable: lambda do |symbol:, exchange_segment: "NSE_EQ"|
-      begin
-        analysis_result = agent.analysis_agent.analyze_symbol(
-          symbol: symbol.to_s,
-          exchange_segment: exchange_segment.to_s
-        )
+      analysis_result = agent.analysis_agent.analyze_symbol(
+        symbol: symbol.to_s,
+        exchange_segment: exchange_segment.to_s
+      )
 
-        if analysis_result[:error]
-          { error: analysis_result[:error] }
-        else
-          analysis = analysis_result[:analysis]
-          {
-            symbol: symbol,
-            exchange_segment: exchange_segment,
-            trend: analysis[:trend]&.dig(:trend),
-            trend_strength: analysis[:trend]&.dig(:strength),
-            rsi: analysis[:indicators]&.dig(:rsi)&.round(2),
-            macd: analysis[:indicators]&.dig(:macd)&.round(2),
-            current_price: analysis[:current_price],
-            patterns_count: analysis[:patterns]&.dig(:candlestick)&.length || 0,
-            structure_break: analysis[:structure_break]&.dig(:broken) || false
-          }
-        end
-      rescue StandardError => e
-        { error: e.message, backtrace: e.backtrace.first(3) }
+      if analysis_result[:error]
+        { error: analysis_result[:error] }
+      else
+        analysis = analysis_result[:analysis]
+        {
+          symbol: symbol,
+          exchange_segment: exchange_segment,
+          trend: analysis[:trend]&.dig(:trend),
+          trend_strength: analysis[:trend]&.dig(:strength),
+          rsi: analysis[:indicators]&.dig(:rsi)&.round(2),
+          macd: analysis[:indicators]&.dig(:macd)&.round(2),
+          current_price: analysis[:current_price],
+          patterns_count: analysis[:patterns]&.dig(:candlestick)&.length || 0,
+          structure_break: analysis[:structure_break]&.dig(:broken) || false
+        }
       end
+    rescue StandardError => e
+      { error: e.message, backtrace: e.backtrace.first(3) }
     end
   }
 }

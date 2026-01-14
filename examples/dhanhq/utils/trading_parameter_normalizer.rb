@@ -26,9 +26,7 @@ module DhanHQ
         return nil if value.nil?
 
         # If already a number, return as-is (but validate it's reasonable)
-        if value.is_a?(Numeric)
-          return value
-        end
+        return value if value.is_a?(Numeric)
 
         # If string, clean and convert
         return nil unless value.is_a?(String)
@@ -38,28 +36,25 @@ module DhanHQ
         return nil if cleaned.empty?
 
         # Try to convert to float (for prices) or integer (for quantity)
-        result = if cleaned.include?(".")
-                   cleaned.to_f
-                 else
-                   cleaned.to_i
-                 end
-
-        result
+        if cleaned.include?(".")
+          cleaned.to_f
+        else
+          cleaned.to_i
+        end
       rescue StandardError
         nil
       end
 
       # Validates if a price value seems reasonable (not obviously wrong)
-      def self.validate_price(price, context_hint = nil)
+      def self.valid_price?(price, context_hint = nil)
         return false if price.nil?
 
         # If price is suspiciously low (< 10), it might be wrong
         # But we can't be too strict since some stocks might legitimately be < 10
-        if price.is_a?(Numeric) && price > 0 && price < 10
-          # Check if context hint suggests a higher price
-          if context_hint && context_hint.is_a?(Numeric) && context_hint > price * 100
-            return false # Likely wrong
-          end
+        # Check if context hint suggests a higher price
+        if price.is_a?(Numeric) && price.positive? && price < 10 &&
+           context_hint.is_a?(Numeric) && context_hint > price * 100
+          return false # Likely wrong
         end
 
         true
@@ -71,7 +66,7 @@ module DhanHQ
         value.to_s
       end
 
-      private_class_method :normalize_numeric, :normalize_security_id
+      private_class_method :normalize_numeric, :normalize_security_id, :valid_price?
     end
   end
 end

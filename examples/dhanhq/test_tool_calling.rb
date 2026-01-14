@@ -27,6 +27,65 @@ config.temperature = 0.2
 config.timeout = 60
 client = Ollama::Client.new(config: config)
 
+def find_strike_key(strike_keys, strike_value)
+  strike_keys.find { |key| (key.to_s.to_f - strike_value).abs < 0.01 }
+end
+
+def log_missing_strike_key(strike_value, strike_keys)
+  puts "⚠️  Could not find key for strike ₹#{strike_value}"
+  puts "   Available keys sample: #{strike_keys.first(3).inspect}"
+end
+
+def print_option_leg(heading, data, label)
+  puts heading
+  if data && !data.empty?
+    puts "  LTP: ₹#{option_value(data, :ltp)}"
+    puts "  IV: #{option_value(data, :iv)}%"
+    puts "  OI: #{option_value(data, :oi)}"
+    puts "  Volume: #{option_value(data, :volume)}"
+    puts "  Delta: #{option_value(data, :delta)}"
+    puts "  Gamma: #{option_value(data, :gamma)}"
+    puts "  Theta: #{option_value(data, :theta)}"
+    puts "  Vega: #{option_value(data, :vega)}"
+  else
+    puts "  No #{label} data available"
+  end
+end
+
+def option_value(data, key)
+  return "N/A" unless data
+
+  data[key] || data[key.to_s] || "N/A"
+end
+
+def print_strike_summary(strike_value, strike_keys, chain)
+  actual_key = find_strike_key(strike_keys, strike_value)
+  unless actual_key
+    log_missing_strike_key(strike_value, strike_keys)
+    return
+  end
+
+  strike_data = chain[actual_key]
+  unless strike_data
+    puts "⚠️  No data found for strike ₹#{strike_value} (key: #{actual_key.inspect})"
+    puts "   Strike data type: #{strike_data.class}" if strike_data
+    puts "   Strike data: #{strike_data.inspect}" if strike_data
+    return
+  end
+
+  puts "=" * 60
+  puts "Strike: ₹#{strike_value} (key: #{actual_key.inspect})"
+  puts "-" * 60
+
+  # Extract CALL and PUT data (DhanHQ uses "ce" for CALL and "pe" for PUT)
+  call_data = strike_data[:ce] || strike_data["ce"] || {}
+  put_data = strike_data[:pe] || strike_data["pe"] || {}
+
+  print_option_leg("CALL Options (CE):", call_data, "CALL")
+  print_option_leg("\nPUT Options (PE):", put_data, "PUT")
+  puts
+end
+
 # Define DhanHQ tools using structured Tool classes
 puts "\n--- Defining Tools ---"
 
@@ -34,7 +93,8 @@ market_quote_tool = Ollama::Tool.new(
   type: "function",
   function: Ollama::Tool::Function.new(
     name: "get_market_quote",
-    description: "Get market quote for a symbol. Returns OHLC, depth, volume, and other market data. Finds instrument automatically using exchange_segment and symbol.",
+    description: "Get market quote for a symbol. Returns OHLC, depth, volume, and other market data. " \
+                 "Finds instrument automatically using exchange_segment and symbol.",
     parameters: Ollama::Tool::Function::Parameters.new(
       type: "object",
       properties: {
@@ -57,7 +117,8 @@ live_ltp_tool = Ollama::Tool.new(
   type: "function",
   function: Ollama::Tool::Function.new(
     name: "get_live_ltp",
-    description: "Get live last traded price (LTP) for a symbol. Fast API for current price. Finds instrument automatically using exchange_segment and symbol.",
+    description: "Get live last traded price (LTP) for a symbol. Fast API for current price. " \
+                 "Finds instrument automatically using exchange_segment and symbol.",
     parameters: Ollama::Tool::Function::Parameters.new(
       type: "object",
       properties: {
@@ -81,7 +142,8 @@ option_chain_tool = Ollama::Tool.new(
   type: "function",
   function: Ollama::Tool::Function.new(
     name: "get_option_chain",
-    description: "Get option chain for an index (NIFTY, SENSEX, BANKNIFTY). Returns available expiries and option chain data with strikes, Greeks, OI, and IV.",
+    description: "Get option chain for an index (NIFTY, SENSEX, BANKNIFTY). " \
+                 "Returns available expiries and option chain data with strikes, Greeks, OI, and IV.",
     parameters: Ollama::Tool::Function::Parameters.new(
       type: "object",
       properties: {
@@ -201,7 +263,7 @@ tools = {
           }
         elsif result[:result] && result[:result][:chain]
           chain = result[:result][:chain]
-          strikes = chain.is_a?(Hash) ? chain.keys.sort_by { |k| k.to_f } : []
+          strikes = chain.is_a?(Hash) ? chain.keys.sort_by(&:to_f) : []
           puts "  ✅ Success: #{strikes.length} strikes for expiry #{result[:result][:expiry]}"
           {
             symbol: symbol,
@@ -308,18 +370,18 @@ begin
     symbol: "SENSEX",
     exchange_segment: "IDX_I"
   )
-  
+
   if expiry_result[:result] && expiry_result[:result][:expiries] && !expiry_result[:result][:expiries].empty?
     first_expiry = expiry_result[:result][:expiries].first
     puts "Using expiry: #{first_expiry}\n"
-    
+
     # Call directly to avoid LLM date confusion
     chain_result = DhanHQDataTools.get_option_chain(
       symbol: "SENSEX",
       exchange_segment: "IDX_I",
       expiry: first_expiry
     )
-    
+
     if chain_result[:error]
       puts "❌ Error: #{chain_result[:error]}"
     elsif chain_result[:result] && chain_result[:result][:chain]
@@ -330,13 +392,13 @@ begin
                 else
                   []
                 end
-      
+
       puts "✅ Option chain retrieved successfully"
       puts "   Underlying Price: ₹#{underlying_price}"
       puts "   Expiry: #{chain_result[:result][:expiry]}"
       puts "   Total Strikes: #{strikes.length}"
-      puts "   Strike Range: ₹#{strikes.first} to ₹#{strikes.last}" if !strikes.empty?
-      puts "   Sample strikes: #{strikes.first(5).join(', ')}" if !strikes.empty?
+      puts "   Strike Range: ₹#{strikes.first} to ₹#{strikes.last}" unless strikes.empty?
+      puts "   Sample strikes: #{strikes.first(5).join(', ')}" unless strikes.empty?
     else
       puts "⚠️  Unexpected response format"
     end
@@ -358,38 +420,40 @@ begin
     symbol: "SENSEX",
     exchange_segment: "IDX_I"
   )
-  
-  if expiry_result[:error] || !expiry_result[:result] || !expiry_result[:result][:expiries] || expiry_result[:result][:expiries].empty?
-    puts "❌ Error: Could not get expiry list - #{expiry_result[:error] || 'No expiries found'}"
+
+  expiries = expiry_result.dig(:result, :expiries)
+  if expiry_result[:error] || !expiries.is_a?(Array) || expiries.empty?
+    error_message = expiry_result[:error] || "No expiries found"
+    puts "❌ Error: Could not get expiry list - #{error_message}"
   else
-    first_expiry = expiry_result[:result][:expiries].first
+    first_expiry = expiries.first
     puts "Using expiry: #{first_expiry}\n"
-    
+
     # Get full option chain for this expiry
     chain_result = DhanHQDataTools.get_option_chain(
       symbol: "SENSEX",
       exchange_segment: "IDX_I",
       expiry: first_expiry
     )
-    
+
     if chain_result[:error]
       puts "❌ Error getting option chain: #{chain_result[:error]}"
     elsif chain_result[:result] && chain_result[:result][:chain]
       underlying_price = chain_result[:result][:underlying_last_price].to_f
       chain = chain_result[:result][:chain]
-      
+
       puts "Underlying Price (SENSEX): ₹#{underlying_price}\n"
-      
+
       # Extract all strikes and sort them
       # Chain keys are typically strings with decimal precision (e.g., "83600.000000")
       strike_keys = if chain.is_a?(Hash)
-                     chain.keys.sort_by { |k| k.to_s.to_f }
-                   else
-                     []
-                   end
-      
+                      chain.keys.sort_by { |k| k.to_s.to_f }
+                    else
+                      []
+                    end
+
       strikes = strike_keys.map { |k| k.to_s.to_f }
-      
+
       if strikes.empty?
         puts "❌ No strikes found in chain data"
         puts "   Chain keys: #{chain.keys.first(5).inspect}" if chain.is_a?(Hash)
@@ -398,68 +462,16 @@ begin
         atm_strike = strikes.min_by { |s| (s - underlying_price).abs }
         atm_index = strikes.index(atm_strike)
         atm_plus_one = strikes[atm_index + 1] if atm_index && (atm_index + 1) < strikes.length
-        
+
         puts "ATM Strike: ₹#{atm_strike}"
         puts "ATM+1 Strike: ₹#{atm_plus_one || 'N/A'}\n"
-        
+
         # Extract data for ATM and ATM+1 strikes
         # Match strike values to actual keys in chain hash
         [atm_strike, atm_plus_one].compact.each do |strike_value|
-          # Find the actual key that matches this strike value
-          actual_key = strike_keys.find { |k| (k.to_s.to_f - strike_value).abs < 0.01 }
-          
-          if actual_key.nil?
-            puts "⚠️  Could not find key for strike ₹#{strike_value}"
-            puts "   Available keys sample: #{strike_keys.first(3).inspect}"
-            next
-          end
-          
-          strike_data = chain[actual_key]
-          
-          if strike_data
-            puts "=" * 60
-            puts "Strike: ₹#{strike_value} (key: #{actual_key.inspect})"
-            puts "-" * 60
-            
-            # Extract CALL and PUT data (DhanHQ uses "ce" for CALL and "pe" for PUT)
-            call_data = strike_data[:ce] || strike_data["ce"] || {}
-            put_data = strike_data[:pe] || strike_data["pe"] || {}
-            
-            puts "CALL Options (CE):"
-            if call_data && !call_data.empty?
-              puts "  LTP: ₹#{call_data[:ltp] || call_data['ltp'] || 'N/A'}"
-              puts "  IV: #{call_data[:iv] || call_data['iv'] || 'N/A'}%"
-              puts "  OI: #{call_data[:oi] || call_data['oi'] || 'N/A'}"
-              puts "  Volume: #{call_data[:volume] || call_data['volume'] || 'N/A'}"
-              puts "  Delta: #{call_data[:delta] || call_data['delta'] || 'N/A'}"
-              puts "  Gamma: #{call_data[:gamma] || call_data['gamma'] || 'N/A'}"
-              puts "  Theta: #{call_data[:theta] || call_data['theta'] || 'N/A'}"
-              puts "  Vega: #{call_data[:vega] || call_data['vega'] || 'N/A'}"
-            else
-              puts "  No CALL data available"
-            end
-            
-            puts "\nPUT Options (PE):"
-            if put_data && !put_data.empty?
-              puts "  LTP: ₹#{put_data[:ltp] || put_data['ltp'] || 'N/A'}"
-              puts "  IV: #{put_data[:iv] || put_data['iv'] || 'N/A'}%"
-              puts "  OI: #{put_data[:oi] || put_data['oi'] || 'N/A'}"
-              puts "  Volume: #{put_data[:volume] || put_data['volume'] || 'N/A'}"
-              puts "  Delta: #{put_data[:delta] || put_data['delta'] || 'N/A'}"
-              puts "  Gamma: #{put_data[:gamma] || put_data['gamma'] || 'N/A'}"
-              puts "  Theta: #{put_data[:theta] || put_data['theta'] || 'N/A'}"
-              puts "  Vega: #{put_data[:vega] || put_data['vega'] || 'N/A'}"
-            else
-              puts "  No PUT data available"
-            end
-            puts
-          else
-            puts "⚠️  No data found for strike ₹#{strike_value} (key: #{actual_key.inspect})"
-            puts "   Strike data type: #{strike_data.class}" if strike_data
-            puts "   Strike data: #{strike_data.inspect}" if strike_data
-          end
+          print_strike_summary(strike_value, strike_keys, chain)
         end
-        
+
         puts "=" * 60
         puts "✅ Successfully extracted ATM and ATM+1 strikes for CALL and PUT"
       end
@@ -507,7 +519,6 @@ begin
     puts "\n✅ Tool calls also accessible via hash:"
     puts "  Count: #{tool_calls_hash.length}"
   end
-
 rescue Ollama::Error => e
   puts "\n❌ Error: #{e.class.name}"
   puts "   Message: #{e.message}"

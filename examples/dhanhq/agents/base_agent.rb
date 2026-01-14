@@ -24,8 +24,6 @@ module DhanHQ
         return low_confidence_decision(decision) if low_confidence?(decision)
 
         decision
-      rescue Ollama::Error => e
-        error_decision(e.message)
       rescue StandardError => e
         error_decision(e.message)
       end

@@ -11,35 +11,31 @@ module DhanHQ
         patterns = []
 
         (2...closes.length).each do |i|
-          o1, h1, l1, c1 = opens[i - 2], highs[i - 2], lows[i - 2], closes[i - 2]
-          o2, h2, l2, c2 = opens[i - 1], highs[i - 1], lows[i - 1], closes[i - 1]
-          o3, h3, l3, c3 = opens[i], highs[i], lows[i], closes[i]
+          first_candle = build_candle(opens, highs, lows, closes, i - 2)
+          second_candle = build_candle(opens, highs, lows, closes, i - 1)
+          third_candle = build_candle(opens, highs, lows, closes, i)
 
           # Engulfing patterns
-          if bullish_engulfing?(o1, c1, o2, c2)
+          if bullish_engulfing?(first_candle, second_candle)
             patterns << { type: :bullish_engulfing, index: i, strength: :medium }
           end
 
-          if bearish_engulfing?(o1, c1, o2, c2)
+          if bearish_engulfing?(first_candle, second_candle)
             patterns << { type: :bearish_engulfing, index: i, strength: :medium }
           end
 
           # Hammer pattern
-          if hammer?(o2, h2, l2, c2)
-            patterns << { type: :hammer, index: i - 1, strength: :medium }
-          end
+          patterns << { type: :hammer, index: i - 1, strength: :medium } if hammer?(second_candle)
 
           # Shooting star
-          if shooting_star?(o2, h2, l2, c2)
-            patterns << { type: :shooting_star, index: i - 1, strength: :medium }
-          end
+          patterns << { type: :shooting_star, index: i - 1, strength: :medium } if shooting_star?(second_candle)
 
           # Three white soldiers / three black crows
-          if three_white_soldiers?(c1, c2, c3, o1, o2, o3)
+          if three_white_soldiers?([first_candle, second_candle, third_candle])
             patterns << { type: :three_white_soldiers, index: i, strength: :strong }
           end
 
-          if three_black_crows?(c1, c2, c3, o1, o2, o3)
+          if three_black_crows?([first_candle, second_candle, third_candle])
             patterns << { type: :three_black_crows, index: i, strength: :strong }
           end
         end
@@ -65,46 +61,62 @@ module DhanHQ
         patterns
       end
 
-      private
+      def self.bullish_engulfing?(first_candle, second_candle)
+        first_open = first_candle[:open]
+        first_close = first_candle[:close]
+        second_open = second_candle[:open]
+        second_close = second_candle[:close]
 
-      def self.bullish_engulfing?(o1, c1, o2, c2)
-        c1 < o1 && # First candle is bearish
-          c2 > o2 && # Second candle is bullish
-          o2 < c1 && # Second opens below first close
-          c2 > o1 # Second closes above first open
+        first_close < first_open && # First candle is bearish
+          second_close > second_open && # Second candle is bullish
+          second_open < first_close && # Second opens below first close
+          second_close > first_open # Second closes above first open
       end
 
-      def self.bearish_engulfing?(o1, c1, o2, c2)
-        c1 > o1 && # First candle is bullish
-          c2 < o2 && # Second candle is bearish
-          o2 > c1 && # Second opens above first close
-          c2 < o1 # Second closes below first open
+      def self.bearish_engulfing?(first_candle, second_candle)
+        first_open = first_candle[:open]
+        first_close = first_candle[:close]
+        second_open = second_candle[:open]
+        second_close = second_candle[:close]
+
+        first_close > first_open && # First candle is bullish
+          second_close < second_open && # Second candle is bearish
+          second_open > first_close && # Second opens above first close
+          second_close < first_open # Second closes below first open
       end
 
-      def self.hammer?(open, high, low, close)
-        body = (close - open).abs
-        lower_shadow = [open, close].min - low
-        upper_shadow = high - [open, close].max
+      def self.hammer?(candle)
+        body = (candle[:close] - candle[:open]).abs
+        lower_shadow = [candle[:open], candle[:close]].min - candle[:low]
+        upper_shadow = candle[:high] - [candle[:open], candle[:close]].max
 
         lower_shadow > body * 2 && upper_shadow < body * 0.5
       end
 
-      def self.shooting_star?(open, high, low, close)
-        body = (close - open).abs
-        upper_shadow = high - [open, close].max
-        lower_shadow = [open, close].min - low
+      def self.shooting_star?(candle)
+        body = (candle[:close] - candle[:open]).abs
+        upper_shadow = candle[:high] - [candle[:open], candle[:close]].max
+        lower_shadow = [candle[:open], candle[:close]].min - candle[:low]
 
         upper_shadow > body * 2 && lower_shadow < body * 0.5
       end
 
-      def self.three_white_soldiers?(c1, c2, c3, o1, o2, o3)
-        c1 > o1 && c2 > o2 && c3 > o3 && # All bullish
-          c2 > c1 && c3 > c2 # Each closes higher
+      def self.three_white_soldiers?(candles)
+        first, second, third = candles
+        first[:close] > first[:open] &&
+          second[:close] > second[:open] &&
+          third[:close] > third[:open] && # All bullish
+          second[:close] > first[:close] &&
+          third[:close] > second[:close] # Each closes higher
       end
 
-      def self.three_black_crows?(c1, c2, c3, o1, o2, o3)
-        c1 < o1 && c2 < o2 && c3 < o3 && # All bearish
-          c2 < c1 && c3 < c2 # Each closes lower
+      def self.three_black_crows?(candles)
+        first, second, third = candles
+        first[:close] < first[:open] &&
+          second[:close] < second[:open] &&
+          third[:close] < third[:open] && # All bearish
+          second[:close] < first[:close] &&
+          third[:close] < second[:close] # Each closes lower
       end
 
       def self.head_and_shoulders?(highs, _lows)
@@ -123,8 +135,8 @@ module DhanHQ
         head[:value] > left_shoulder[:value] && head[:value] > right_shoulder[:value]
       end
 
-      def self.double_top_bottom?(highs, lows, closes)
-        return nil if highs.length < 20
+      def self.double_top_bottom?(highs, lows, _closes)
+        return false if highs.length < 20
 
         # Double top: two similar highs with dip in between
         peaks = find_peaks(highs)
@@ -148,15 +160,13 @@ module DhanHQ
           end
         end
 
-        nil
+        false
       end
 
       def self.find_peaks(values)
         peaks = []
         (1...(values.length - 1)).each do |i|
-          if values[i] > values[i - 1] && values[i] > values[i + 1]
-            peaks << { index: i, value: values[i] }
-          end
+          peaks << { index: i, value: values[i] } if values[i] > values[i - 1] && values[i] > values[i + 1]
         end
         peaks
       end
@@ -164,11 +174,18 @@ module DhanHQ
       def self.find_troughs(values)
         troughs = []
         (1...(values.length - 1)).each do |i|
-          if values[i] < values[i - 1] && values[i] < values[i + 1]
-            troughs << { index: i, value: values[i] }
-          end
+          troughs << { index: i, value: values[i] } if values[i] < values[i - 1] && values[i] < values[i + 1]
         end
         troughs
+      end
+
+      def self.build_candle(opens, highs, lows, closes, index)
+        {
+          open: opens[index],
+          high: highs[index],
+          low: lows[index],
+          close: closes[index]
+        }
       end
     end
   end

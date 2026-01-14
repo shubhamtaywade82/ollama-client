@@ -82,7 +82,8 @@ option_chain_tool = Ollama::Tool.new(
   type: "function",
   function: Ollama::Tool::Function.new(
     name: "get_option_chain",
-    description: "Get option chain for an index (NIFTY, SENSEX, BANKNIFTY). Returns available expiries and option chain data with strikes, Greeks, OI, and IV.",
+    description: "Get option chain for an index (NIFTY, SENSEX, BANKNIFTY). " \
+                 "Returns available expiries and option chain data with strikes, Greeks, OI, and IV.",
     parameters: Ollama::Tool::Function::Parameters.new(
       type: "object",
       properties: {
@@ -133,7 +134,7 @@ tools = {
       elsif result[:result] && result[:result][:chain]
         # Return option chain data
         chain = result[:result][:chain]
-        strikes = chain.is_a?(Hash) ? chain.keys.sort_by { |k| k.to_f } : []
+        strikes = chain.is_a?(Hash) ? chain.keys.sort_by(&:to_f) : []
         {
           symbol: symbol,
           expiry: result[:result][:expiry],
@@ -224,7 +225,8 @@ executor = Ollama::Agent::Executor.new(
 begin
   result = executor.run(
     system: "You are a market data assistant. Use the available tools to get market data. " \
-            "For option chains, you can get SENSEX options using get_option_chain with symbol='SENSEX' and exchange_segment='IDX_I'.",
+            "For option chains, you can get SENSEX options using get_option_chain with " \
+            "symbol='SENSEX' and exchange_segment='IDX_I'.",
     user: "Get market quote for RELIANCE stock, check NIFTY's current price, and get SENSEX option chain"
   )
 

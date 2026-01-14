@@ -443,6 +443,139 @@ class TradingAgent
   end
 end
 
+def price_range_stats(price_ranges)
+  return nil unless price_ranges.is_a?(Array) && price_ranges.any?
+
+  {
+    min: price_ranges.min.round(2),
+    max: price_ranges.max.round(2),
+    avg: (price_ranges.sum / price_ranges.length).round(2),
+    count: price_ranges.length
+  }
+end
+
+def build_expired_options_summary(stats)
+  {
+    data_points: stats[:data_points] || 0,
+    avg_volume: stats[:avg_volume]&.round(2),
+    avg_open_interest: stats[:avg_open_interest]&.round(2),
+    avg_implied_volatility: stats[:avg_implied_volatility]&.round(4),
+    price_range_stats: price_range_stats(stats[:price_ranges]),
+    has_ohlc: stats[:has_ohlc],
+    has_volume: stats[:has_volume],
+    has_open_interest: stats[:has_open_interest],
+    has_implied_volatility: stats[:has_implied_volatility]
+  }
+end
+
+def build_option_chain_summary(chain_result)
+  chain = chain_result[:result][:chain]
+  underlying_price = chain_result[:result][:underlying_last_price]
+
+  unless chain.is_a?(Hash)
+    return [{ expiry: chain_result[:result][:expiry], chain_type: chain.class },
+            underlying_price]
+  end
+
+  strike_prices = chain.keys.sort_by(&:to_f)
+  first_strike_data = strike_prices.any? ? chain[strike_prices.first] : nil
+  atm_strike = select_atm_strike(strike_prices, underlying_price)
+  atm_data = atm_strike ? chain[atm_strike] : nil
+  sample_greeks = build_sample_greeks(atm_data, atm_strike)
+
+  summary = {
+    expiry: chain_result[:result][:expiry],
+    underlying_last_price: underlying_price,
+    strikes_count: strike_prices.length,
+    has_call_options: option_type_present?(first_strike_data, "ce"),
+    has_put_options: option_type_present?(first_strike_data, "pe"),
+    has_greeks: sample_greeks.any?,
+    strike_range: strike_range_summary(strike_prices),
+    sample_greeks: sample_greeks.any? ? sample_greeks : nil
+  }
+
+  [summary, underlying_price]
+end
+
+def select_atm_strike(strike_prices, underlying_price)
+  return strike_prices.first unless underlying_price && strike_prices.any?
+
+  strike_prices.min_by { |strike| (strike.to_f - underlying_price).abs }
+end
+
+def option_type_present?(strike_data, key)
+  strike_data.is_a?(Hash) && (strike_data.key?(key) || strike_data.key?(key.to_sym))
+end
+
+def strike_range_summary(strike_prices)
+  return nil if strike_prices.empty?
+
+  {
+    min: strike_prices.first,
+    max: strike_prices.last,
+    sample_strikes: strike_prices.first(5)
+  }
+end
+
+def build_sample_greeks(atm_data, atm_strike)
+  return {} unless atm_data.is_a?(Hash)
+
+  sample = {}
+  call_data = atm_data["ce"] || atm_data[:ce]
+  put_data = atm_data["pe"] || atm_data[:pe]
+
+  call_greeks = extract_greeks(call_data)
+  sample[:call] = greeks_summary(call_greeks, call_data, atm_strike) if call_greeks
+
+  put_greeks = extract_greeks(put_data)
+  sample[:put] = greeks_summary(put_greeks, put_data, atm_strike) if put_greeks
+
+  sample
+end
+
+def extract_greeks(option_data)
+  return nil unless option_data.is_a?(Hash)
+  return nil unless option_data.key?("greeks") || option_data.key?(:greeks)
+
+  option_data["greeks"] || option_data[:greeks]
+end
+
+def greeks_summary(greeks, option_data, atm_strike)
+  {
+    strike: atm_strike,
+    delta: greeks["delta"] || greeks[:delta],
+    theta: greeks["theta"] || greeks[:theta],
+    gamma: greeks["gamma"] || greeks[:gamma],
+    vega: greeks["vega"] || greeks[:vega],
+    iv: option_data["implied_volatility"] || option_data[:implied_volatility],
+    oi: option_data["oi"] || option_data[:oi],
+    last_price: option_data["last_price"] || option_data[:last_price]
+  }
+end
+
+def format_score_breakdown(details)
+  "Trend=#{details[:trend]}, RSI=#{details[:rsi]}, MACD=#{details[:macd]}, " \
+    "Structure=#{details[:structure]}, Patterns=#{details[:patterns]}"
+end
+
+def format_option_setup_details(setup)
+  iv = setup[:iv]&.round(2) || "N/A"
+  oi = setup[:oi] || "N/A"
+  volume = setup[:volume] || "N/A"
+  "IV: #{iv}% | OI: #{oi} | Volume: #{volume}"
+end
+
+def handle_option_chain_result(chain_result)
+  if chain_result[:result] && chain_result[:result][:chain]
+    chain_summary, underlying_price = build_option_chain_summary(chain_result)
+    puts "   ✅ Option chain retrieved for expiry: #{chain_result[:result][:expiry]}"
+    puts "   📊 Underlying LTP: #{underlying_price}" if underlying_price
+    puts "   📊 Chain summary: #{JSON.pretty_generate(chain_summary)}"
+  elsif chain_result[:error]
+    puts "   ⚠️  Could not retrieve option chain data: #{chain_result[:error]}"
+  end
+end
+
 # Main execution
 if __FILE__ == $PROGRAM_NAME
   # Configure DhanHQ (must be done before using DhanHQ models)
@@ -661,7 +794,7 @@ if __FILE__ == $PROGRAM_NAME
       puts "   ✅ Historical data retrieved"
       puts "   📊 Type: #{result[:type]}"
       puts "   📊 Records: #{result[:result][:count]}"
-      if result[:result][:count] == 0
+      if result[:result][:count].zero?
         puts "   ⚠️  No data found for date range #{from_date} to #{to_date}"
         puts "      (This may be normal if market was closed or data unavailable)"
       end
@@ -698,27 +831,7 @@ if __FILE__ == $PROGRAM_NAME
       # Show concise summary of expired options data instead of full data (can be very large)
       if result[:result][:summary_stats]
         stats = result[:result][:summary_stats]
-        # Create a concise summary without the huge price_ranges array
-        concise_summary = {
-          data_points: stats[:data_points] || 0,
-          avg_volume: stats[:avg_volume]&.round(2),
-          avg_open_interest: stats[:avg_open_interest]&.round(2),
-          avg_implied_volatility: stats[:avg_implied_volatility]&.round(4),
-          price_range_stats: if stats[:price_ranges]&.is_a?(Array) && !stats[:price_ranges].empty?
-                               {
-                                 min: stats[:price_ranges].min.round(2),
-                                 max: stats[:price_ranges].max.round(2),
-                                 avg: (stats[:price_ranges].sum / stats[:price_ranges].length).round(2),
-                                 count: stats[:price_ranges].length
-                               }
-                             else
-                               nil
-                             end,
-          has_ohlc: stats[:has_ohlc],
-          has_volume: stats[:has_volume],
-          has_open_interest: stats[:has_open_interest],
-          has_implied_volatility: stats[:has_implied_volatility]
-        }
+        concise_summary = build_expired_options_summary(stats)
         puts "   📊 Data summary: #{JSON.pretty_generate(concise_summary)}"
       else
         puts "   📊 Data available but summary stats not found"
@@ -759,87 +872,7 @@ if __FILE__ == $PROGRAM_NAME
           exchange_segment: "IDX_I", # Use IDX_I for index options underlying
           expiry: next_expiry
         )
-        if chain_result[:result] && chain_result[:result][:chain]
-          chain = chain_result[:result][:chain]
-          underlying_price = chain_result[:result][:underlying_last_price]
-
-          # Option chain structure: chain[:oc] is a hash with strike prices as string keys
-          # Each strike contains "ce" (call) and "pe" (put) data with Greeks, IV, OI, etc.
-          chain_summary = if chain.is_a?(Hash)
-                            # Strike prices are string keys (e.g., "25000.000000")
-                            strike_prices = chain.keys.sort_by { |k| k.to_f }
-                            first_strike_data = chain[strike_prices.first] unless strike_prices.empty?
-
-                            # Find ATM or nearest strike to underlying price for sample Greeks
-                            atm_strike = if underlying_price && !strike_prices.empty?
-                                           strike_prices.min_by { |s| (s.to_f - underlying_price).abs }
-                                         else
-                                           strike_prices.first
-                                         end
-                            atm_data = chain[atm_strike] if atm_strike
-
-                            # Extract Greeks from ATM strike if available
-                            sample_greeks = {}
-                            if atm_data.is_a?(Hash)
-                              ce_data = atm_data["ce"] || atm_data[:ce]
-                              pe_data = atm_data["pe"] || atm_data[:pe]
-
-                              if ce_data.is_a?(Hash) && (ce_data.key?("greeks") || ce_data.key?(:greeks))
-                                ce_greeks = ce_data["greeks"] || ce_data[:greeks]
-                                sample_greeks[:call] = {
-                                  strike: atm_strike,
-                                  delta: ce_greeks["delta"] || ce_greeks[:delta],
-                                  theta: ce_greeks["theta"] || ce_greeks[:theta],
-                                  gamma: ce_greeks["gamma"] || ce_greeks[:gamma],
-                                  vega: ce_greeks["vega"] || ce_greeks[:vega],
-                                  iv: ce_data["implied_volatility"] || ce_data[:implied_volatility],
-                                  oi: ce_data["oi"] || ce_data[:oi],
-                                  last_price: ce_data["last_price"] || ce_data[:last_price]
-                                }
-                              end
-
-                              if pe_data.is_a?(Hash) && (pe_data.key?("greeks") || pe_data.key?(:greeks))
-                                pe_greeks = pe_data["greeks"] || pe_data[:greeks]
-                                sample_greeks[:put] = {
-                                  strike: atm_strike,
-                                  delta: pe_greeks["delta"] || pe_greeks[:delta],
-                                  theta: pe_greeks["theta"] || pe_greeks[:theta],
-                                  gamma: pe_greeks["gamma"] || pe_greeks[:gamma],
-                                  vega: pe_greeks["vega"] || pe_greeks[:vega],
-                                  iv: pe_data["implied_volatility"] || pe_data[:implied_volatility],
-                                  oi: pe_data["oi"] || pe_data[:oi],
-                                  last_price: pe_data["last_price"] || pe_data[:last_price]
-                                }
-                              end
-                            end
-
-                            {
-                              expiry: chain_result[:result][:expiry],
-                              underlying_last_price: underlying_price,
-                              strikes_count: strike_prices.length,
-                              has_call_options: first_strike_data.is_a?(Hash) && (first_strike_data.key?("ce") || first_strike_data.key?(:ce)),
-                              has_put_options: first_strike_data.is_a?(Hash) && (first_strike_data.key?("pe") || first_strike_data.key?(:pe)),
-                              has_greeks: !sample_greeks.empty?,
-                              strike_range: if strike_prices.empty?
-                                              nil
-                                            else
-                                              {
-                                                min: strike_prices.first,
-                                                max: strike_prices.last,
-                                                sample_strikes: strike_prices.first(5)
-                                              }
-                                            end,
-                              sample_greeks: sample_greeks.empty? ? nil : sample_greeks
-                            }
-                          else
-                            { expiry: chain_result[:result][:expiry], chain_type: chain.class }
-                          end
-          puts "   ✅ Option chain retrieved for expiry: #{chain_result[:result][:expiry]}"
-          puts "   📊 Underlying LTP: #{underlying_price}" if underlying_price
-          puts "   📊 Chain summary: #{JSON.pretty_generate(chain_summary)}"
-        elsif chain_result[:error]
-          puts "   ⚠️  Could not retrieve option chain data: #{chain_result[:error]}"
-        end
+        handle_option_chain_result(chain_result)
       end
     elsif expiry_list_result[:error]
       puts "   ⚠️  #{expiry_list_result[:error]}"
