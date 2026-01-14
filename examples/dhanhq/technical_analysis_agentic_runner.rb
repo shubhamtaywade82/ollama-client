@@ -232,9 +232,11 @@ tools = {
         if options_setups[:error]
           { error: options_setups[:error] }
         else
+          underlying_price = options_setups.dig(:underlying_analysis, :current_price)
           {
             symbol: symbol,
             exchange_segment: exchange_segment,
+            underlying_price: underlying_price,
             setups_found: options_setups[:setups]&.length || 0,
             setups: options_setups[:setups]&.map do |s|
               {
@@ -242,6 +244,7 @@ tools = {
                 strike: s[:strike],
                 score: s[:score],
                 iv: s[:iv],
+                ltp: s[:ltp],
                 recommendation: s[:recommendation]
               }
             end || []
@@ -334,6 +337,51 @@ executor = Ollama::Agent::Executor.new(
   max_steps: 20
 )
 
+def tool_messages(messages)
+  messages.select { |message| message[:role] == "tool" }
+end
+
+def print_tool_results(messages)
+  puts "Tool Results:"
+  tool_messages(messages).each do |message|
+    print_tool_message(message)
+  end
+end
+
+def print_tool_message(message)
+  tool_name = message[:name] || "unknown_tool"
+  puts "- #{tool_name}"
+  puts format_tool_content(message[:content])
+end
+
+def format_tool_content(content)
+  parsed = parse_tool_content(content)
+  return parsed if parsed.is_a?(String)
+
+  JSON.pretty_generate(parsed)
+end
+
+def parse_tool_content(content)
+  return content unless content.is_a?(String)
+
+  JSON.parse(content)
+rescue JSON::ParserError
+  content
+end
+
+def print_llm_summary(result)
+  return unless ENV["SHOW_LLM_SUMMARY"] == "true"
+
+  puts
+  puts "LLM Summary (unverified):"
+  puts result
+end
+
+def print_hallucination_warning
+  puts "No tool results were produced."
+  puts "LLM output suppressed to avoid hallucinated data."
+end
+
 # Run the agentic loop
 begin
   puts "🔄 Starting agentic tool-calling loop..."
@@ -348,7 +396,12 @@ begin
   puts "=" * 60
   puts "Agentic Analysis Complete"
   puts "=" * 60
-  puts result
+  if tool_messages(executor.messages).empty?
+    print_hallucination_warning
+  else
+    print_tool_results(executor.messages)
+    print_llm_summary(result)
+  end
 rescue Ollama::Error => e
   puts "❌ Error: #{e.message}"
   puts e.backtrace.first(5).join("\n") if e.backtrace

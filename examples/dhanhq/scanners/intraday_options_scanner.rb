@@ -295,10 +295,7 @@ module DhanHQ
       end
 
       def evaluate_strike_options(strike:, strike_data:, evaluation_context:)
-        evaluation_context[:tracking]
         context = evaluation_context[:context]
-        evaluation_context[:min_score]
-        evaluation_context[:verbose]
 
         call_data = strike_data["ce"] || strike_data[:ce]
         put_data = strike_data["pe"] || strike_data[:pe]
@@ -358,7 +355,8 @@ module DhanHQ
           type: option_type,
           implied_volatility: raw_data["implied_volatility"] || raw_data[:implied_volatility],
           open_interest: raw_data["oi"] || raw_data[:oi],
-          volume: raw_data["volume"] || raw_data[:volume]
+          volume: raw_data["volume"] || raw_data[:volume],
+          last_price: raw_data["last_price"] || raw_data[:last_price] || raw_data["ltp"] || raw_data[:ltp]
         }
       end
 
@@ -369,6 +367,7 @@ module DhanHQ
           iv: option_data[:implied_volatility],
           oi: option_data[:open_interest],
           volume: option_data[:volume],
+          ltp: option_data[:last_price],
           score: score,
           recommendation: recommendation_for_score(score)
         }
