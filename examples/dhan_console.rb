@@ -6,6 +6,7 @@ require "tty-reader"
 require "tty-screen"
 require "tty-cursor"
 require "dhan_hq"
+require "date"
 require_relative "dhanhq_tools"
 
 def build_config
@@ -99,6 +100,11 @@ def tool_system_prompt
   <<~PROMPT
     You are a market data assistant. Use tools to answer user queries completely.
 
+    CRITICAL: You are an EXECUTOR, not an INSTRUCTOR. When the user asks for data, you must EXECUTE tool calls to get that data, not describe how to get it.
+    Your job is to actually call the tools and provide the results, not to explain how the tools work.
+    DO NOT provide step-by-step instructions - actually execute the steps by making tool calls.
+    DO NOT show JSON examples - actually make the tool calls.
+
     Available tools with REQUIRED parameters:
 
     1. find_instrument(symbol: String) - REQUIRED: symbol
@@ -130,18 +136,56 @@ def tool_system_prompt
        - Rate limit: 1 request per second
        - Up to 1000 instruments per request
 
-    5. get_historical_data(exchange_segment: String, from_date: String, to_date: String, symbol: String, security_id: Integer, interval: String, expiry_code: Integer, instrument: String) - REQUIRED: exchange_segment, from_date, to_date, (symbol OR security_id)
-       - Get historical price data (OHLCV)
+    5. get_historical_data(exchange_segment: String, from_date: String, to_date: String, symbol: String, security_id: Integer, interval: String, expiry_code: Integer, instrument: String, calculate_indicators: Boolean) - REQUIRED: exchange_segment, from_date, to_date, (symbol OR security_id)
+       - Get historical price data (OHLCV) OR technical indicators
        - REQUIRED parameters:
          * exchange_segment: NSE_EQ, NSE_FNO, NSE_CURRENCY, BSE_EQ, BSE_FNO, BSE_CURRENCY, MCX_COMM, IDX_I
-         * from_date: YYYY-MM-DD format (e.g., "2024-01-08")
-         * to_date: YYYY-MM-DD format (non-inclusive, e.g., "2024-02-08")
+         * from_date: YYYY-MM-DD format - MUST be provided by user or calculated from user's request
+         * to_date: YYYY-MM-DD format (non-inclusive) - MUST be provided by user or calculated from user's request
          * symbol: Trading symbol string (e.g., "NIFTY", "RELIANCE") OR
          * security_id: MUST be an INTEGER (e.g., 13, 2885) - NEVER use a symbol string as security_id
        - OPTIONAL parameters:
          * interval: "1", "5", "15", "25", "60" (for intraday) - if provided, returns intraday data; if omitted, returns daily data
+           - CRITICAL FOR INTRADAY: If user asks for "intraday", "intraday movement", "intraday range", "today's movement", or similar:
+             * You MUST provide the interval parameter
+             * DEFAULT INTERVAL: Use "5" (5-minute) or "15" (15-minute) intervals - these are less noisy than 1-minute data
+               - Prefer "5" for most intraday analysis (good balance of detail and noise reduction)
+               - Use "15" for smoother, less noisy data
+               - Only use "1" if user explicitly requests 1-minute data
+             * DATE RULES FOR INTRADAY:
+               - to_date: MUST be TODAY's date: "#{Date.today.strftime("%Y-%m-%d")}"
+               - from_date: Can go back up to 30 days from today (max 30 days back)
+                 * If user doesn't specify dates: Use from_date = "#{(Date.today - 30).strftime("%Y-%m-%d")}", to_date = "#{Date.today.strftime("%Y-%m-%d")}"
+                 * If user asks for "today's movement": Use from_date = "#{Date.today.strftime("%Y-%m-%d")}", to_date = "#{Date.today.strftime("%Y-%m-%d")}"
+                 * Maximum range: 30 days back from today
+             * "Intraday movement" or "intraday range" means the high-low price range for a specific day (usually today)
+             * Example: User asks "find the range of intraday movement for NIFTY" → Use interval: "5" (or "15"), from_date: "#{(Date.today - 30).strftime("%Y-%m-%d")}", to_date: "#{Date.today.strftime("%Y-%m-%d")}"
+             * Maximum 90 days of intraday data can be fetched at once
          * expiry_code: 0 (far month), 1 (near month), 2 (current month) - for derivatives
          * instrument: EQUITY, INDEX, FUTIDX, FUTSTK, OPTIDX, OPTSTK, FUTCOM, OPTFUT, FUTCUR, OPTCUR
+         * calculate_indicators: true/false (default: false) - If true, calculates and returns only technical indicators instead of raw data
+           When true, returns: RSI, MACD, SMA20, SMA50, EMA12, EMA26, Bollinger Bands, ATR, price range, volume stats
+           This significantly reduces response size and provides ready-to-use indicator values for analysis
+       - CRITICAL DATE RULES:
+         * NEVER invent or guess dates - dates MUST come from the user's explicit request OR use recent/current dates as default
+         * DEFAULT BEHAVIOR: If user doesn't specify dates, use RECENT/CURRENT dates (not old dates):
+           - For DAILY data (no interval): Use last 30 days from today (most recent data)
+             Example: If today is #{Date.today.strftime("%Y-%m-%d")}, use from_date: "#{(Date.today - 30).strftime("%Y-%m-%d")}", to_date: "#{(Date.today + 1).strftime("%Y-%m-%d")}"
+           - For INTRADAY data (with interval): to_date = TODAY's date, from_date can go back up to 30 days
+             Example: If today is #{Date.today.strftime("%Y-%m-%d")}, use from_date: "#{(Date.today - 30).strftime("%Y-%m-%d")}", to_date: "#{Date.today.strftime("%Y-%m-%d")}"
+             For "today's movement" specifically: from_date = "#{Date.today.strftime("%Y-%m-%d")}", to_date = "#{Date.today.strftime("%Y-%m-%d")}"
+           - This provides current/recent market data which is most useful for analysis
+         * ONLY use past/old dates if user explicitly requests them:
+           - If user says "January 2024" or "2024 data", then use those old dates
+           - If user says "historical data from 2023", then use 2023 dates
+           - But if user just says "historical data" without specifying, use RECENT dates (last 30 days)
+         * Relative time references:
+           - "last 30 days" → calculate from today backwards 30 days
+           - "last week" → calculate the actual dates for the past 7 days
+           - "current month" → use dates for the current month
+           - "this month" → use dates for the current month
+         * NEVER use random old dates like "2024-01-08" or "2024-02-07" unless the user explicitly requested those specific dates
+         * PREFER RECENT DATES: When in doubt, use recent dates (last 30 days) rather than old dates
        - Notes: Maximum 90 days for intraday, data available for last 5 years
 
     6a. get_expiry_list(exchange_segment: String, symbol: String, security_id: Integer) - REQUIRED: exchange_segment, (symbol OR security_id)
@@ -224,8 +268,22 @@ def tool_system_prompt
     - OPTCUR - Options Currency
 
     WORKFLOW:
+    - CRITICAL: You are an EXECUTOR, not an INSTRUCTOR. You must EXECUTE tool calls, not describe how to use them.
     - When you need to call multiple tools (e.g., find_instrument then get_live_ltp), call them in sequence.
     - After each tool call, use the EXACT values from the tool result to continue. Do not stop until you have fully answered the user's query.
+    - CRITICAL: You MUST continue making tool calls until you get results and can fully answer the user's query.
+      * Do NOT stop after describing what you would do - you MUST actually do it
+      * Do NOT stop after showing a JSON example - you MUST actually make the tool call
+      * Keep making tool calls until you have the data needed to answer the user's question
+      * After getting results, use them to provide a complete answer to the user
+      * The user's query is NOT answered until you provide the actual data/answer, not just instructions
+      * If a tool call fails, immediately make another tool call with corrected parameters - do NOT stop
+      * Continue the tool calling loop until you have successfully retrieved data and can answer the user
+      * Example: User asks "find range of intraday movement" → Call find_instrument → Call get_historical_data → Calculate range from results → Provide answer with actual range value
+    - CRITICAL: You MUST actually execute tool calls, not just describe them. The system will automatically execute any tool calls you make.
+      * If you describe a tool call instead of making it, the user's question will not be answered
+      * Make the tool call, wait for results, then use those results to provide a complete answer
+      * If a tool call fails, fix the parameters and ACTUALLY retry - do NOT just describe the fix
     - CRITICAL: NEVER invent, guess, or modify values from tool results. ALWAYS use the exact values as returned.
     - If you called find_instrument and got a result like: {"result": {"exchange_segment": "IDX_I", "security_id": "13", "symbol": "NIFTY"}}
       Then for the next tool call, use:
@@ -258,13 +316,72 @@ def tool_system_prompt
     - NEVER guess or invent exchange_segment values. Valid values are: NSE_EQ, NSE_FNO, NSE_CURRENCY, BSE_EQ, BSE_FNO, BSE_CURRENCY, MCX_COMM, IDX_I
     - NEVER use "NSE" or "BSE" alone - they are invalid. Always use full values like "NSE_EQ" or "BSE_EQ".
     - Common indices (NIFTY, BANKNIFTY, FINNIFTY, etc.) are found in IDX_I, not NSE_EQ.
-    - DATE FORMATS: Always use YYYY-MM-DD format (e.g., "2024-01-08", not "01/08/2024" or "08-Jan-2024")
+    - DATE FORMATS: Always use YYYY-MM-DD format (e.g., "#{Date.today.strftime("%Y-%m-%d")}", not "01/08/2024" or "08-Jan-2024")
+    - TECHNICAL ANALYSIS: For technical analysis requests, use get_historical_data with calculate_indicators: true
+      This returns only calculated indicator values (RSI, MACD, SMA, EMA, Bollinger Bands, ATR) instead of raw data
+      This makes the response much smaller and easier to analyze
+      Example: get_historical_data(exchange_segment: "NSE_EQ", symbol: "RELIANCE", from_date: "#{(Date.today - 30).strftime("%Y-%m-%d")}", to_date: "#{(Date.today + 1).strftime("%Y-%m-%d")}", calculate_indicators: true)
     - For historical data, to_date is NON-INCLUSIVE (end date is not included in results)
+    - CRITICAL DATE HANDLING FOR HISTORICAL DATA:
+      * NEVER invent, guess, or randomly choose dates for get_historical_data
+      * DEFAULT: Use RECENT/CURRENT dates when user doesn't specify dates:
+        - For DAILY data (no interval): Use last 30 days from today
+        - For INTRADAY data (with interval): Use TODAY's date (from_date = today, to_date = today + 1)
+      * ONLY use past/old dates if user explicitly requests them (e.g., "January 2024", "2023 data", "data from 2022")
+      * Date calculation rules:
+        * If user doesn't specify dates:
+          - For DAILY data (no interval): Use last 30 days from today (RECENT data)
+            Example: If today is #{Date.today.strftime("%Y-%m-%d")}, use from_date: "#{(Date.today - 30).strftime("%Y-%m-%d")}", to_date: "#{(Date.today + 1).strftime("%Y-%m-%d")}"
+          - For INTRADAY data (with interval): to_date = TODAY's date, from_date can go back up to 30 days (max)
+            Example: If today is #{Date.today.strftime("%Y-%m-%d")}, use from_date: "#{(Date.today - 30).strftime("%Y-%m-%d")}", to_date: "#{Date.today.strftime("%Y-%m-%d")}"
+            For "today's movement" specifically: from_date = "#{Date.today.strftime("%Y-%m-%d")}", to_date = "#{Date.today.strftime("%Y-%m-%d")}"
+            Maximum range: 30 days back from today
+        * If user says "last 30 days" → Calculate: from_date = today - 30 days, to_date = today + 1 day (since to_date is non-inclusive)
+        * If user says "last week" → Calculate the actual dates for the past 7 days
+        * If user says "current month" or "this month" → Use dates for the current month
+        * If user says "January 2024" (old date) → Use from_date: "2024-01-01", to_date: "2024-02-01" (only if explicitly requested)
+        * If user says "past month" → Calculate from today backwards 30 days (recent, not old)
+        * CRITICAL FOR INTRADAY: When user asks for "intraday movement", "intraday range", "today's movement", or similar:
+          - You MUST provide interval parameter (prefer "5" or "15" for less noisy data, only use "1" if explicitly requested)
+          - to_date: MUST be TODAY's date: "#{Date.today.strftime("%Y-%m-%d")}"
+          - from_date: Can go back up to 30 days from today (max 30 days back)
+            * Default: from_date = "#{(Date.today - 30).strftime("%Y-%m-%d")}", to_date = "#{Date.today.strftime("%Y-%m-%d")}"
+            * For "today's movement": from_date = "#{Date.today.strftime("%Y-%m-%d")}", to_date = "#{Date.today.strftime("%Y-%m-%d")}"
+          - Do NOT use old dates like "2023-01-01" unless user explicitly requests them
+      * PREFER RECENT DATES: When user says "historical data" without dates, use last 30 days (recent), NOT old dates like "2024-01-08"
+      * NEVER use random old dates like "2024-01-08" to "2024-02-07" unless the user explicitly requested those specific dates
+      * Example: If today is #{Date.today.strftime("%Y-%m-%d")}:
+        - User says "historical data for RELIANCE" → Use last 30 days: from_date: "#{(Date.today - 30).strftime("%Y-%m-%d")}", to_date: "#{(Date.today + 1).strftime("%Y-%m-%d")}" (RECENT)
+        - User says "historical data for RELIANCE from January 2024" → Use old dates: from_date: "2024-01-01", to_date: "2024-02-01" (OLD, explicitly requested)
     - ERROR HANDLING: If a tool returns an error about invalid exchange_segment or missing required parameters, you MUST:
-      1. Call find_instrument(symbol) to get the correct exchange_segment and security_id
+      1. Call find_instrument(symbol) to get the correct exchange_segment and security_id - ACTUALLY call it, don't describe it
       2. Verify all required parameters are provided with correct formats
-      3. Retry the original tool call with the resolved parameters from find_instrument result
-    - IMPORTANT: When you need to call a tool, actually CALL it using the tool_calls format. Do NOT output JSON descriptions of what you would call - the system will handle tool calls automatically.
+      3. ACTUALLY RETRY the original tool call with the resolved parameters - do NOT just describe what you would do
+      4. After the retry succeeds, use the results to answer the user's question completely
+      5. If an error occurs, fix the parameters and ACTUALLY call the tool again - do NOT stop after describing the fix
+      6. CRITICAL: When you see an error, you MUST make another tool call to fix it - do NOT output text describing what you would do
+      7. CONTINUE making tool calls until you get successful results - do NOT stop after one failed attempt
+      8. After getting successful results, use them to calculate/derive the answer and provide it to the user
+      9. Example of WRONG behavior: "Here is how you can do it: [JSON example]" - this does NOT execute the tool and does NOT answer the user
+      10. Example of CORRECT behavior: Actually make the tool call, get results, calculate the answer from results, then provide the answer to the user
+    - CRITICAL: When you need to call a tool, you MUST actually CALL it using the tool_calls mechanism.
+      * YOU ARE AN EXECUTOR, NOT AN INSTRUCTOR - execute tool calls, do not describe them
+      * DO NOT just describe what you would call in text
+      * DO NOT output JSON code blocks showing tool calls
+      * DO NOT say "Here is the corrected code:" or "We can call the tool with..." or "Here is how you can do it:"
+      * DO NOT show example JSON - the system handles tool calls automatically
+      * DO NOT provide step-by-step instructions - actually execute the steps
+      * DO NOT say "1. Call find_instrument..." - actually CALL find_instrument
+      * YOU MUST actually make the tool call - the system will execute it automatically
+      * After the tool executes, use the results to answer the user's question completely
+      * Do NOT stop after describing what you would do - actually DO it
+      * If a tool call fails, fix the parameters and ACTUALLY call it again - do NOT just describe the fix
+      * Your response should contain the actual tool calls, not descriptions of tool calls
+      * CONTINUE making tool calls until you have the data needed to answer the user's query
+      * Do NOT stop until you have provided the actual answer/data to the user, not just instructions on how to get it
+      * The tool calling loop should continue until you have successfully retrieved data and calculated the answer
+      * Example workflow: User asks "find range" → Tool call 1 (find_instrument) → Tool call 2 (get_historical_data) → Calculate range from data → Provide answer: "The intraday range is X to Y"
+      * REMEMBER: If you describe tool calls instead of making them, the user's question will NOT be answered
     - Only call a tool when the user explicitly asks for market data, prices, quotes, option chains, or historical data.
     - If the user is greeting, chatting, or asking a general question, respond normally without calling tools.
     - When tools are used, fetch real data; do not invent values.
@@ -280,7 +397,7 @@ def planning_system_prompt
     - "get_market_quote", "market quote", "quote"
     - "get_live_ltp", "LTP", "last traded price", "current price"
     - "get_market_depth", "market depth", "depth"
-    - "get_historical_data", "historical", "price history", "candles", "OHLC"
+    - "get_historical_data", "historical", "price history", "candles", "OHLC", "intraday", "intraday movement", "intraday range", "today's movement"
     - "get_option_chain", "option chain", "options chain"
     - "get_expired_options", "expired options"
     - Any stock symbol (RELIANCE, TCS, INFY, etc.) with a request for data
@@ -291,7 +408,13 @@ def planning_system_prompt
     - "get_market_quote for RELIANCE on exchange_segment NSE_EQ" → needs_tools: true, tools: [get_market_quote] (exchange_segment already provided, skip find_instrument)
     - "What is the LTP of TCS?" → needs_tools: true, tools: [find_instrument, get_live_ltp] (no exchange_segment provided)
     - "ltp of RELIANCE" → needs_tools: true, tools: [find_instrument, get_live_ltp] (no exchange_segment provided)
-    - "Show me historical data for INFY from 2024-01-01 to 2024-01-31" → needs_tools: true, tools: [find_instrument, get_historical_data] (requires from_date and to_date in YYYY-MM-DD format)
+    - "Show me historical data for INFY from 2024-01-01 to 2024-01-31" → needs_tools: true, tools: [find_instrument, get_historical_data] (user provided explicit old dates - use them)
+    - "Show me last 30 days of RELIANCE" → needs_tools: true, tools: [find_instrument, get_historical_data] (calculate dates from today: from_date = "#{(Date.today - 30).strftime("%Y-%m-%d")}", to_date = "#{(Date.today + 1).strftime("%Y-%m-%d")}")
+    - "Get historical data for NIFTY" → needs_tools: true, tools: [find_instrument, get_historical_data] (use DEFAULT: last 30 days from today - RECENT dates, not old dates)
+    - "Historical data for RELIANCE" → needs_tools: true, tools: [find_instrument, get_historical_data] (use DEFAULT: last 30 days - RECENT dates)
+    - "Find the range of intraday movement for NIFTY" → needs_tools: true, tools: [find_instrument, get_historical_data] (MUST use interval: "5" or "15" - prefer "5" for less noise, from_date: "#{(Date.today - 30).strftime("%Y-%m-%d")}", to_date: "#{Date.today.strftime("%Y-%m-%d")}" - up to 30 days back, ending today)
+    - "Today's intraday movement for RELIANCE" → needs_tools: true, tools: [find_instrument, get_historical_data] (MUST use interval: "5" or "15" - prefer "5", from_date: "#{Date.today.strftime("%Y-%m-%d")}", to_date: "#{Date.today.strftime("%Y-%m-%d")}" - today only)
+    - "Get data from January 2024 for NIFTY" → needs_tools: true, tools: [find_instrument, get_historical_data] (user explicitly requested old dates - use "2024-01-01" to "2024-02-01")
     - "Get option chain for NIFTY" → needs_tools: true, tools: [find_instrument, get_option_chain] (no exchange_segment provided)
 
     REQUIRED PARAMETERS SUMMARY:
@@ -299,15 +422,18 @@ def planning_system_prompt
     - get_market_quote: REQUIRED - exchange_segment, (symbol OR security_id)
     - get_live_ltp: REQUIRED - exchange_segment, (symbol OR security_id)
     - get_market_depth: REQUIRED - exchange_segment, (symbol OR security_id)
-    - get_historical_data: REQUIRED - exchange_segment, from_date (YYYY-MM-DD), to_date (YYYY-MM-DD), (symbol OR security_id)
+    - get_historical_data: REQUIRED - exchange_segment, from_date (YYYY-MM-DD), to_date (YYYY-MM-DD), (symbol OR security_id); OPTIONAL - calculate_indicators (true/false) to return only indicator values instead of raw data
     - get_option_chain: REQUIRED - exchange_segment, (symbol OR security_id); OPTIONAL - expiry (YYYY-MM-DD)
     - get_expired_options_data: REQUIRED - exchange_segment, expiry_date (YYYY-MM-DD), (symbol OR security_id)
 
     CRITICAL RULES:
+    - This is a PLANNING step - after planning, you MUST actually execute the tool calls in your response
+    - Do NOT just plan and describe - you MUST actually make the tool calls
     - If the user provides ONLY a symbol (like "RELIANCE", "TCS", "NIFTY") WITHOUT exchange_segment, the workflow MUST be:
-      1. First call find_instrument(symbol) to get exchange_segment and security_id
-      2. Then call the data tool (get_live_ltp, get_market_quote, etc.) with the resolved exchange_segment
+      1. First call find_instrument(symbol) to get exchange_segment and security_id - ACTUALLY call it
+      2. Then call the data tool (get_live_ltp, get_market_quote, etc.) with the resolved exchange_segment - ACTUALLY call it
     - If the user ALREADY provides exchange_segment (e.g., "on exchange_segment NSE_EQ"), you can call the data tool directly - find_instrument is NOT needed.
+    - After planning, your response MUST contain actual tool calls, not descriptions of tool calls
     - For historical data, user MUST provide from_date and to_date in YYYY-MM-DD format
     - For option chain, if user provides expiry date, it must be in YYYY-MM-DD format
     - For expired options data, user MUST provide expiry_date in YYYY-MM-DD format
@@ -369,14 +495,17 @@ def build_tools
                                                         security_id: security_id))
     end,
     "get_historical_data" => lambda do |exchange_segment:, from_date:, to_date:, symbol: nil, security_id: nil,
-                                        interval: nil, expiry_code: nil|
+                                        interval: nil, expiry_code: nil, calculate_indicators: false|
+      # Convert security_id to integer if provided (LLM may pass it as string)
+      normalized_security_id = security_id ? security_id.to_i : nil
       DhanHQDataTools.get_historical_data(**compact_kwargs(exchange_segment: exchange_segment,
                                                            symbol: symbol,
-                                                           security_id: security_id,
+                                                           security_id: normalized_security_id,
                                                            from_date: from_date,
                                                            to_date: to_date,
                                                            interval: interval,
-                                                           expiry_code: expiry_code))
+                                                           expiry_code: expiry_code,
+                                                           calculate_indicators: calculate_indicators))
     end,
     "get_expiry_list" => lambda do |exchange_segment:, symbol: nil, security_id: nil|
       # Convert security_id to integer if provided (LLM may pass it as string)

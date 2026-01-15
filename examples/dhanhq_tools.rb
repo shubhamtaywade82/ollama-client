@@ -10,6 +10,7 @@
 require "json"
 require "date"
 require "dhan_hq"
+require_relative "dhanhq/indicators/technical_indicators"
 
 # Helper to get valid exchange segments from DhanHQ constants
 def valid_exchange_segments
@@ -616,7 +617,7 @@ class DhanHQDataTools
     #
     # rubocop:disable Metrics/ParameterLists, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def get_historical_data(exchange_segment:, from_date:, to_date:, security_id: nil, symbol: nil, interval: nil,
-                            expiry_code: nil, instrument: nil)
+                            expiry_code: nil, instrument: nil, calculate_indicators: false)
       # CRITICAL: security_id must be an integer, not a symbol string
       unless symbol || security_id
         return {
@@ -718,21 +719,42 @@ class DhanHQDataTools
                   0
                 end
 
-        {
-          action: "get_historical_data",
-          type: "intraday",
-          params: { security_id: resolved_security_id, symbol: symbol, exchange_segment: exchange_segment,
-                    instrument: resolved_instrument, from_date: from_date, to_date: to_date, interval: interval },
-          result: {
-            data: data,
-            count: count,
-            instrument_info: {
-              security_id: resolved_security_id,
-              trading_symbol: safe_instrument_attr(found_instrument, :trading_symbol),
-              instrument_type: resolved_instrument
+        # If calculate_indicators is true, calculate technical indicators and return only those
+        if calculate_indicators && data.is_a?(Hash) && count.positive?
+          indicators = calculate_technical_indicators(data)
+          {
+            action: "get_historical_data",
+            type: "intraday",
+            params: { security_id: resolved_security_id, symbol: symbol, exchange_segment: exchange_segment,
+                      instrument: resolved_instrument, from_date: from_date, to_date: to_date, interval: interval },
+            result: {
+              indicators: indicators,
+              data_points: count,
+              note: "Technical indicators calculated from historical data. Raw data not included to reduce response size.",
+              instrument_info: {
+                security_id: resolved_security_id,
+                trading_symbol: safe_instrument_attr(found_instrument, :trading_symbol),
+                instrument_type: resolved_instrument
+              }
             }
           }
-        }
+        else
+          {
+            action: "get_historical_data",
+            type: "intraday",
+            params: { security_id: resolved_security_id, symbol: symbol, exchange_segment: exchange_segment,
+                      instrument: resolved_instrument, from_date: from_date, to_date: to_date, interval: interval },
+            result: {
+              data: data,
+              count: count,
+              instrument_info: {
+                security_id: resolved_security_id,
+                trading_symbol: safe_instrument_attr(found_instrument, :trading_symbol),
+                instrument_type: resolved_instrument
+              }
+            }
+          }
+        end
       else
         # Daily data using HistoricalData.daily
         # Returns hash with :open, :high, :low, :close, :volume, :timestamp arrays
@@ -753,21 +775,42 @@ class DhanHQDataTools
                   0
                 end
 
-        {
-          action: "get_historical_data",
-          type: "daily",
-          params: { security_id: resolved_security_id, symbol: symbol, exchange_segment: exchange_segment,
-                    instrument: resolved_instrument, from_date: from_date, to_date: to_date, expiry_code: expiry_code },
-          result: {
-            data: data,
-            count: count,
-            instrument_info: {
-              security_id: resolved_security_id,
-              trading_symbol: safe_instrument_attr(found_instrument, :trading_symbol),
-              instrument_type: resolved_instrument
+        # If calculate_indicators is true, calculate technical indicators and return only those
+        if calculate_indicators && data.is_a?(Hash) && count.positive?
+          indicators = calculate_technical_indicators(data)
+          {
+            action: "get_historical_data",
+            type: "daily",
+            params: { security_id: resolved_security_id, symbol: symbol, exchange_segment: exchange_segment,
+                      instrument: resolved_instrument, from_date: from_date, to_date: to_date, expiry_code: expiry_code },
+            result: {
+              indicators: indicators,
+              data_points: count,
+              note: "Technical indicators calculated from historical data. Raw data not included to reduce response size.",
+              instrument_info: {
+                security_id: resolved_security_id,
+                trading_symbol: safe_instrument_attr(found_instrument, :trading_symbol),
+                instrument_type: resolved_instrument
+              }
             }
           }
-        }
+        else
+          {
+            action: "get_historical_data",
+            type: "daily",
+            params: { security_id: resolved_security_id, symbol: symbol, exchange_segment: exchange_segment,
+                      instrument: resolved_instrument, from_date: from_date, to_date: to_date, expiry_code: expiry_code },
+            result: {
+              data: data,
+              count: count,
+              instrument_info: {
+                security_id: resolved_security_id,
+                trading_symbol: safe_instrument_attr(found_instrument, :trading_symbol),
+                instrument_type: resolved_instrument
+              }
+            }
+          }
+        end
       end
     rescue StandardError => e
       {
@@ -788,6 +831,73 @@ class DhanHQDataTools
       }
 
       defaults.fetch(exchange_segment, "EQUITY")
+    end
+
+    # Calculate technical indicators from historical data
+    # Returns only indicator values, not raw data
+    def calculate_technical_indicators(data)
+      return {} unless data.is_a?(Hash)
+
+      # Extract OHLCV arrays (handle both symbol and string keys)
+      highs = data[:high] || data["high"] || []
+      lows = data[:low] || data["low"] || []
+      closes = data[:close] || data["close"] || []
+      volumes = data[:volume] || data["volume"] || []
+      timestamps = data[:timestamp] || data["timestamp"] || []
+
+      return {} if closes.empty?
+
+      # Convert to arrays of floats
+      closes_f = closes.map(&:to_f)
+      highs_f = highs.map(&:to_f)
+      lows_f = lows.map(&:to_f)
+      volumes_f = volumes.map(&:to_f)
+
+      # Calculate indicators
+      sma20 = DhanHQ::Indicators::TechnicalIndicators.sma(closes_f, 20)
+      sma50 = DhanHQ::Indicators::TechnicalIndicators.sma(closes_f, 50)
+      ema12 = DhanHQ::Indicators::TechnicalIndicators.ema(closes_f, 12)
+      ema26 = DhanHQ::Indicators::TechnicalIndicators.ema(closes_f, 26)
+      rsi = DhanHQ::Indicators::TechnicalIndicators.rsi(closes_f, 14)
+      macd = DhanHQ::Indicators::TechnicalIndicators.macd(closes_f)
+      bollinger = DhanHQ::Indicators::TechnicalIndicators.bollinger_bands(closes_f, 20, 2)
+      atr = DhanHQ::Indicators::TechnicalIndicators.atr(highs_f, lows_f, closes_f, 14)
+
+      # Get latest values
+      {
+        current_price: closes_f.last,
+        sma20: sma20.last,
+        sma50: sma50.last,
+        ema12: ema12.last,
+        ema26: ema26.last,
+        rsi: rsi.last,
+        macd: {
+          macd: macd[:macd].last,
+          signal: macd[:signal].last,
+          histogram: macd[:histogram].last
+        },
+        bollinger_bands: {
+          upper: bollinger[:upper].last,
+          middle: bollinger[:middle].last,
+          lower: bollinger[:lower].last
+        },
+        atr: atr.last,
+        price_range: {
+          high: highs_f.max,
+          low: lows_f.min,
+          current: closes_f.last
+        },
+        volume: {
+          current: volumes_f.last,
+          average: volumes_f.any? ? (volumes_f.sum.to_f / volumes_f.length) : nil
+        },
+        data_points: closes_f.length,
+        last_timestamp: timestamps.last
+      }
+    rescue StandardError => e
+      {
+        error: "Failed to calculate indicators: #{e.message}"
+      }
     end
     # rubocop:enable Metrics/ParameterLists, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
