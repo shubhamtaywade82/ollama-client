@@ -1,0 +1,77 @@
+# frozen_string_literal: true
+
+require "net/http"
+require "uri"
+require "json"
+require_relative "errors"
+
+module Ollama
+  # Embeddings API helper for semantic search and RAG in agents
+  #
+  # This is a helper module used internally by Client.
+  # Use client.embeddings.embed() instead of instantiating this directly.
+  class Embeddings
+    def initialize(config)
+      @config = config
+    end
+
+    # Generate embeddings for text input(s)
+    #
+    # @param model [String] Embedding model name (e.g., "all-minilm")
+    # @param input [String, Array<String>] Single text or array of texts
+    # @return [Array<Float>, Array<Array<Float>>] Embedding vector(s)
+    def embed(model:, input:)
+      uri = URI("#{@config.base_url}/api/embeddings")
+      req = Net::HTTP::Post.new(uri)
+      req["Content-Type"] = "application/json"
+
+      body = {
+        model: model,
+        input: input
+      }
+
+      req.body = body.to_json
+
+      res = Net::HTTP.start(
+        uri.hostname,
+        uri.port,
+        read_timeout: @config.timeout,
+        open_timeout: @config.timeout
+      ) { |http| http.request(req) }
+
+      handle_http_error(res, requested_model: model) unless res.is_a?(Net::HTTPSuccess)
+
+      response_body = JSON.parse(res.body)
+      embedding = response_body["embedding"]
+
+      # Return single array for single input, or array of arrays for multiple inputs
+      if input.is_a?(Array)
+        # Ollama returns single embedding array even for multiple inputs
+        # We need to check the response structure
+        if embedding.is_a?(Array) && embedding.first.is_a?(Array)
+          embedding
+        else
+          # Single embedding returned, wrap it
+          [embedding]
+        end
+      else
+        embedding
+      end
+    rescue JSON::ParserError => e
+      raise InvalidJSONError, "Failed to parse embeddings response: #{e.message}"
+    rescue Net::ReadTimeout, Net::OpenTimeout
+      raise TimeoutError, "Request timed out after #{@config.timeout}s"
+    rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
+      raise Error, "Connection failed: #{e.message}"
+    end
+
+    private
+
+    def handle_http_error(res, requested_model: nil)
+      status_code = res.code.to_i
+      raise NotFoundError.new(res.message, requested_model: requested_model) if status_code == 404
+
+      raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
+    end
+  end
+end

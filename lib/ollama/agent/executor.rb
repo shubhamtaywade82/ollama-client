@@ -72,8 +72,12 @@ module Ollama
             args = dig(call, %w[function arguments])
             args_hash = normalize_arguments(args)
 
-            callable = @tools[name]
-            raise Ollama::Error, "Tool '#{name}' not found. Available: #{@tools.keys.sort.join(", ")}" unless callable
+            tool_entry = @tools[name]
+            raise Ollama::Error, "Tool '#{name}' not found. Available: #{@tools.keys.sort.join(", ")}" unless tool_entry
+
+            # Extract callable from tool entry
+            callable = extract_callable(tool_entry)
+            raise Ollama::Error, "Tool '#{name}' has no associated callable" unless callable
 
             @stream&.emit(:state, state: :tool_executing)
             result = invoke_tool(callable, args_hash)
@@ -99,18 +103,56 @@ module Ollama
 
       def tool_definitions
         @tools.keys.sort.map do |name|
-          {
-            type: "function",
-            function: {
-              name: name,
-              description: "Tool: #{name}",
-              parameters: {
-                "type" => "object",
-                "additionalProperties" => true
+          tool_entry = @tools[name]
+
+          # Support both explicit Tool objects and callables
+          # Tool objects are schema definitions only
+          if tool_entry.is_a?(Ollama::Tool)
+            tool_entry.to_h
+          elsif tool_entry.is_a?(Hash) && tool_entry[:tool].is_a?(Ollama::Tool)
+            # Format: { tool: Tool, callable: proc }
+            tool_entry[:tool].to_h
+          else
+            # Auto-infer from callable signature (default)
+            callable = tool_entry.is_a?(Hash) ? tool_entry[:callable] : tool_entry
+            parameters = infer_parameters(callable)
+            {
+              type: "function",
+              function: {
+                name: name,
+                description: "Tool: #{name}",
+                parameters: parameters
               }
             }
-          }
+          end
         end
+      end
+
+      def infer_parameters(callable)
+        return { "type" => "object", "additionalProperties" => true } unless callable.respond_to?(:parameters)
+
+        params = callable.parameters
+        return { "type" => "object", "additionalProperties" => true } if params.empty?
+
+        properties = {}
+        required = []
+
+        params.each do |type, name|
+          next unless name # Skip anonymous parameters
+
+          param_name = name.to_s
+          properties[param_name] = { "type" => "string", "description" => "Parameter: #{param_name}" }
+
+          # Required if it's a required keyword argument (:keyreq) or required positional (:req)
+          required << param_name if %i[keyreq req].include?(type)
+        end
+
+        schema = { "type" => "object" }
+        schema["properties"] = properties unless properties.empty?
+        schema["required"] = required unless required.empty?
+        schema["additionalProperties"] = false if properties.any?
+
+        schema
       end
 
       def dig(obj, path)
@@ -137,12 +179,59 @@ module Ollama
       end
 
       def invoke_tool(callable, args_hash)
-        sym_args = args_hash.transform_keys { |k| k.to_s.to_sym }
+        sym_args = normalize_parameter_names(args_hash)
 
-        # Prefer keyword invocation (common for Ruby tools), fall back to a single hash.
-        callable.call(**sym_args)
-      rescue ArgumentError
-        callable.call(args_hash)
+        # Try keyword invocation first (common for Ruby tools).
+        begin
+          callable.call(**sym_args)
+        rescue ArgumentError => e
+          # If the error indicates required keyword arguments, try parameter aliases.
+          if e.message.include?("required keyword") || e.message.include?("missing keyword")
+            aliased_args = apply_parameter_aliases(sym_args, callable)
+            if aliased_args != sym_args
+              begin
+                return callable.call(**aliased_args)
+              rescue ArgumentError
+                # Aliases didn't help, continue to try positional
+              end
+            end
+          end
+
+          # Try positional hash for callables that accept a hash argument.
+          # This handles cases where tools are defined as `lambda { |h| ... }` instead of keyword args.
+          begin
+            callable.call(args_hash)
+          rescue ArgumentError => positional_error
+            # If both keyword and positional fail, re-raise with context.
+            raise ArgumentError,
+                  "Tool invocation failed: #{positional_error.message}. Arguments provided: #{args_hash.inspect}. " \
+                  "Ensure the tool call includes all required parameters."
+          end
+        end
+      end
+
+      def normalize_parameter_names(args_hash)
+        args_hash.transform_keys { |k| k.to_s.to_sym }
+      end
+
+      def apply_parameter_aliases(args, callable)
+        return args unless callable.respond_to?(:parameters)
+
+        param_names = callable.parameters.map { |_type, name| name }
+        aliased = args.dup
+
+        # Common aliases: directory -> path, file -> path, filename -> path
+        if param_names.include?(:path) && !aliased.key?(:path)
+          if aliased.key?(:directory)
+            aliased[:path] = aliased.delete(:directory)
+          elsif aliased.key?(:file)
+            aliased[:path] = aliased.delete(:file)
+          elsif aliased.key?(:filename)
+            aliased[:path] = aliased.delete(:filename)
+          end
+        end
+
+        aliased
       end
 
       def encode_tool_result(result)
@@ -151,6 +240,18 @@ module Ollama
         JSON.generate(result)
       rescue JSON::GeneratorError
         result.to_s
+      end
+
+      def extract_callable(tool_entry)
+        case tool_entry
+        when Proc, Method
+          tool_entry
+        when Hash
+          tool_entry[:callable] || tool_entry["callable"]
+        else
+          # Tool objects are schema definitions only, not callables
+          nil
+        end
       end
     end
   end

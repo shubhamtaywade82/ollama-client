@@ -16,7 +16,7 @@ Gem::Specification.new do |spec|
                      "Not a chatbot UI and not a promise of full Ollama endpoint coverage."
   spec.homepage = "https://github.com/shubhamtaywade82/ollama-client"
   spec.license = "MIT"
-  spec.required_ruby_version = ">= 3.2.0"
+  spec.required_ruby_version = ">= 3.0.0"
 
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/shubhamtaywade82/ollama-client"
@@ -29,7 +29,9 @@ Gem::Specification.new do |spec|
   spec.files = IO.popen(%w[git ls-files -z], chdir: __dir__, err: IO::NULL) do |ls|
     ls.readlines("\x0", chomp: true).reject do |f|
       (f == gemspec) ||
-        f.start_with?(*%w[bin/ Gemfile .gitignore .rspec spec/ .github/ .rubocop.yml])
+        f.start_with?(*%w[bin/ Gemfile .gitignore .rspec spec/ .github/ .rubocop.yml test_files/]) ||
+        f.match?(/\Amulti_step_agent.*\.rb\z/) ||
+        f.match?(/\A.*_e2e\.rb\z/)
     end
   end
   spec.bindir = "exe"

@@ -36,15 +36,15 @@ This keeps it **clean and future-proof**.
 
 ## 🔒 Guarantees
 
-| Guarantee                              | Yes |
-| -------------------------------------- | --- |
-| Client requests are explicit           | ✅   |
-| Planner is stateless (no hidden memory)| ✅   |
-| Executor is stateful (explicit messages)| ✅  |
-| Retry bounded                          | ✅   |
-| Schema validated (when schema provided)| ✅   |
-| Tools run in Ruby (not in the LLM)     | ✅   |
-| Streaming is display-only (Executor)   | ✅   |
+| Guarantee                                | Yes |
+| ---------------------------------------- | --- |
+| Client requests are explicit             | ✅   |
+| Planner is stateless (no hidden memory)  | ✅   |
+| Executor is stateful (explicit messages) | ✅   |
+| Retry bounded                            | ✅   |
+| Schema validated (when schema provided)  | ✅   |
+| Tools run in Ruby (not in the LLM)       | ✅   |
+| Streaming is display-only (Executor)     | ✅   |
 
 **Non-negotiable safety rule:** the **LLM never executes side effects**. It may request a tool call; **your Ruby code** executes the tool.
 
@@ -97,8 +97,8 @@ gem install ollama-client
 
 This gem intentionally focuses on **agent building blocks**:
 
-- **Supported**: `/api/generate`, `/api/chat`, `/api/tags`, `/api/ping`
-- **Not guaranteed**: full endpoint parity with every Ollama release (embeddings, advanced model mgmt, etc.)
+- **Supported**: `/api/generate`, `/api/chat`, `/api/tags`, `/api/ping`, `/api/embeddings`
+- **Not guaranteed**: full endpoint parity with every Ollama release (advanced model mgmt, etc.)
 
 ### Agent endpoint mapping (unambiguous)
 
@@ -130,6 +130,8 @@ puts plan
 
 ### Executor Agent (tool loop, /api/chat)
 
+**Simple approach (auto-inferred schemas):**
+
 ```ruby
 require "ollama_client"
 require "json"
@@ -150,6 +152,68 @@ answer = executor.run(
 
 puts answer
 ```
+
+**Structured approach (explicit schemas with Tool classes):**
+
+```ruby
+require "ollama_client"
+
+# Define explicit tool schema
+location_prop = Ollama::Tool::Function::Parameters::Property.new(
+  type: "string",
+  description: "The city name"
+)
+
+params = Ollama::Tool::Function::Parameters.new(
+  type: "object",
+  properties: { city: location_prop },
+  required: %w[city]
+)
+
+function = Ollama::Tool::Function.new(
+  name: "fetch_weather",
+  description: "Get weather for a city",
+  parameters: params
+)
+
+tool = Ollama::Tool.new(type: "function", function: function)
+
+# Associate tool schema with callable
+tools = {
+  "fetch_weather" => {
+    tool: tool,
+    callable: ->(city:) { { city: city, forecast: "sunny" } }
+  }
+}
+
+executor = Ollama::Agent::Executor.new(client, tools: tools)
+```
+
+Use structured tools when you need:
+- Explicit control over parameter types and descriptions
+- Enum constraints on parameters
+- Better documentation for complex tools
+- Serialization/deserialization (JSON storage, API responses)
+
+**DTO (Data Transfer Object) functionality:**
+
+All Tool classes support serialization and deserialization:
+
+```ruby
+# Serialize to JSON
+json = tool.to_json
+
+# Deserialize from hash
+tool = Ollama::Tool.from_hash(JSON.parse(json))
+
+# Equality comparison
+tool1 == tool2  # Compares hash representations
+
+# Empty check
+params.empty?  # True if no properties/required fields
+```
+
+See `examples/tool_dto_example.rb` for complete DTO usage examples.
 
 ### Streaming (Executor only; presentation-only)
 
@@ -407,6 +471,67 @@ rescue Ollama::Error => e
 end
 ```
 
+### Example: Tool Calling (Direct API Usage)
+
+For tool calling, use `chat_raw()` to access `tool_calls` from the response:
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+
+# Define tool using Tool classes
+tool = Ollama::Tool.new(
+  type: "function",
+  function: Ollama::Tool::Function.new(
+    name: "get_current_weather",
+    description: "Get the current weather for a location",
+    parameters: Ollama::Tool::Function::Parameters.new(
+      type: "object",
+      properties: {
+        location: Ollama::Tool::Function::Parameters::Property.new(
+          type: "string",
+          description: "The location to get the weather for, e.g. San Francisco, CA"
+        ),
+        temperature_unit: Ollama::Tool::Function::Parameters::Property.new(
+          type: "string",
+          description: "The unit to return the temperature in",
+          enum: %w[celsius fahrenheit]
+        )
+      },
+      required: %w[location temperature_unit]
+    )
+  )
+)
+
+# Create message
+message = Ollama::Agent::Messages.user("What is the weather today in Paris?")
+
+# Use chat_raw() to get full response with tool_calls
+response = client.chat_raw(
+  model: "llama3.1:8b",
+  messages: [message],
+  tools: tool,  # Pass Tool object directly (or array of Tool objects)
+  allow_chat: true
+)
+
+# Access tool_calls from response
+tool_calls = response.dig("message", "tool_calls")
+if tool_calls && !tool_calls.empty?
+  tool_calls.each do |call|
+    name = call.dig("function", "name")
+    args = call.dig("function", "arguments")
+    puts "Tool: #{name}, Args: #{args}"
+  end
+end
+```
+
+**Note:**
+- `chat()` returns only the content (for simple use cases)
+- `chat_raw()` returns the full response with `message.tool_calls` (for tool calling)
+- Both methods accept `tools:` parameter (Tool object, array of Tool objects, or array of hashes)
+- For agent tool loops, use `Ollama::Agent::Executor` instead (handles tool execution automatically)
+
 ### Example: Data Analysis with Validation
 
 ```ruby
@@ -503,6 +628,83 @@ require "ollama_client"
 client = Ollama::Client.new
 models = client.list_models
 puts "Available models: #{models.join(', ')}"
+```
+
+### Embeddings for RAG/Semantic Search
+
+Use embeddings for building knowledge bases and semantic search in agents:
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+
+# Single text embedding
+embedding = client.embeddings.embed(
+  model: "all-minilm",
+  input: "What is Ruby programming?"
+)
+# Returns: [0.123, -0.456, ...] (array of floats)
+
+# Multiple texts
+embeddings = client.embeddings.embed(
+  model: "all-minilm",
+  input: ["What is Ruby?", "What is Python?", "What is JavaScript?"]
+)
+# Returns: [[...], [...], [...]] (array of embedding arrays)
+
+# Use for semantic similarity in agents
+def find_similar(query_embedding, document_embeddings, threshold: 0.7)
+  document_embeddings.select do |doc_emb|
+    cosine_similarity(query_embedding, doc_emb) > threshold
+  end
+end
+```
+
+### Configuration from JSON
+
+Load configuration from JSON files for production deployments:
+
+```ruby
+require "ollama_client"
+
+# config.json:
+# {
+#   "base_url": "http://localhost:11434",
+#   "model": "llama3.1:8b",
+#   "timeout": 30,
+#   "retries": 3,
+#   "temperature": 0.2
+# }
+
+config = Ollama::Config.load_from_json("config.json")
+client = Ollama::Client.new(config: config)
+```
+
+### Type-Safe Model Options
+
+Use the `Options` class for type-checked model parameters:
+
+```ruby
+require "ollama_client"
+
+# Options with validation
+options = Ollama::Options.new(
+  temperature: 0.7,
+  top_p: 0.95,
+  top_k: 40,
+  num_ctx: 4096,
+  seed: 42
+)
+
+# Will raise ArgumentError if values are out of range
+# options.temperature = 3.0  # Error: temperature must be between 0.0 and 2.0
+
+client.generate(
+  prompt: "Analyze this data",
+  schema: analysis_schema,
+  options: options.to_h
+)
 ```
 
 ### Error Handling

@@ -32,3 +32,5 @@ lib/bundler/man/
 .env
 .env.local
 metrics.json
+.ollama_chat_history
+.ollama_dhan_history
