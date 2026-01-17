@@ -51,6 +51,20 @@ RSpec.describe Ollama::Client, "#generate" do
       expect(result).to eq("test" => "value")
     end
 
+    it "allows model override" do
+      request_body = nil
+      stub_request(:post, "http://localhost:11434/api/generate")
+        .with { |req| request_body = JSON.parse(req.body) }
+        .to_return(
+          status: 200,
+          body: { response: '{"test":"value"}' }.to_json
+        )
+
+      client.generate(prompt: "test", schema: schema, model: "custom-model")
+
+      expect(request_body["model"]).to eq("custom-model")
+    end
+
     it "includes format parameter when schema is provided" do
       request_body = nil
       stub_request(:post, "http://localhost:11434/api/generate")

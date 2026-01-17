@@ -265,7 +265,7 @@ module Ollama
     end
     # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/ParameterLists
 
-    def generate(prompt:, schema:, strict: false, return_meta: false)
+    def generate(prompt:, schema:, model: nil, strict: false, return_meta: false)
       attempts = 0
       @current_schema = schema # Store for prompt enhancement
       started_at = monotonic_time
@@ -273,14 +273,14 @@ module Ollama
       begin
         attempts += 1
         attempt_started_at = monotonic_time
-        raw = call_api(prompt)
+        raw = call_api(prompt, model: model)
         attempt_latency_ms = elapsed_ms(attempt_started_at)
 
         emit_response_hook(
           raw,
           {
             endpoint: "/api/generate",
-            model: @config.model,
+            model: model || @config.model,
             attempt: attempts,
             attempt_latency_ms: attempt_latency_ms
           }
@@ -298,7 +298,7 @@ module Ollama
           "data" => parsed,
           "meta" => {
             "endpoint" => "/api/generate",
-            "model" => @config.model,
+          "model" => model || @config.model,
             "attempts" => attempts,
             "latency_ms" => elapsed_ms(started_at)
           }
@@ -326,8 +326,8 @@ module Ollama
     end
     # rubocop:enable Metrics/MethodLength
 
-    def generate_strict!(prompt:, schema:, return_meta: false)
-      generate(prompt: prompt, schema: schema, strict: true, return_meta: return_meta)
+    def generate_strict!(prompt:, schema:, model: nil, return_meta: false)
+      generate(prompt: prompt, schema: schema, model: model, strict: true, return_meta: return_meta)
     end
 
     # Lightweight server health check.
@@ -646,13 +646,13 @@ module Ollama
       raise Error, "Connection failed: #{e.message}"
     end
 
-    def call_api(prompt)
+    def call_api(prompt, model: nil)
       req = Net::HTTP::Post.new(@uri)
       req["Content-Type"] = "application/json"
 
       # Build request body
       body = {
-        model: @config.model,
+        model: model || @config.model,
         prompt: prompt,
         stream: false,
         temperature: @config.temperature,
@@ -676,7 +676,7 @@ module Ollama
         open_timeout: @config.timeout
       ) { |http| http.request(req) }
 
-      handle_http_error(res) unless res.is_a?(Net::HTTPSuccess)
+      handle_http_error(res, requested_model: model || @config.model) unless res.is_a?(Net::HTTPSuccess)
 
       body = JSON.parse(res.body)
       body["response"]
