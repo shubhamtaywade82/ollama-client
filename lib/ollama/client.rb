@@ -298,7 +298,7 @@ module Ollama
           "data" => parsed,
           "meta" => {
             "endpoint" => "/api/generate",
-          "model" => model || @config.model,
+            "model" => model || @config.model,
             "attempts" => attempts,
             "latency_ms" => elapsed_ms(started_at)
           }
