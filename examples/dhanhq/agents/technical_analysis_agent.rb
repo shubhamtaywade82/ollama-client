@@ -236,7 +236,12 @@ module DhanHQ
             "stop_loss" => { "type" => "number" },
             "target_price" => { "type" => "number" },
             "risk_reward_ratio" => { "type" => "number" },
-            "confidence" => { "type" => "number", "minimum" => 0, "maximum" => 1 },
+            "confidence" => {
+              "type" => "number",
+              "minimum" => 0,
+              "maximum" => 1,
+              "description" => "Confidence (0.0 to 1.0)"
+            },
             "reasoning" => { "type" => "string" },
             "timeframe" => { "type" => "string" }
           }

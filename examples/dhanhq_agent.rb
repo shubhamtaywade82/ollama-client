@@ -76,7 +76,7 @@ class DataAgent
           "type" => "number",
           "minimum" => 0,
           "maximum" => 1,
-          "description" => "Confidence in this decision"
+          "description" => "Confidence in this decision (0.0 to 1.0, where 1.0 is 100% confident)"
         },
         "parameters" => {
           "type" => "object",
@@ -304,7 +304,7 @@ class TradingAgent
           "type" => "number",
           "minimum" => 0,
           "maximum" => 1,
-          "description" => "Confidence in this decision"
+          "description" => "Confidence in this decision (0.0 to 1.0, where 1.0 is 100% confident)"
         },
         "parameters" => {
           "type" => "object",

@@ -35,7 +35,8 @@ class FinancialAnalyzer
             "profit_margin" => {
               "type" => "number",
               "minimum" => 0,
-              "maximum" => 100
+              "maximum" => 100,
+              "description" => "Profit margin as percentage (0 to 100)"
             },
             "growth_rate" => {
               "type" => "number"
@@ -121,7 +122,8 @@ class CodeReviewer
         "overall_score" => {
           "type" => "integer",
           "minimum" => 0,
-          "maximum" => 100
+          "maximum" => 100,
+          "description" => "Overall quality score (0 to 100)"
         },
         "issues" => {
           "type" => "array",
@@ -262,7 +264,8 @@ class ResearchAnalyzer
         "reproducibility_score" => {
           "type" => "number",
           "minimum" => 0,
-          "maximum" => 1
+          "maximum" => 1,
+          "description" => "Reproducibility score (0.0 to 1.0, where 1.0 means fully reproducible)"
         }
       }
     }

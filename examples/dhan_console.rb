@@ -555,16 +555,18 @@ def tool_messages(messages)
 end
 
 def print_tool_results(messages)
-  puts "Tool Results:"
   tool_messages(messages).each do |message|
     print_tool_message(message)
   end
+  puts # blank line after tool results
 end
 
 def print_tool_message(message)
   tool_name = message[:name] || "unknown_tool"
-  puts "- #{tool_name}"
-  puts format_tool_content(message[:content])
+  content = parse_tool_content(message[:content])
+
+  puts "\n#{COLOR_LLM}🔧 Tool Called:#{COLOR_RESET} #{tool_name}"
+  print_formatted_result(tool_name, content)
 end
 
 def format_tool_content(content)
@@ -580,6 +582,99 @@ def parse_tool_content(content)
   JSON.parse(content)
 rescue JSON::ParserError
   content
+end
+
+def print_formatted_result(tool_name, content)
+  return puts content if content.is_a?(String)
+
+  result = content["result"] || content
+
+  case tool_name
+  when "get_live_ltp"
+    print_ltp_result(result)
+  when "get_market_quote"
+    print_quote_result(result)
+  when "get_historical_data"
+    print_historical_result(result, content)
+  when "get_option_chain"
+    print_option_chain_result(result)
+  when "get_expiry_list"
+    print_expiry_list_result(result)
+  when "find_instrument"
+    print_instrument_result(result)
+  else
+    puts "   #{COLOR_LLM}→#{COLOR_RESET} #{JSON.pretty_generate(content)}"
+  end
+end
+
+def print_ltp_result(result)
+  symbol = result["symbol"] || "Unknown"
+  ltp = result["ltp"] || result.dig("ltp_data", "last_price")
+  exchange = result["exchange_segment"]
+
+  puts "   #{COLOR_LLM}→#{COLOR_RESET} #{symbol} (#{exchange})"
+  puts "   #{COLOR_LLM}→#{COLOR_RESET} Last Price: ₹#{ltp}"
+end
+
+def print_quote_result(result)
+  symbol = result["symbol"] || "Unknown"
+  quote = result["quote"] || {}
+  ohlc = quote["ohlc"] || {}
+
+  puts "   #{COLOR_LLM}→#{COLOR_RESET} #{symbol}"
+  puts "   #{COLOR_LLM}→#{COLOR_RESET} LTP: ₹#{quote['last_price']}"
+  puts "   #{COLOR_LLM}→#{COLOR_RESET} OHLC: O:#{ohlc['open']} H:#{ohlc['high']} L:#{ohlc['low']} C:#{ohlc['close']}"
+  puts "   #{COLOR_LLM}→#{COLOR_RESET} Volume: #{quote['volume']}" if quote["volume"]&.positive?
+end
+
+def print_historical_result(result, content)
+  if result.is_a?(Hash) && result.key?("indicators")
+    print_indicator_result(result)
+  elsif result.is_a?(Hash)
+    data_points = result["data"]&.size || 0
+    interval = content.dig("params", "interval")
+    puts "   #{COLOR_LLM}→#{COLOR_RESET} Historical data: #{data_points} records"
+    puts "   #{COLOR_LLM}→#{COLOR_RESET} Interval: #{interval}" if interval
+  elsif result.is_a?(Array)
+    puts "   #{COLOR_LLM}→#{COLOR_RESET} #{result.size} data points"
+  end
+end
+
+def print_indicator_result(result)
+  indicators = result["indicators"]
+  puts "   #{COLOR_LLM}→#{COLOR_RESET} Technical Indicators:"
+  puts "   #{COLOR_LLM}→#{COLOR_RESET}   Current Price: ₹#{indicators['current_price']}"
+  puts "   #{COLOR_LLM}→#{COLOR_RESET}   RSI(14): #{indicators['rsi']&.round(2)}"
+  puts "   #{COLOR_LLM}→#{COLOR_RESET}   MACD: #{indicators.dig('macd', 'macd')&.round(2)}"
+  puts "   #{COLOR_LLM}→#{COLOR_RESET}   SMA(20): ₹#{indicators['sma_20']&.round(2)}"
+  puts "   #{COLOR_LLM}→#{COLOR_RESET}   SMA(50): ₹#{indicators['sma_50']&.round(2)}"
+end
+
+def print_option_chain_result(result)
+  oc = result.dig("data", "oc") || {}
+  last_price = result.dig("data", "last_price")
+  strikes = oc.keys.size
+
+  puts "   #{COLOR_LLM}→#{COLOR_RESET} Spot: ₹#{last_price}"
+  puts "   #{COLOR_LLM}→#{COLOR_RESET} Strikes: #{strikes}"
+  puts "   #{COLOR_LLM}→#{COLOR_RESET} (Filtered: ATM/OTM/ITM with both CE & PE)"
+end
+
+def print_expiry_list_result(result)
+  expiries = result["expiries"] || []
+  puts "   #{COLOR_LLM}→#{COLOR_RESET} Available expiries: #{expiries.size}"
+  puts "   #{COLOR_LLM}→#{COLOR_RESET} Next expiry: #{expiries.first}" if expiries.any?
+  puts "   #{COLOR_LLM}→#{COLOR_RESET} Expiries: #{expiries[0..4].join(', ')}#{'...' if expiries.size > 5}"
+end
+
+def print_instrument_result(result)
+  symbol = result["symbol"]
+  security_id = result["security_id"]
+  exchange = result["exchange_segment"]
+
+  puts "   #{COLOR_LLM}→#{COLOR_RESET} Found: #{symbol}"
+  puts "   #{COLOR_LLM}→#{COLOR_RESET} Security ID: #{security_id}"
+  puts "   #{COLOR_LLM}→#{COLOR_RESET} Exchange: #{exchange}"
 end
 
 def show_llm_summary?
