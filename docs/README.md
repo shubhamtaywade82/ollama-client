@@ -4,8 +4,7 @@ This directory contains internal development documentation for the ollama-client
 
 ## Quick Links
 
-- 🚀 **[Quick Release Reference](QUICK_RELEASE.md)** - Fast release checklist
-- 📘 **[Complete Release Guide](GEM_RELEASE_GUIDE.md)** - Full automation setup (794 lines)
+- 🚀 **[Release Guide](RELEASE_GUIDE.md)** - Complete guide for automated gem releases with MFA
 
 ## Contents
 
@@ -22,7 +21,7 @@ This directory contains internal development documentation for the ollama-client
 
 ### CI/Automation
 - **[CLOUD.md](CLOUD.md)** - Cloud agent guide for automated testing and fixes
-- **[GEM_RELEASE_GUIDE.md](GEM_RELEASE_GUIDE.md)** - Complete guide for automated gem releases via GitHub Actions and git tags
+- **[RELEASE_GUIDE.md](RELEASE_GUIDE.md)** - Complete guide for automated gem releases via GitHub Actions with OTP/MFA
 
 ## For Users
 
