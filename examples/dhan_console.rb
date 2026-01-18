@@ -42,8 +42,8 @@ MAX_HISTORY = 200
 COLOR_RESET = "\e[0m"
 COLOR_USER = "\e[32m"
 COLOR_LLM = "\e[36m"
-USER_PROMPT = "#{COLOR_USER}you>#{COLOR_RESET} "
-LLM_PROMPT = "#{COLOR_LLM}llm>#{COLOR_RESET} "
+USER_PROMPT = "#{COLOR_USER}you>#{COLOR_RESET} ".freeze
+LLM_PROMPT = "#{COLOR_LLM}llm>#{COLOR_RESET} ".freeze
 
 def build_reader
   TTY::Reader.new
@@ -497,7 +497,7 @@ def build_tools
     "get_historical_data" => lambda do |exchange_segment:, from_date:, to_date:, symbol: nil, security_id: nil,
                                         interval: nil, expiry_code: nil, calculate_indicators: false|
       # Convert security_id to integer if provided (LLM may pass it as string)
-      normalized_security_id = security_id ? security_id.to_i : nil
+      normalized_security_id = security_id&.to_i
       DhanHQDataTools.get_historical_data(**compact_kwargs(exchange_segment: exchange_segment,
                                                            symbol: symbol,
                                                            security_id: normalized_security_id,
@@ -509,14 +509,14 @@ def build_tools
     end,
     "get_expiry_list" => lambda do |exchange_segment:, symbol: nil, security_id: nil|
       # Convert security_id to integer if provided (LLM may pass it as string)
-      normalized_security_id = security_id ? security_id.to_i : nil
+      normalized_security_id = security_id&.to_i
       DhanHQDataTools.get_expiry_list(**compact_kwargs(exchange_segment: exchange_segment,
                                                        symbol: symbol,
                                                        security_id: normalized_security_id))
     end,
     "get_option_chain" => lambda do |exchange_segment:, symbol: nil, security_id: nil, expiry: nil, strikes_count: 5|
       # Convert security_id to integer if provided (LLM may pass it as string)
-      normalized_security_id = security_id ? security_id.to_i : nil
+      normalized_security_id = security_id&.to_i
       # Default to 5 strikes (2 ITM, ATM, 2 OTM) - good balance for analysis
       normalized_strikes_count = strikes_count.to_i
       normalized_strikes_count = 5 if normalized_strikes_count < 1 # Minimum 1 (ATM)

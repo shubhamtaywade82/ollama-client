@@ -249,9 +249,11 @@ begin
         puts "  ✅ Instrument found and quote retrieved"
         quote = result[:result][:quote]
         if quote
+          ohlc = quote[:ohlc]
           puts "  📊 Last Price: #{quote[:last_price]}"
           puts "  📊 Volume: #{quote[:volume]}"
-          puts "  📊 OHLC: O=#{quote[:ohlc][:open]}, H=#{quote[:ohlc][:high]}, L=#{quote[:ohlc][:low]}, C=#{quote[:ohlc][:close]}"
+          puts "  📊 OHLC: O=#{ohlc[:open]}, H=#{ohlc[:high]}, " \
+               "L=#{ohlc[:low]}, C=#{ohlc[:close]}"
         end
       end
     rescue StandardError => e

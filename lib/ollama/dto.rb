@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require "set"
 
 module Ollama
   # A module that provides a foundation for data transfer objects (DTOs) within
@@ -21,22 +22,21 @@ module Ollama
   #   end
   module DTO
     def self.included(base)
-      unless defined?(Set)
-      end
       base.extend(ClassMethods)
-      base.class_variable_set(:@@attributes, Set.new)
+      base.instance_variable_set(:@attributes, Set.new)
     end
 
+    # Class-level helpers for DTO attribute tracking.
     module ClassMethods
       # The attributes accessor reads and writes the attributes instance variable.
       #
       # @return [Set] the set of attributes stored in the instance variable
       def attributes
-        class_variable_get(:@@attributes)
+        @attributes ||= Set.new
       end
 
       def attributes=(value)
-        class_variable_set(:@@attributes, value)
+        @attributes = value
       end
 
       # The from_hash method creates a new instance of the class by converting a

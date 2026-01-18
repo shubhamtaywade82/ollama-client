@@ -73,8 +73,9 @@ def validate_security_id_numeric(security_id)
     return [true, cleaned.to_i] if cleaned.match?(/^\d+$/)
 
     # It's a non-numeric string (likely a symbol like "NIFTY")
-    return [false,
-            "security_id must be numeric (integer or numeric string like '13'), not a symbol string like '#{cleaned}'. Use symbol parameter for symbols."]
+    message = "security_id must be numeric (integer or numeric string like '13'), " \
+              "not a symbol string like '#{cleaned}'. Use symbol parameter for symbols."
+    return [false, message]
 
   end
 
@@ -241,98 +242,36 @@ class DhanHQDataTools
     #
     # Note: Instrument.find(exchange_segment, symbol) expects symbol (e.g., "NIFTY", "RELIANCE"), not security_id
     def get_market_quote(exchange_segment:, security_id: nil, symbol: nil)
-      # CRITICAL: security_id must be an integer, not a symbol string
-      # If security_id is provided, we cannot use Instrument.find (which expects symbol)
-      # We need symbol to find the instrument, or we need to use security_id directly with MarketFeed API
-      unless symbol || security_id
-        return {
-          action: "get_market_quote",
-          error: "Either symbol or security_id must be provided",
-          params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment }
-        }
-      end
+      error = require_symbol_or_security_id(action: "get_market_quote",
+                                            exchange_segment: exchange_segment,
+                                            security_id: security_id,
+                                            symbol: symbol)
+      return error if error
 
-      rate_limit_marketfeed # Enforce rate limiting
+      rate_limit_marketfeed
       exchange_segment = exchange_segment.to_s
 
-      # If security_id is provided, use it directly - it must be numeric (integer or numeric string), not a symbol
-      # If symbol is provided, find instrument first to get security_id
       if security_id && !symbol
-        is_valid, result = validate_security_id_numeric(security_id)
-        unless is_valid
-          return {
-            action: "get_market_quote",
-            error: result,
-            params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment }
-          }
-        end
-        security_id_int = result
-        unless security_id_int.positive?
-          return {
-            action: "get_market_quote",
-            error: "security_id must be a positive integer, got: #{security_id.inspect}",
-            params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment }
-          }
-        end
-
-        # Use MarketFeed.quote directly with security_id
-        payload = { exchange_segment => [security_id_int] }
-        quote_response = DhanHQ::Models::MarketFeed.quote(payload)
-
-        if quote_response.is_a?(Hash) && quote_response["data"]
-          quote_data = quote_response.dig("data", exchange_segment, security_id_int.to_s)
-        end
-
-        return {
+        error, security_id_int = validated_security_id_for_marketfeed(
           action: "get_market_quote",
-          params: { security_id: security_id_int, symbol: symbol, exchange_segment: exchange_segment },
-          result: {
-            security_id: security_id_int,
-            exchange_segment: exchange_segment,
-            quote: quote_data || quote_response
-          }
-        }
+          exchange_segment: exchange_segment,
+          security_id: security_id,
+          symbol: symbol
+        )
+        return error if error
+
+        return market_quote_from_security_id(exchange_segment: exchange_segment,
+                                             security_id_int: security_id_int,
+                                             symbol: symbol)
       end
 
-      # Find instrument using symbol (Instrument.find expects symbol, not security_id)
-      instrument_symbol = symbol.to_s
-      instrument = DhanHQ::Models::Instrument.find(exchange_segment, instrument_symbol)
-
-      if instrument
-        # Use instrument convenience method - automatically uses instrument's attributes
-        # Returns nested structure: {"data"=>{"NSE_EQ"=>{"2885"=>{...}}}, "status"=>"success"}
-        quote_response = instrument.quote
-
-        # Extract actual quote data from nested structure
-        security_id_str = safe_instrument_attr(instrument, :security_id)&.to_s || security_id.to_s
-        if quote_response.is_a?(Hash) && quote_response["data"]
-          quote_data = quote_response.dig("data", exchange_segment,
-                                          security_id_str)
-        end
-
-        {
-          action: "get_market_quote",
-          params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment },
-          result: {
-            security_id: safe_instrument_attr(instrument, :security_id) || security_id,
-            symbol: instrument_symbol,
-            exchange_segment: exchange_segment,
-            quote: quote_data || quote_response
-          }
-        }
-      else
-        {
-          action: "get_market_quote",
-          error: "Instrument not found",
-          params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment }
-        }
-      end
+      market_quote_from_symbol(exchange_segment: exchange_segment, security_id: security_id, symbol: symbol)
     rescue StandardError => e
-      {
-        action: "get_market_quote",
-        error: e.message,
-        params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment }
-      }
+      action_error(action: "get_market_quote",
+                   message: e.message,
+                   exchange_segment: exchange_segment,
+                   security_id: security_id,
+                   symbol: symbol)
     end
 
     # 2. Live Market Feed API - Get LTP (Last Traded Price) using Instrument convenience method
@@ -351,108 +290,55 @@ class DhanHQDataTools
     #
     # Note: Instrument.find(exchange_segment, symbol) expects symbol (e.g., "NIFTY", "RELIANCE"), not security_id
     def get_live_ltp(exchange_segment:, security_id: nil, symbol: nil)
-      # CRITICAL: security_id must be an integer, not a symbol string
-      unless symbol || security_id
-        return {
-          action: "get_live_ltp",
-          error: "Either symbol or security_id must be provided",
-          params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment }
-        }
-      end
+      error = require_symbol_or_security_id(action: "get_live_ltp",
+                                            exchange_segment: exchange_segment,
+                                            security_id: security_id,
+                                            symbol: symbol)
+      return error if error
 
-      rate_limit_marketfeed # Enforce rate limiting
+      rate_limit_marketfeed
       exchange_segment = exchange_segment.to_s
 
-      # If security_id is provided, use it directly - it must be numeric (integer or numeric string), not a symbol
       if security_id && !symbol
-        is_valid, result = validate_security_id_numeric(security_id)
-        unless is_valid
-          return {
-            action: "get_live_ltp",
-            error: result,
-            params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment }
-          }
-        end
-        security_id_int = result
-        unless security_id_int.positive?
-          return {
-            action: "get_live_ltp",
-            error: "security_id must be a positive integer, got: #{security_id.inspect}",
-            params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment }
-          }
-        end
-
-        # Use MarketFeed.ltp directly with security_id
-        payload = { exchange_segment => [security_id_int] }
-        ltp_response = DhanHQ::Models::MarketFeed.ltp(payload)
-
-        if ltp_response.is_a?(Hash) && ltp_response["data"]
-          ltp_data = ltp_response.dig("data", exchange_segment, security_id_int.to_s)
-          ltp = extract_value(ltp_data, [:last_price, "last_price"]) if ltp_data
-        else
-          ltp = extract_value(ltp_response, [:last_price, "last_price", :ltp, "ltp"]) || ltp_response
-          ltp_data = ltp_response
-        end
-
-        return {
+        error, security_id_int = validated_security_id_for_marketfeed(
           action: "get_live_ltp",
-          params: { security_id: security_id_int, symbol: symbol, exchange_segment: exchange_segment },
-          result: {
-            security_id: security_id_int,
-            exchange_segment: exchange_segment,
-            ltp: ltp,
-            ltp_data: ltp_data
-          }
-        }
+          exchange_segment: exchange_segment,
+          security_id: security_id,
+          symbol: symbol
+        )
+        return error if error
+
+        ltp, ltp_data = ltp_from_marketfeed(exchange_segment: exchange_segment, security_id: security_id_int)
+        return live_ltp_response(exchange_segment: exchange_segment,
+                                 security_id: security_id_int,
+                                 symbol: symbol,
+                                 ltp: ltp,
+                                 ltp_data: ltp_data)
       end
 
-      # Find instrument using symbol (Instrument.find expects symbol, not security_id)
       instrument_symbol = symbol.to_s
       instrument = DhanHQ::Models::Instrument.find(exchange_segment, instrument_symbol)
+      return action_error(action: "get_live_ltp",
+                          message: "Instrument not found",
+                          exchange_segment: exchange_segment,
+                          security_id: security_id,
+                          symbol: symbol) unless instrument
 
-      if instrument
-        # Use instrument convenience method - automatically uses instrument's attributes
-        # Returns nested structure: {"data"=>{"NSE_EQ"=>{"2885"=>{"last_price"=>1578.1}}}, "status"=>"success"}
-        # OR direct value: 1578.1 (after retry/rate limit handling)
-        ltp_response = instrument.ltp
-
-        # Extract LTP from nested structure or use direct value
-        if ltp_response.is_a?(Hash) && ltp_response["data"]
-          security_id_str = safe_instrument_attr(instrument, :security_id)&.to_s || security_id.to_s
-          ltp_data = ltp_response.dig("data", exchange_segment, security_id_str)
-          ltp = extract_value(ltp_data, [:last_price, "last_price"]) if ltp_data
-        elsif ltp_response.is_a?(Numeric)
-          ltp = ltp_response
-          ltp_data = { last_price: ltp }
-        else
-          ltp = extract_value(ltp_response, [:last_price, "last_price", :ltp, "ltp"]) || ltp_response
-          ltp_data = ltp_response
-        end
-
-        {
-          action: "get_live_ltp",
-          params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment },
-          result: {
-            security_id: safe_instrument_attr(instrument, :security_id) || security_id,
-            symbol: instrument_symbol,
-            exchange_segment: exchange_segment,
-            ltp: ltp,
-            ltp_data: ltp_data
-          }
-        }
-      else
-        {
-          action: "get_live_ltp",
-          error: "Instrument not found",
-          params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment }
-        }
-      end
+      ltp, ltp_data, resolved_security_id = ltp_from_instrument(exchange_segment: exchange_segment,
+                                                                instrument: instrument,
+                                                                security_id: security_id)
+      live_ltp_response(exchange_segment: exchange_segment,
+                        security_id: resolved_security_id,
+                        symbol: symbol,
+                        ltp: ltp,
+                        ltp_data: ltp_data,
+                        instrument_symbol: instrument_symbol)
     rescue StandardError => e
-      {
-        action: "get_live_ltp",
-        error: e.message,
-        params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment }
-      }
+      action_error(action: "get_live_ltp",
+                   message: e.message,
+                   exchange_segment: exchange_segment,
+                   security_id: security_id,
+                   symbol: symbol)
     end
 
     # 3. Full Market Depth API - Get full market depth (bid/ask levels)
@@ -725,12 +611,20 @@ class DhanHQDataTools
           {
             action: "get_historical_data",
             type: "intraday",
-            params: { security_id: resolved_security_id, symbol: symbol, exchange_segment: exchange_segment,
-                      instrument: resolved_instrument, from_date: from_date, to_date: to_date, interval: interval },
+            params: {
+              security_id: resolved_security_id,
+              symbol: symbol,
+              exchange_segment: exchange_segment,
+              instrument: resolved_instrument,
+              from_date: from_date,
+              to_date: to_date,
+              interval: interval
+            },
             result: {
               indicators: indicators,
               data_points: count,
-              note: "Technical indicators calculated from historical data. Raw data not included to reduce response size.",
+              note: "Technical indicators calculated from historical data. " \
+                    "Raw data not included to reduce response size.",
               instrument_info: {
                 security_id: resolved_security_id,
                 trading_symbol: safe_instrument_attr(found_instrument, :trading_symbol),
@@ -742,8 +636,15 @@ class DhanHQDataTools
           {
             action: "get_historical_data",
             type: "intraday",
-            params: { security_id: resolved_security_id, symbol: symbol, exchange_segment: exchange_segment,
-                      instrument: resolved_instrument, from_date: from_date, to_date: to_date, interval: interval },
+            params: {
+              security_id: resolved_security_id,
+              symbol: symbol,
+              exchange_segment: exchange_segment,
+              instrument: resolved_instrument,
+              from_date: from_date,
+              to_date: to_date,
+              interval: interval
+            },
             result: {
               data: data,
               count: count,
@@ -781,12 +682,20 @@ class DhanHQDataTools
           {
             action: "get_historical_data",
             type: "daily",
-            params: { security_id: resolved_security_id, symbol: symbol, exchange_segment: exchange_segment,
-                      instrument: resolved_instrument, from_date: from_date, to_date: to_date, expiry_code: expiry_code },
+            params: {
+              security_id: resolved_security_id,
+              symbol: symbol,
+              exchange_segment: exchange_segment,
+              instrument: resolved_instrument,
+              from_date: from_date,
+              to_date: to_date,
+              expiry_code: expiry_code
+            },
             result: {
               indicators: indicators,
               data_points: count,
-              note: "Technical indicators calculated from historical data. Raw data not included to reduce response size.",
+              note: "Technical indicators calculated from historical data. " \
+                    "Raw data not included to reduce response size.",
               instrument_info: {
                 security_id: resolved_security_id,
                 trading_symbol: safe_instrument_attr(found_instrument, :trading_symbol),
@@ -798,8 +707,15 @@ class DhanHQDataTools
           {
             action: "get_historical_data",
             type: "daily",
-            params: { security_id: resolved_security_id, symbol: symbol, exchange_segment: exchange_segment,
-                      instrument: resolved_instrument, from_date: from_date, to_date: to_date, expiry_code: expiry_code },
+            params: {
+              security_id: resolved_security_id,
+              symbol: symbol,
+              exchange_segment: exchange_segment,
+              instrument: resolved_instrument,
+              from_date: from_date,
+              to_date: to_date,
+              expiry_code: expiry_code
+            },
             result: {
               data: data,
               count: count,
@@ -1252,69 +1168,15 @@ class DhanHQDataTools
     end
 
     def filter_option_chain(full_chain, last_price, strikes_count = 5)
-      return {} unless full_chain.is_a?(Hash) && last_price
+      return {} unless valid_option_chain_inputs?(full_chain, last_price)
 
-      last_price_float = last_price.to_f
-      return {} if last_price_float.zero?
-
-      # Extract all strike prices that have both CE and PE data
-      strikes = full_chain.keys.map do |strike_key|
-        strike_data = full_chain[strike_key]
-        next unless strike_data.is_a?(Hash)
-
-        # Check if strike has both CE and PE
-        has_ce = strike_data.key?(:ce) || strike_data.key?("ce")
-        has_pe = strike_data.key?(:pe) || strike_data.key?("pe")
-        next unless has_ce && has_pe
-
-        strike_float = strike_key.to_f
-        [strike_key, strike_float] if strike_float.positive?
-      end.compact
-
+      strikes = extract_chain_strikes(full_chain)
       return {} if strikes.empty?
 
-      # Sort strikes by price
-      strikes.sort_by! { |_, price| price }
+      selected_strikes = select_strike_keys(strikes, last_price.to_f, strikes_count)
+      return {} if selected_strikes.empty?
 
-      # Find ATM strike (closest to last_price)
-      atm_strike = strikes.min_by { |_, price| (price - last_price_float).abs }
-      return {} unless atm_strike
-
-      atm_index = strikes.index(atm_strike)
-      return {} unless atm_index
-
-      # Calculate how many strikes to get on each side of ATM
-      # Default: 5 strikes = 2 ITM, ATM, 2 OTM
-      # For odd numbers: distribute evenly (e.g., 5 = 2 ITM + ATM + 2 OTM)
-      # For even numbers: prefer OTM (e.g., 6 = 2 ITM + ATM + 3 OTM)
-      total_strikes = [strikes_count.to_i, 1].max # At least 1 (ATM)
-      itm_count = (total_strikes - 1) / 2 # Rounds down for odd, up for even
-      otm_count = total_strikes - 1 - itm_count # Remaining after ATM
-
-      selected_strikes = []
-
-      # Get ITM strikes (below ATM)
-      itm_start = [atm_index - itm_count, 0].max
-      itm_start.upto(atm_index - 1) do |i|
-        selected_strikes << strikes[i][0] if strikes[i]
-      end
-
-      # ATM
-      selected_strikes << atm_strike[0]
-
-      # Get OTM strikes (above ATM)
-      otm_end = [atm_index + otm_count, strikes.length - 1].min
-      (atm_index + 1).upto(otm_end) do |i|
-        selected_strikes << strikes[i][0] if strikes[i]
-      end
-
-      # Filter chain to only include selected strikes
-      filtered = {}
-      selected_strikes.each do |strike_key|
-        filtered[strike_key] = full_chain[strike_key] if full_chain.key?(strike_key)
-      end
-
-      filtered
+      build_filtered_chain(full_chain, selected_strikes)
     end
 
     def option_chain_instrument_info(resolved_security_id:, underlying_seg:, found_instrument:, symbol:)
@@ -1536,6 +1398,206 @@ class DhanHQDataTools
       }
     end
     # rubocop:enable Metrics/ParameterLists, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+
+    private
+
+    def action_error(action:, message:, exchange_segment:, security_id:, symbol:)
+      {
+        action: action,
+        error: message,
+        params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment }
+      }
+    end
+
+    def require_symbol_or_security_id(action:, exchange_segment:, security_id:, symbol:)
+      return nil if symbol || security_id
+
+      action_error(action: action,
+                   message: "Either symbol or security_id must be provided",
+                   exchange_segment: exchange_segment,
+                   security_id: security_id,
+                   symbol: symbol)
+    end
+
+    def validated_security_id_for_marketfeed(action:, exchange_segment:, security_id:, symbol:)
+      is_valid, result = validate_security_id_numeric(security_id)
+      unless is_valid
+        return [action_error(action: action,
+                             message: result,
+                             exchange_segment: exchange_segment,
+                             security_id: security_id,
+                             symbol: symbol), nil]
+      end
+
+      return [nil, result] if result.positive?
+
+      [action_error(action: action,
+                    message: "security_id must be a positive integer, got: #{security_id.inspect}",
+                    exchange_segment: exchange_segment,
+                    security_id: security_id,
+                    symbol: symbol), nil]
+    end
+
+    def extract_quote_data(quote_response, exchange_segment:, security_id:)
+      return unless quote_response.is_a?(Hash) && quote_response["data"]
+
+      quote_response.dig("data", exchange_segment, security_id.to_s)
+    end
+
+    def market_quote_response(exchange_segment:, security_id:, symbol:, quote:, instrument_symbol: nil)
+      result = {
+        security_id: security_id,
+        exchange_segment: exchange_segment,
+        quote: quote
+      }
+      result[:symbol] = instrument_symbol if instrument_symbol
+
+      {
+        action: "get_market_quote",
+        params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment },
+        result: result
+      }
+    end
+
+    def market_quote_from_security_id(exchange_segment:, security_id_int:, symbol:)
+      payload = { exchange_segment => [security_id_int] }
+      quote_response = DhanHQ::Models::MarketFeed.quote(payload)
+      quote_data = extract_quote_data(quote_response, exchange_segment: exchange_segment, security_id: security_id_int)
+
+      market_quote_response(exchange_segment: exchange_segment,
+                            security_id: security_id_int,
+                            symbol: symbol,
+                            quote: quote_data || quote_response)
+    end
+
+    def market_quote_from_symbol(exchange_segment:, security_id:, symbol:)
+      instrument_symbol = symbol.to_s
+      instrument = DhanHQ::Models::Instrument.find(exchange_segment, instrument_symbol)
+      return action_error(action: "get_market_quote",
+                          message: "Instrument not found",
+                          exchange_segment: exchange_segment,
+                          security_id: security_id,
+                          symbol: symbol) unless instrument
+
+      quote_response = instrument.quote
+      resolved_security_id = safe_instrument_attr(instrument, :security_id) || security_id
+      quote_data = extract_quote_data(quote_response,
+                                      exchange_segment: exchange_segment,
+                                      security_id: resolved_security_id || security_id)
+
+      market_quote_response(exchange_segment: exchange_segment,
+                            security_id: resolved_security_id,
+                            symbol: symbol,
+                            quote: quote_data || quote_response,
+                            instrument_symbol: instrument_symbol)
+    end
+
+    def live_ltp_response(exchange_segment:, security_id:, symbol:, ltp:, ltp_data:, instrument_symbol: nil)
+      result = {
+        security_id: security_id,
+        exchange_segment: exchange_segment,
+        ltp: ltp,
+        ltp_data: ltp_data
+      }
+      result[:symbol] = instrument_symbol if instrument_symbol
+
+      {
+        action: "get_live_ltp",
+        params: { security_id: security_id, symbol: symbol, exchange_segment: exchange_segment },
+        result: result
+      }
+    end
+
+    def ltp_from_marketfeed(exchange_segment:, security_id:)
+      payload = { exchange_segment => [security_id] }
+      ltp_response = DhanHQ::Models::MarketFeed.ltp(payload)
+      parse_ltp_response(ltp_response, exchange_segment: exchange_segment, security_id: security_id)
+    end
+
+    def ltp_from_instrument(exchange_segment:, instrument:, security_id:)
+      ltp_response = instrument.ltp
+      resolved_security_id = safe_instrument_attr(instrument, :security_id) || security_id
+      ltp, ltp_data = parse_ltp_response(ltp_response,
+                                         exchange_segment: exchange_segment,
+                                         security_id: resolved_security_id || security_id)
+
+      [ltp, ltp_data, resolved_security_id]
+    end
+
+    def parse_ltp_response(ltp_response, exchange_segment:, security_id:)
+      if ltp_response.is_a?(Hash) && ltp_response["data"]
+        security_id_str = security_id.to_s
+        ltp_data = ltp_response.dig("data", exchange_segment, security_id_str)
+        ltp = extract_value(ltp_data, [:last_price, "last_price"]) if ltp_data
+        return [ltp, ltp_data]
+      end
+
+      if ltp_response.is_a?(Numeric)
+        ltp = ltp_response
+        return [ltp, { last_price: ltp }]
+      end
+
+      ltp = extract_value(ltp_response, [:last_price, "last_price", :ltp, "ltp"]) || ltp_response
+      [ltp, ltp_response]
+    end
+
+    def valid_option_chain_inputs?(full_chain, last_price)
+      return false unless full_chain.is_a?(Hash)
+      return false if last_price.nil?
+
+      last_price.to_f.nonzero?
+    end
+
+    def extract_chain_strikes(full_chain)
+      full_chain.filter_map do |strike_key, strike_data|
+        next unless strike_data.is_a?(Hash)
+        next unless strike_has_both_sides?(strike_data)
+
+        strike_float = strike_key.to_f
+        next unless strike_float.positive?
+
+        [strike_key, strike_float]
+      end.sort_by { |(_, price)| price }
+    end
+
+    def strike_has_both_sides?(strike_data)
+      (strike_data.key?(:ce) || strike_data.key?("ce")) &&
+        (strike_data.key?(:pe) || strike_data.key?("pe"))
+    end
+
+    def select_strike_keys(strikes, last_price, strikes_count)
+      atm_strike = strikes.min_by { |_, price| (price - last_price).abs }
+      return [] unless atm_strike
+
+      atm_index = strikes.index(atm_strike)
+      return [] unless atm_index
+
+      total_strikes = [strikes_count.to_i, 1].max
+      itm_count = (total_strikes - 1) / 2
+      otm_count = total_strikes - 1 - itm_count
+
+      selected = []
+      selected.concat(collect_strike_keys(strikes, atm_index - itm_count, atm_index - 1))
+      selected << atm_strike[0]
+      selected.concat(collect_strike_keys(strikes, atm_index + 1, atm_index + otm_count))
+      selected
+    end
+
+    def collect_strike_keys(strikes, start_idx, end_idx)
+      return [] if start_idx > end_idx
+
+      bounded_start = [start_idx, 0].max
+      bounded_end = [end_idx, strikes.length - 1].min
+      return [] if bounded_start > bounded_end
+
+      strikes[bounded_start..bounded_end].map { |strike| strike[0] }
+    end
+
+    def build_filtered_chain(full_chain, selected_strikes)
+      selected_strikes.each_with_object({}) do |strike_key, filtered|
+        filtered[strike_key] = full_chain[strike_key] if full_chain.key?(strike_key)
+      end
+    end
   end
 end
 
