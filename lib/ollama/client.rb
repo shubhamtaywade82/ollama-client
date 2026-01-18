@@ -400,9 +400,7 @@ module Ollama
 
     def validate_chat_format!(parsed:, format:)
       return unless format
-      if parsed.nil? || parsed.empty?
-        raise SchemaViolationError, "Empty or nil response when format schema is required"
-      end
+      raise SchemaViolationError, "Empty or nil response when format schema is required" if parsed.nil? || parsed.empty?
 
       SchemaValidator.validate!(parsed, format)
     end

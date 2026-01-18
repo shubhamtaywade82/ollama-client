@@ -312,17 +312,18 @@ class DhanHQDataTools
         return live_ltp_response(exchange_segment: exchange_segment,
                                  security_id: security_id_int,
                                  symbol: symbol,
-                                 ltp: ltp,
-                                 ltp_data: ltp_data)
+                                 ltp_payload: { ltp: ltp, ltp_data: ltp_data })
       end
 
       instrument_symbol = symbol.to_s
       instrument = DhanHQ::Models::Instrument.find(exchange_segment, instrument_symbol)
-      return action_error(action: "get_live_ltp",
-                          message: "Instrument not found",
-                          exchange_segment: exchange_segment,
-                          security_id: security_id,
-                          symbol: symbol) unless instrument
+      unless instrument
+        return action_error(action: "get_live_ltp",
+                            message: "Instrument not found",
+                            exchange_segment: exchange_segment,
+                            security_id: security_id,
+                            symbol: symbol)
+      end
 
       ltp, ltp_data, resolved_security_id = ltp_from_instrument(exchange_segment: exchange_segment,
                                                                 instrument: instrument,
@@ -330,8 +331,7 @@ class DhanHQDataTools
       live_ltp_response(exchange_segment: exchange_segment,
                         security_id: resolved_security_id,
                         symbol: symbol,
-                        ltp: ltp,
-                        ltp_data: ltp_data,
+                        ltp_payload: { ltp: ltp, ltp_data: ltp_data },
                         instrument_symbol: instrument_symbol)
     rescue StandardError => e
       action_error(action: "get_live_ltp",
@@ -1473,11 +1473,13 @@ class DhanHQDataTools
     def market_quote_from_symbol(exchange_segment:, security_id:, symbol:)
       instrument_symbol = symbol.to_s
       instrument = DhanHQ::Models::Instrument.find(exchange_segment, instrument_symbol)
-      return action_error(action: "get_market_quote",
-                          message: "Instrument not found",
-                          exchange_segment: exchange_segment,
-                          security_id: security_id,
-                          symbol: symbol) unless instrument
+      unless instrument
+        return action_error(action: "get_market_quote",
+                            message: "Instrument not found",
+                            exchange_segment: exchange_segment,
+                            security_id: security_id,
+                            symbol: symbol)
+      end
 
       quote_response = instrument.quote
       resolved_security_id = safe_instrument_attr(instrument, :security_id) || security_id
@@ -1492,12 +1494,12 @@ class DhanHQDataTools
                             instrument_symbol: instrument_symbol)
     end
 
-    def live_ltp_response(exchange_segment:, security_id:, symbol:, ltp:, ltp_data:, instrument_symbol: nil)
+    def live_ltp_response(exchange_segment:, security_id:, symbol:, ltp_payload:, instrument_symbol: nil)
       result = {
         security_id: security_id,
         exchange_segment: exchange_segment,
-        ltp: ltp,
-        ltp_data: ltp_data
+        ltp: ltp_payload[:ltp],
+        ltp_data: ltp_payload[:ltp_data]
       }
       result[:symbol] = instrument_symbol if instrument_symbol
 
@@ -1549,7 +1551,7 @@ class DhanHQDataTools
     end
 
     def extract_chain_strikes(full_chain)
-      full_chain.filter_map do |strike_key, strike_data|
+      strikes = full_chain.filter_map do |strike_key, strike_data|
         next unless strike_data.is_a?(Hash)
         next unless strike_has_both_sides?(strike_data)
 
@@ -1557,7 +1559,8 @@ class DhanHQDataTools
         next unless strike_float.positive?
 
         [strike_key, strike_float]
-      end.sort_by { |(_, price)| price }
+      end
+      strikes.sort_by { |(_, price)| price }
     end
 
     def strike_has_both_sides?(strike_data)

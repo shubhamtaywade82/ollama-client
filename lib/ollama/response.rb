@@ -28,12 +28,10 @@ module Ollama
     end
 
     # Delegate other methods to underlying hash
-    def method_missing(method, *, &)
-      if @data.respond_to?(method)
-        @data.public_send(method, *, &)
-      else
-        super
-      end
+    def method_missing(method, *args, &block)
+      return super unless @data.respond_to?(method)
+
+      @data.public_send(method, *args, &block)
     end
 
     def respond_to_missing?(method, include_private = false)

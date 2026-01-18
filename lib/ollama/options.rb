@@ -16,7 +16,7 @@ module Ollama
 
     def initialize(**options)
       unknown_keys = options.keys - VALID_KEYS
-      raise ArgumentError, "Unknown options: #{unknown_keys.join(', ')}" if unknown_keys.any?
+      raise ArgumentError, "Unknown options: #{unknown_keys.join(", ")}" if unknown_keys.any?
 
       VALID_KEYS.each do |key|
         assign_option(key, options[key])

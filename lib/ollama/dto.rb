@@ -180,8 +180,8 @@ module Ollama
     #
     # @param args [Array] pass-through args
     # @return [String] a JSON string representation of the object
-    def to_json(*)
-      as_json.to_json(*)
+    def to_json(*args)
+      as_json.to_json(*args)
     end
   end
 end

@@ -218,16 +218,18 @@ module Ollama
         aliased_args = apply_parameter_aliases(sym_args, callable)
         return { success: false } if aliased_args == sym_args
 
-        { success: true, value: callable.call(**aliased_args) }
-      rescue ArgumentError
-        { success: false }
+        begin
+          { success: true, value: callable.call(**aliased_args) }
+        rescue ArgumentError
+          { success: false }
+        end
       end
 
       def call_with_positional(callable, args_hash)
         callable.call(args_hash)
-      rescue ArgumentError => positional_error
+      rescue ArgumentError => e
         raise ArgumentError,
-              "Tool invocation failed: #{positional_error.message}. Arguments provided: #{args_hash.inspect}. " \
+              "Tool invocation failed: #{e.message}. Arguments provided: #{args_hash.inspect}. " \
               "Ensure the tool call includes all required parameters."
       end
 

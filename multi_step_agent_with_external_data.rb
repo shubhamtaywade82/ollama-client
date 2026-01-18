@@ -266,7 +266,7 @@ def analysis_user_prompt(code, reference_context)
   PROMPT
 end
 
-def handle_analyze_with_reference(context, executor, test_dir)
+def handle_analyze_with_reference(context, executor, _test_dir)
   if context[:analysis]
     puts "\n⚠️  Analysis already complete, skipping..."
     return :skip
