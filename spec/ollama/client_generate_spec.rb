@@ -51,6 +51,20 @@ RSpec.describe Ollama::Client, "#generate" do
       expect(result).to eq("test" => "value")
     end
 
+    it "allows model override" do
+      request_body = nil
+      stub_request(:post, "http://localhost:11434/api/generate")
+        .with { |req| request_body = JSON.parse(req.body) }
+        .to_return(
+          status: 200,
+          body: { response: '{"test":"value"}' }.to_json
+        )
+
+      client.generate(prompt: "test", schema: schema, model: "custom-model")
+
+      expect(request_body["model"]).to eq("custom-model")
+    end
+
     it "includes format parameter when schema is provided" do
       request_body = nil
       stub_request(:post, "http://localhost:11434/api/generate")
@@ -121,6 +135,22 @@ RSpec.describe Ollama::Client, "#generate" do
         end.to raise_error(Ollama::NotFoundError)
 
         expect(WebMock).to have_requested(:post, "http://localhost:11434/api/generate").once
+      end
+
+      it "uses the per-call model for requested_model" do
+        stub_request(:post, "http://localhost:11434/api/generate")
+          .to_return(status: 404, body: "Not Found")
+
+        stub_request(:get, "http://localhost:11434/api/tags")
+          .to_return(status: 200, body: { models: [] }.to_json)
+
+        expect do
+          client.generate(prompt: "test", schema: schema, model: "custom-model")
+        end.to raise_error(Ollama::NotFoundError) do |error|
+          expected_requested_model = "custom-model"
+          actual_requested_model = error.requested_model
+          expect(actual_requested_model).to eq(expected_requested_model)
+        end
       end
     end
 

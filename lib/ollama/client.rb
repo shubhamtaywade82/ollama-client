@@ -46,11 +46,7 @@ module Ollama
     # rubocop:disable Metrics/ParameterLists
     def chat(messages:, model: nil, format: nil, tools: nil, options: {}, strict: false, allow_chat: false,
              return_meta: false)
-      unless allow_chat || strict
-        raise Error,
-              "chat() is intentionally gated because it is easy to misuse inside agents. " \
-              "Prefer generate(). If you really want chat(), pass allow_chat: true (or strict: true)."
-      end
+      ensure_chat_allowed!(allow_chat: allow_chat, strict: strict, method_name: "chat")
 
       attempts = 0
       @current_schema = format # Store for validation
@@ -63,73 +59,22 @@ module Ollama
         raw = call_chat_api(model: model, messages: messages, format: format, tools: normalized_tools, options: options)
         attempt_latency_ms = elapsed_ms(attempt_started_at)
 
-        emit_response_hook(
-          raw,
-          {
-            endpoint: "/api/chat",
-            model: model || @config.model,
-            attempt: attempts,
-            attempt_latency_ms: attempt_latency_ms
-          }
-        )
+        emit_response_hook(raw, chat_response_meta(model: model, attempt: attempts,
+                                                   attempt_latency_ms: attempt_latency_ms))
 
-        # When tools are used, response might have only tool_calls and no content
-        # In that case, return empty string (caller should use chat_raw() for tool_calls)
-        if raw.nil? || raw.empty?
-          return "" unless return_meta
-
-          return {
-            "data" => "",
-            "meta" => {
-              "endpoint" => "/api/chat",
-              "model" => model || @config.model,
-              "attempts" => attempts,
-              "latency_ms" => elapsed_ms(started_at),
-              "note" => "Empty content (likely tool_calls only - use chat_raw() to access tool_calls)"
-            }
-          }
-        end
-
-        # When tools are used, response might have only tool_calls and no content
-        # In that case, return empty string (caller should use chat_raw() for tool_calls)
-        if raw.nil? || raw.empty?
-          return "" unless return_meta
-
-          return {
-            "data" => "",
-            "meta" => {
-              "endpoint" => "/api/chat",
-              "model" => model || @config.model,
-              "attempts" => attempts,
-              "latency_ms" => elapsed_ms(started_at),
-              "note" => "Empty content (likely tool_calls only - use chat_raw() to access tool_calls)"
-            }
-          }
-        end
+        empty_response = empty_chat_response(raw: raw,
+                                             return_meta: return_meta,
+                                             model: model,
+                                             attempts: attempts,
+                                             started_at: started_at)
+        return empty_response unless empty_response.nil?
 
         parsed = parse_json_response(raw)
-
-        # CRITICAL: If format is provided, free-text output is forbidden
-        if format
-          if parsed.nil? || parsed.empty?
-            raise SchemaViolationError,
-                  "Empty or nil response when format schema is required"
-          end
-
-          SchemaValidator.validate!(parsed, format)
-        end
+        validate_chat_format!(parsed: parsed, format: format)
 
         return parsed unless return_meta
 
-        {
-          "data" => parsed,
-          "meta" => {
-            "endpoint" => "/api/chat",
-            "model" => model || @config.model,
-            "attempts" => attempts,
-            "latency_ms" => elapsed_ms(started_at)
-          }
-        }
+        chat_response_with_meta(data: parsed, model: model, attempts: attempts, started_at: started_at)
       rescue NotFoundError => e
         enhanced_error = enhance_not_found_error(e)
         raise enhanced_error
@@ -165,11 +110,7 @@ module Ollama
     # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/ParameterLists
     def chat_raw(messages:, model: nil, format: nil, tools: nil, options: {}, strict: false, allow_chat: false,
                  return_meta: false, stream: false, &on_chunk)
-      unless allow_chat || strict
-        raise Error,
-              "chat_raw() is intentionally gated because it is easy to misuse inside agents. " \
-              "Prefer generate(). If you really want chat_raw(), pass allow_chat: true (or strict: true)."
-      end
+      ensure_chat_allowed!(allow_chat: allow_chat, strict: strict, method_name: "chat_raw")
 
       attempts = 0
       @current_schema = format # Store for validation
@@ -265,7 +206,7 @@ module Ollama
     end
     # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/ParameterLists
 
-    def generate(prompt:, schema:, strict: false, return_meta: false)
+    def generate(prompt:, schema:, model: nil, strict: false, return_meta: false)
       attempts = 0
       @current_schema = schema # Store for prompt enhancement
       started_at = monotonic_time
@@ -273,14 +214,14 @@ module Ollama
       begin
         attempts += 1
         attempt_started_at = monotonic_time
-        raw = call_api(prompt)
+        raw = call_api(prompt, model: model)
         attempt_latency_ms = elapsed_ms(attempt_started_at)
 
         emit_response_hook(
           raw,
           {
             endpoint: "/api/generate",
-            model: @config.model,
+            model: model || @config.model,
             attempt: attempts,
             attempt_latency_ms: attempt_latency_ms
           }
@@ -298,7 +239,7 @@ module Ollama
           "data" => parsed,
           "meta" => {
             "endpoint" => "/api/generate",
-            "model" => @config.model,
+            "model" => model || @config.model,
             "attempts" => attempts,
             "latency_ms" => elapsed_ms(started_at)
           }
@@ -326,8 +267,8 @@ module Ollama
     end
     # rubocop:enable Metrics/MethodLength
 
-    def generate_strict!(prompt:, schema:, return_meta: false)
-      generate(prompt: prompt, schema: schema, strict: true, return_meta: return_meta)
+    def generate_strict!(prompt:, schema:, model: nil, return_meta: false)
+      generate(prompt: prompt, schema: schema, model: model, strict: true, return_meta: return_meta)
     end
 
     # Lightweight server health check.
@@ -407,6 +348,14 @@ module Ollama
 
     private
 
+    def ensure_chat_allowed!(allow_chat:, strict:, method_name:)
+      return if allow_chat || strict
+
+      raise Error,
+            "#{method_name}() is intentionally gated because it is easy to misuse inside agents. " \
+            "Prefer generate(). If you really want #{method_name}(), pass allow_chat: true (or strict: true)."
+    end
+
     # Normalize tools to array of hashes for API
     # Supports: Tool object, Array of Tool objects, Array of hashes, or nil
     def normalize_tools(tools)
@@ -422,6 +371,50 @@ module Ollama
 
       # Already a hash (shouldn't happen, but handle gracefully)
       tools
+    end
+
+    def chat_response_meta(model:, attempt:, attempt_latency_ms:)
+      {
+        endpoint: "/api/chat",
+        model: model || @config.model,
+        attempt: attempt,
+        attempt_latency_ms: attempt_latency_ms
+      }
+    end
+
+    def empty_chat_response(raw:, return_meta:, model:, attempts:, started_at:)
+      return nil unless raw.nil? || raw.empty?
+      return "" unless return_meta
+
+      {
+        "data" => "",
+        "meta" => {
+          "endpoint" => "/api/chat",
+          "model" => model || @config.model,
+          "attempts" => attempts,
+          "latency_ms" => elapsed_ms(started_at),
+          "note" => "Empty content (likely tool_calls only - use chat_raw() to access tool_calls)"
+        }
+      }
+    end
+
+    def validate_chat_format!(parsed:, format:)
+      return unless format
+      raise SchemaViolationError, "Empty or nil response when format schema is required" if parsed.nil? || parsed.empty?
+
+      SchemaValidator.validate!(parsed, format)
+    end
+
+    def chat_response_with_meta(data:, model:, attempts:, started_at:)
+      {
+        "data" => data,
+        "meta" => {
+          "endpoint" => "/api/chat",
+          "model" => model || @config.model,
+          "attempts" => attempts,
+          "latency_ms" => elapsed_ms(started_at)
+        }
+      }
     end
 
     def handle_http_error(res, requested_model: nil)
@@ -646,13 +639,13 @@ module Ollama
       raise Error, "Connection failed: #{e.message}"
     end
 
-    def call_api(prompt)
+    def call_api(prompt, model: nil)
       req = Net::HTTP::Post.new(@uri)
       req["Content-Type"] = "application/json"
 
       # Build request body
       body = {
-        model: @config.model,
+        model: model || @config.model,
         prompt: prompt,
         stream: false,
         temperature: @config.temperature,
@@ -676,7 +669,7 @@ module Ollama
         open_timeout: @config.timeout
       ) { |http| http.request(req) }
 
-      handle_http_error(res) unless res.is_a?(Net::HTTPSuccess)
+      handle_http_error(res, requested_model: model || @config.model) unless res.is_a?(Net::HTTPSuccess)
 
       body = JSON.parse(res.body)
       body["response"]

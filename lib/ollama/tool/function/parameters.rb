@@ -6,6 +6,7 @@ module Ollama
   # Tool and Function classes are defined in tool.rb and tool/function.rb
   # This file adds Parameters class to Function
   class Tool
+    # Function metadata and schema for tool calls.
     class Function
       # Parameters specification for a tool function
       #

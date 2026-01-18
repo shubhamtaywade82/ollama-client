@@ -30,7 +30,7 @@ class TaskPlanner
           "type" => "number",
           "minimum" => 0,
           "maximum" => 1,
-          "description" => "Confidence in this decision"
+          "description" => "Confidence in this decision (0.0 to 1.0, where 1.0 is 100% confident)"
         },
         "next_step" => {
           "type" => "string",
@@ -49,8 +49,13 @@ class TaskPlanner
     puts "Context: #{context}\n\n"
 
     begin
+      prompt = "Given this context: #{context}\n\n" \
+               "Decide the next action to take.\n\n" \
+               "IMPORTANT: Use decimal values for confidence " \
+               "(e.g., 0.95 for 95% confident, 0.80 for 80% confident, 1.0 for 100% confident)."
+
       result = @client.generate(
-        prompt: "Given this context: #{context}\n\nDecide the next action to take.",
+        prompt: prompt,
         schema: @task_schema
       )
 
@@ -132,7 +137,8 @@ class DataAnalyzer
         "confidence" => {
           "type" => "number",
           "minimum" => 0,
-          "maximum" => 1
+          "maximum" => 1,
+          "description" => "Confidence level (0.0 to 1.0, where 1.0 is 100% confident)"
         },
         "key_points" => {
           "type" => "array",
@@ -157,8 +163,12 @@ class DataAnalyzer
     puts "Data: #{data}\n\n"
 
     begin
+      prompt = "Analyze this data and provide insights: #{data}\n\n" \
+               "IMPORTANT: Express confidence as a decimal between 0.0 and 1.0 " \
+               "(e.g., 0.85 for 85% confidence, not 85)."
+
       result = @client.generate(
-        prompt: "Analyze this data and provide insights: #{data}",
+        prompt: prompt,
         schema: @analysis_schema
       )
 

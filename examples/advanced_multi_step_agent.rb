@@ -46,7 +46,8 @@ class MultiStepAgent
         "confidence" => {
           "type" => "number",
           "minimum" => 0,
-          "maximum" => 1
+          "maximum" => 1,
+          "description" => "Confidence level (0.0 to 1.0, where 1.0 is 100% confident)"
         },
         "next_steps" => {
           "type" => "array",

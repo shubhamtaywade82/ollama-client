@@ -10,15 +10,17 @@ module Ollama
   #   options = Ollama::Options.new(temperature: 0.7, top_p: 0.95)
   #   client.generate(prompt: "...", schema: {...}, options: options.to_h)
   class Options
-    attr_accessor :temperature, :top_p, :top_k, :num_ctx, :repeat_penalty, :seed
+    VALID_KEYS = %i[temperature top_p top_k num_ctx repeat_penalty seed].freeze
 
-    def initialize(temperature: nil, top_p: nil, top_k: nil, num_ctx: nil, repeat_penalty: nil, seed: nil)
-      self.temperature = temperature if temperature
-      self.top_p = top_p if top_p
-      self.top_k = top_k if top_k
-      self.num_ctx = num_ctx if num_ctx
-      self.repeat_penalty = repeat_penalty if repeat_penalty
-      self.seed = seed if seed
+    attr_reader :temperature, :top_p, :top_k, :num_ctx, :repeat_penalty, :seed
+
+    def initialize(**options)
+      unknown_keys = options.keys - VALID_KEYS
+      raise ArgumentError, "Unknown options: #{unknown_keys.join(", ")}" if unknown_keys.any?
+
+      VALID_KEYS.each do |key|
+        assign_option(key, options[key])
+      end
     end
 
     def temperature=(value)
@@ -64,6 +66,12 @@ module Ollama
     end
 
     private
+
+    def assign_option(name, value)
+      return if value.nil?
+
+      public_send("#{name}=", value)
+    end
 
     def validate_numeric_range(value, min, max, name)
       return if value.nil?
