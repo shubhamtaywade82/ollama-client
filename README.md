@@ -287,6 +287,7 @@ schema = {
 # 2. Call the LLM with your schema
 begin
   result = client.generate(
+    model: "llama3.1:8b",
     prompt: "Your prompt here",
     schema: schema
   )
