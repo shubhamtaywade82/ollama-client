@@ -21,6 +21,7 @@ Gem::Specification.new do |spec|
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/shubhamtaywade82/ollama-client"
   spec.metadata["changelog_uri"] = "https://github.com/shubhamtaywade82/ollama-client/blob/main/CHANGELOG.md"
+  # NOTE: rubygems_mfa_required requires OTP for CI/CD - see docs/RUBYGEMS_OTP_SETUP.md
   spec.metadata["rubygems_mfa_required"] = "true"
 
   # Specify which files should be added to the gem when it is released.

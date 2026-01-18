@@ -29,6 +29,8 @@ jobs:
             echo "Tag version ($tag_version) does not match gem version ($gem_version)"
             exit 1
           fi
+      - name: Install OTP generator
+        run: gem install rotp
       - name: Build gem
         run: |
           set -euo pipefail
@@ -37,22 +39,32 @@ jobs:
           gem build ollama-client.gemspec
           echo "Build completed. Verifying gem file:"
           ls -lh ollama-client-*.gem
-      - name: Publish gem
+      - name: Publish gem with OTP
         env:
           GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
+          RUBYGEMS_OTP_SECRET: ${{ secrets.RUBYGEMS_OTP_SECRET }}
         run: |
           set -euo pipefail
+
+          # Generate OTP code
+          echo "Generating OTP code..."
+          otp_code=$(ruby -r rotp -e "puts ROTP::TOTP.new(ENV['RUBYGEMS_OTP_SECRET']).now")
+          echo "OTP code generated successfully"
+
+          # Get gem version and file
           gem_version=$(ruby -e "require_relative 'lib/ollama/version'; puts Ollama::VERSION")
           echo "Gem version detected: ${gem_version}"
           gem_file="ollama-client-${gem_version}.gem"
           echo "Looking for gem file: ${gem_file}"
-          echo "Current directory contents:"
-          ls -la
+
+          # Verify gem file exists
           if [ ! -f "$gem_file" ]; then
             echo "ERROR: Gem file not found: $gem_file"
             echo "Available gem files:"
             ls -la *.gem || echo "No gem files found"
             exit 1
           fi
-          echo "Found gem file, pushing to RubyGems..."
-          gem push "$gem_file"
+
+          # Push gem with OTP
+          echo "Pushing gem to RubyGems with OTP authentication..."
+          gem push "$gem_file" --otp "$otp_code"
