@@ -30,16 +30,29 @@ jobs:
             exit 1
           fi
       - name: Build gem
-        run: gem build ollama-client.gemspec
+        run: |
+          set -euo pipefail
+          echo "Current directory: $(pwd)"
+          echo "Building gem from gemspec..."
+          gem build ollama-client.gemspec
+          echo "Build completed. Verifying gem file:"
+          ls -lh ollama-client-*.gem
       - name: Publish gem
         env:
           GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
         run: |
           set -euo pipefail
           gem_version=$(ruby -e "require_relative 'lib/ollama/version'; puts Ollama::VERSION")
+          echo "Gem version detected: ${gem_version}"
           gem_file="ollama-client-${gem_version}.gem"
+          echo "Looking for gem file: ${gem_file}"
+          echo "Current directory contents:"
+          ls -la
           if [ ! -f "$gem_file" ]; then
-            echo "Gem file not found: $gem_file"
+            echo "ERROR: Gem file not found: $gem_file"
+            echo "Available gem files:"
+            ls -la *.gem || echo "No gem files found"
             exit 1
           fi
+          echo "Found gem file, pushing to RubyGems..."
           gem push "$gem_file"
