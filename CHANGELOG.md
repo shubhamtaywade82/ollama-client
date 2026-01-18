@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+## [0.2.3] - 2026-01-17
+
+- Add per-call `model:` override for `Ollama::Client#generate`.
+- Document `generate` model override usage in README.
+- Add spec to cover per-call `model:` in 404 error path.
+
 ## [0.2.0] - 2026-01-12
 
 - Add `Ollama::Agent::Planner` (stateless `/api/generate`)
