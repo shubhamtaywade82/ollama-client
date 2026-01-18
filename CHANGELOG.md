@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+- Add tag-triggered GitHub Actions release workflow for RubyGems publishing.
+
 ## [0.2.3] - 2026-01-17
 
 - Add per-call `model:` override for `Ollama::Client#generate`.

@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3.4"
+          bundler-cache: true
+      - name: Validate tag matches gem version
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF#refs/tags/}"
+          tag_version="${tag#v}"
+          gem_version=$(ruby -e "require_relative 'lib/ollama/version'; puts Ollama::VERSION")
+          if [ "$tag_version" != "$gem_version" ]; then
+            echo "Tag version ($tag_version) does not match gem version ($gem_version)"
+            exit 1
+          fi
+      - name: Build gem
+        run: gem build ollama-client.gemspec
+      - name: Publish gem
+        env:
+          GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
+        run: |
+          set -euo pipefail
+          gem_version=$(ruby -e "require_relative 'lib/ollama/version'; puts Ollama::VERSION")
+          gem_file="ollama-client-${gem_version}.gem"
+          if [ ! -f "$gem_file" ]; then
+            echo "Gem file not found: $gem_file"
+            exit 1
+          fi
+          gem push "$gem_file"

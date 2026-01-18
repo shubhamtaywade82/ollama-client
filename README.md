@@ -878,7 +878,12 @@ ruby examples/advanced_multi_step_agent.rb
 
 After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
 
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and the created tag, and push the `.gem` file to [rubygems.org](https://rubygems.org).
+To install this gem onto your local machine, run `bundle exec rake install`.
+
+To release a new version, update `lib/ollama/version.rb` and `CHANGELOG.md`, then commit. You can:
+
+- Run `bundle exec rake release` locally to create the tag, push commits/tags, and publish to [rubygems.org](https://rubygems.org).
+- Push a tag `vX.Y.Z` to trigger the GitHub Actions release workflow, which builds and publishes the gem using the `RUBYGEMS_API_KEY` secret.
 
 ## Contributing
 
