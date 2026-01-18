@@ -662,16 +662,26 @@ if __FILE__ == $PROGRAM_NAME
     puts "  ⚠️  RELIANCE data error: #{e.message}"
   end
 
-  # NOTE: Positions and holdings are not part of the 6 Data APIs
+  # NOTE: Positions and holdings are not part of the 6 Data APIs, but available via DhanHQ gem
   begin
-    positions_result = { action: "check_positions", result: { positions: [], count: 0 },
-                         note: "Positions API not available in Data Tools" }
-    if positions_result[:result]
-      market_data[:positions] = positions_result[:result][:positions] || []
-      puts "  ✅ Positions: #{positions_result[:result][:count] || 0} active"
-    else
-      puts "  ✅ Positions: 0 active (Positions API not in Data Tools)"
-      market_data[:positions] = []
+    positions_list = DhanHQ::Models::Position.all
+    positions_data = positions_list.map do |pos|
+      {
+        trading_symbol: pos.trading_symbol,
+        quantity: pos.net_qty,
+        average_price: pos.buy_avg,
+        exchange_segment: pos.exchange_segment,
+        security_id: pos.security_id,
+        pnl: pos.realized_profit
+      }
+    end
+    market_data[:positions] = positions_data
+    puts "  ✅ Positions: #{positions_data.length} active"
+
+    if positions_data.any?
+      positions_data.each do |pos|
+        puts "     - #{pos[:trading_symbol]}: Qty #{pos[:quantity]} @ ₹#{pos[:average_price]}"
+      end
     end
   rescue StandardError => e
     puts "  ⚠️  Positions error: #{e.message}"
@@ -852,8 +862,8 @@ if __FILE__ == $PROGRAM_NAME
   begin
     # NOTE: Options symbols may need different format
     # Try with NIFTY which typically has options
-    # First, get the list of available expiries
-    expiry_list_result = DhanHQDataTools.get_option_chain(
+    # First, get the list of available expiries using get_expiry_list
+    expiry_list_result = DhanHQDataTools.get_expiry_list(
       symbol: "NIFTY", # NIFTY typically has options, RELIANCE might not
       exchange_segment: "IDX_I"
     )
