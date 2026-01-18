@@ -137,21 +137,19 @@ RSpec.describe Ollama::Client, "#generate" do
         expect(WebMock).to have_requested(:post, "http://localhost:11434/api/generate").once
       end
 
-      context "when per-call model is provided" do
-        it "uses the per-call model for requested_model" do
-          stub_request(:post, "http://localhost:11434/api/generate")
-            .to_return(status: 404, body: "Not Found")
+      it "uses the per-call model for requested_model" do
+        stub_request(:post, "http://localhost:11434/api/generate")
+          .to_return(status: 404, body: "Not Found")
 
-          stub_request(:get, "http://localhost:11434/api/tags")
-            .to_return(status: 200, body: { models: [] }.to_json)
+        stub_request(:get, "http://localhost:11434/api/tags")
+          .to_return(status: 200, body: { models: [] }.to_json)
 
-          expect do
-            client.generate(prompt: "test", schema: schema, model: "custom-model")
-          end.to raise_error(Ollama::NotFoundError) do |error|
-            expected_requested_model = "custom-model"
-            actual_requested_model = error.requested_model
-            expect(actual_requested_model).to eq(expected_requested_model)
-          end
+        expect do
+          client.generate(prompt: "test", schema: schema, model: "custom-model")
+        end.to raise_error(Ollama::NotFoundError) do |error|
+          expected_requested_model = "custom-model"
+          actual_requested_model = error.requested_model
+          expect(actual_requested_model).to eq(expected_requested_model)
         end
       end
     end
