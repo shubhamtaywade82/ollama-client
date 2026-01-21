@@ -207,6 +207,8 @@ module Ollama
     # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/ParameterLists
 
     def generate(prompt:, schema: nil, model: nil, strict: false, return_meta: false)
+      validate_generate_params!(prompt, schema)
+
       attempts = 0
       @current_schema = schema # Store for prompt enhancement
       started_at = monotonic_time
@@ -227,39 +229,12 @@ module Ollama
           }
         )
 
-        # If no schema provided, return plain text/markdown
-        unless schema
-          return raw unless return_meta
-
-          return {
-            "data" => raw,
-            "meta" => {
-              "endpoint" => "/api/generate",
-              "model" => model || @config.model,
-              "attempts" => attempts,
-              "latency_ms" => elapsed_ms(started_at)
-            }
-          }
-        end
-
-        # Schema provided - parse and validate JSON
-        parsed = parse_json_response(raw)
-
-        # CRITICAL: If schema is provided, free-text output is forbidden
-        raise SchemaViolationError, "Empty or nil response when schema is required" if parsed.nil? || parsed.empty?
-
-        SchemaValidator.validate!(parsed, schema)
-        return parsed unless return_meta
-
-        {
-          "data" => parsed,
-          "meta" => {
-            "endpoint" => "/api/generate",
-            "model" => model || @config.model,
-            "attempts" => attempts,
-            "latency_ms" => elapsed_ms(started_at)
-          }
+        meta = {
+          model: model || @config.model,
+          attempts: attempts,
+          started_at: started_at
         }
+        process_generate_response(raw: raw, schema: schema, meta: meta, return_meta: return_meta)
       rescue NotFoundError => e
         # 404 errors are never retried, but we can suggest models
         enhanced_error = enhance_not_found_error(e)
@@ -363,6 +338,34 @@ module Ollama
     end
 
     private
+
+    def validate_generate_params!(prompt, schema)
+      raise ArgumentError, "prompt is required" if prompt.nil?
+      raise ArgumentError, "schema is required" if schema.nil?
+    end
+
+    def process_generate_response(raw:, schema:, meta:, return_meta:)
+      response_data = schema ? parse_and_validate_schema_response(raw, schema) : raw
+      return response_data unless return_meta
+
+      {
+        "data" => response_data,
+        "meta" => {
+          "endpoint" => "/api/generate",
+          "model" => meta[:model],
+          "attempts" => meta[:attempts],
+          "latency_ms" => elapsed_ms(meta[:started_at])
+        }
+      }
+    end
+
+    def parse_and_validate_schema_response(raw, schema)
+      parsed = parse_json_response(raw)
+      raise SchemaViolationError, "Empty or nil response when schema is required" if parsed.nil? || parsed.empty?
+
+      SchemaValidator.validate!(parsed, schema)
+      parsed
+    end
 
     def ensure_chat_allowed!(allow_chat:, strict:, method_name:)
       return if allow_chat || strict

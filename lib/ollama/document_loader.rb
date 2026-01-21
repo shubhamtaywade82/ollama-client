@@ -150,7 +150,7 @@ module Ollama
         end
       end
 
-      "CSV Data:\n" + text_rows.join("\n")
+      "CSV Data:\n#{text_rows.join("\n")}"
     end
 
     def parse_json(content)

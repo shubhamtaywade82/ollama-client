@@ -44,33 +44,9 @@ module Ollama
       response_body = JSON.parse(res.body)
       embedding = response_body["embedding"]
 
-      if embedding.nil?
-        raise Error,
-              "Embedding not found in response. Response keys: #{response_body.keys.join(", ")}. Full response: #{response_body.inspect[0..200]}"
-      end
+      validate_embedding_response!(embedding, response_body, model)
 
-      if embedding.is_a?(Array) && embedding.empty?
-        error_msg = "Empty embedding returned. This usually means:\n"
-        error_msg += "  1. The model may not be properly loaded - try: ollama pull #{model}\n"
-        error_msg += "  2. The model may not support embeddings - verify it's an embedding model\n"
-        error_msg += "  3. Check if the model is working: curl http://localhost:11434/api/embeddings -d '{\"model\":\"#{model}\",\"input\":\"test\"}'\n"
-        error_msg += "Response: #{response_body.inspect[0..300]}"
-        raise Error, error_msg
-      end
-
-      # Return single array for single input, or array of arrays for multiple inputs
-      if input.is_a?(Array)
-        # Ollama returns single embedding array even for multiple inputs
-        # We need to check the response structure
-        if embedding.is_a?(Array) && embedding.first.is_a?(Array)
-          embedding
-        else
-          # Single embedding returned, wrap it
-          [embedding]
-        end
-      else
-        embedding
-      end
+      format_embedding_result(embedding, input)
     rescue JSON::ParserError => e
       raise InvalidJSONError, "Failed to parse embeddings response: #{e.message}"
     rescue Net::ReadTimeout, Net::OpenTimeout
@@ -80,6 +56,45 @@ module Ollama
     end
 
     private
+
+    def validate_embedding_response!(embedding, response_body, model)
+      if embedding.nil?
+        keys = response_body.keys.join(", ")
+        response_preview = response_body.inspect[0..200]
+        raise Error, "Embedding not found in response. Response keys: #{keys}. " \
+                     "Full response: #{response_preview}"
+      end
+
+      return unless embedding.is_a?(Array) && embedding.empty?
+
+      error_msg = build_empty_embedding_error_message(model, response_body)
+      raise Error, error_msg
+    end
+
+    def build_empty_embedding_error_message(model, response_body)
+      curl_command = "curl http://localhost:11434/api/embeddings " \
+                     "-d '{\"model\":\"#{model}\",\"input\":\"test\"}'"
+      response_preview = response_body.inspect[0..300]
+
+      "Empty embedding returned. This usually means:\n  " \
+        "1. The model may not be properly loaded - try: ollama pull #{model}\n  " \
+        "2. The model may not support embeddings - verify it's an embedding model\n  " \
+        "3. Check if the model is working: #{curl_command}\n" \
+        "Response: #{response_preview}"
+    end
+
+    def format_embedding_result(embedding, input)
+      return embedding unless input.is_a?(Array)
+
+      # Ollama returns single embedding array even for multiple inputs
+      # We need to check the response structure
+      if embedding.is_a?(Array) && embedding.first.is_a?(Array)
+        embedding
+      else
+        # Single embedding returned, wrap it
+        [embedding]
+      end
+    end
 
     def handle_http_error(res, requested_model: nil)
       status_code = res.code.to_i
