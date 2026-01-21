@@ -206,7 +206,7 @@ module Ollama
     end
     # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/ParameterLists
 
-    def generate(prompt:, schema:, model: nil, strict: false, return_meta: false)
+    def generate(prompt:, schema: nil, model: nil, strict: false, return_meta: false)
       attempts = 0
       @current_schema = schema # Store for prompt enhancement
       started_at = monotonic_time
@@ -227,6 +227,22 @@ module Ollama
           }
         )
 
+        # If no schema provided, return plain text/markdown
+        unless schema
+          return raw unless return_meta
+
+          return {
+            "data" => raw,
+            "meta" => {
+              "endpoint" => "/api/generate",
+              "model" => model || @config.model,
+              "attempts" => attempts,
+              "latency_ms" => elapsed_ms(started_at)
+            }
+          }
+        end
+
+        # Schema provided - parse and validate JSON
         parsed = parse_json_response(raw)
 
         # CRITICAL: If schema is provided, free-text output is forbidden
@@ -267,7 +283,7 @@ module Ollama
     end
     # rubocop:enable Metrics/MethodLength
 
-    def generate_strict!(prompt:, schema:, model: nil, return_meta: false)
+    def generate_strict!(prompt:, schema: nil, model: nil, return_meta: false)
       generate(prompt: prompt, schema: schema, model: model, strict: true, return_meta: return_meta)
     end
 

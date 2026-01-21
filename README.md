@@ -74,14 +74,19 @@ gem install ollama-client
 
 ### Primary API: `generate()`
 
-**`generate(prompt:, schema:)`** is the **primary and recommended method** for agent-grade usage:
+**`generate(prompt:, schema: nil)`** is the **primary and recommended method** for agent-grade usage:
 
 - ✅ Stateless, explicit state injection
 - ✅ Uses `/api/generate` endpoint
 - ✅ Ideal for: agent planning, tool routing, one-shot analysis, classification, extraction
 - ✅ No implicit memory or conversation history
+- ✅ Supports both structured JSON (with schema) and plain text/markdown (without schema)
 
 **This is the method you should use for hybrid agents.**
+
+**Usage:**
+- **With schema** (structured JSON): `generate(prompt: "...", schema: {...})`
+- **Without schema** (plain text): `generate(prompt: "...")` - returns plain text/markdown
 
 ### Choosing the Correct API (generate vs chat)
 
@@ -89,9 +94,54 @@ gem install ollama-client
 - **Use `/api/chat`** (via `Ollama::Agent::Executor`) for **stateful tool-using** workflows where the model may request tool calls across multiple turns.
 
 **Warnings:**
-- Don’t use `generate()` for tool-calling loops (you’ll end up re-implementing message/tool lifecycles).
-- Don’t use `chat()` for deterministic planners unless you’re intentionally managing conversation state.
-- Don’t let streaming output drive decisions (streaming is presentation-only).
+- Don't use `generate()` for tool-calling loops (you'll end up re-implementing message/tool lifecycles).
+- Don't use `chat()` for deterministic planners unless you're intentionally managing conversation state.
+- Don't let streaming output drive decisions (streaming is presentation-only).
+
+### Plain Text / Markdown Responses (No JSON Schema)
+
+For simple text or markdown responses without JSON validation, you can use either `generate()` or `chat_raw()`:
+
+**Option 1: Using `generate()` (recommended for simple queries)**
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+
+# Get plain text/markdown response (no schema required)
+text_response = client.generate(
+  prompt: "Explain Ruby in simple terms"
+)
+
+puts text_response
+# Output: Plain text or markdown explanation
+```
+
+**Option 2: Using `chat_raw()` (for multi-turn conversations)**
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+
+# Get plain text/markdown response (no format required)
+response = client.chat_raw(
+  messages: [{ role: "user", content: "Explain Ruby in simple terms" }],
+  allow_chat: true
+)
+
+# Access the plain text content
+text_response = response.message.content
+puts text_response
+# Output: Plain text or markdown explanation
+```
+
+**When to use which:**
+- **`generate()` without schema** - Simple one-shot queries, explanations, text generation
+- **`generate()` with schema** - Structured JSON outputs for agents
+- **`chat_raw()` without format** - Multi-turn conversations with plain text
+- **`chat_raw()` with format** - Multi-turn conversations with structured outputs
 
 ### Scope / endpoint coverage
 
@@ -287,7 +337,23 @@ end
 
 ### Quick Start Pattern
 
-The basic pattern for using structured outputs:
+**Option 1: Plain text/markdown (no schema)**
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+
+# Simple text response - no schema needed
+response = client.generate(
+  prompt: "Explain Ruby programming in one sentence"
+)
+
+puts response
+# Output: Plain text explanation
+```
+
+**Option 2: Structured JSON (with schema)**
 
 ```ruby
 require "ollama_client"
