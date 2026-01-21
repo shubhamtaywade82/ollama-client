@@ -200,16 +200,36 @@ Use structured tools when you need:
 All Tool classes support serialization and deserialization:
 
 ```ruby
+# Create a tool
+tool = Ollama::Tool.new(
+  type: "function",
+  function: Ollama::Tool::Function.new(
+    name: "fetch_weather",
+    description: "Get weather for a city",
+    parameters: Ollama::Tool::Function::Parameters.new(
+      type: "object",
+      properties: {
+        city: Ollama::Tool::Function::Parameters::Property.new(
+          type: "string",
+          description: "The city name"
+        )
+      },
+      required: %w[city]
+    )
+  )
+)
+
 # Serialize to JSON
 json = tool.to_json
 
 # Deserialize from hash
-tool = Ollama::Tool.from_hash(JSON.parse(json))
+tool2 = Ollama::Tool.from_hash(JSON.parse(json))
 
 # Equality comparison
-tool1 == tool2  # Compares hash representations
+tool == tool2  # Compares hash representations (returns true)
 
 # Empty check
+params = Ollama::Tool::Function::Parameters.new(type: "object", properties: {})
 params.empty?  # True if no properties/required fields
 ```
 
