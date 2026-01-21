@@ -741,18 +741,28 @@ Load configuration from JSON files for production deployments:
 
 ```ruby
 require "ollama_client"
+require "json"
 
-# config.json:
-# {
-#   "base_url": "http://localhost:11434",
-#   "model": "llama3.1:8b",
-#   "timeout": 30,
-#   "retries": 3,
-#   "temperature": 0.2
-# }
+# Create config.json file (or use an existing one)
+config_data = {
+  "base_url" => "http://localhost:11434",
+  "model" => "llama3.1:8b",
+  "timeout" => 30,
+  "retries" => 3,
+  "temperature" => 0.2
+}
 
-config = Ollama::Config.load_from_json("config.json")
-client = Ollama::Client.new(config: config)
+# Write config file
+File.write("config.json", JSON.pretty_generate(config_data))
+
+# Load configuration from file
+begin
+  config = Ollama::Config.load_from_json("config.json")
+  client = Ollama::Client.new(config: config)
+  puts "Client configured from config.json"
+rescue Ollama::Error => e
+  puts "Error loading config: #{e.message}"
+end
 ```
 
 ### Type-Safe Model Options
