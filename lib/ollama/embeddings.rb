@@ -45,11 +45,17 @@ module Ollama
       embedding = response_body["embedding"]
 
       if embedding.nil?
-        raise Error, "Embedding not found in response. Response keys: #{response_body.keys.join(', ')}"
+        raise Error,
+              "Embedding not found in response. Response keys: #{response_body.keys.join(", ")}. Full response: #{response_body.inspect[0..200]}"
       end
 
       if embedding.is_a?(Array) && embedding.empty?
-        raise Error, "Empty embedding returned. Check if the model supports embeddings."
+        error_msg = "Empty embedding returned. This usually means:\n"
+        error_msg += "  1. The model may not be properly loaded - try: ollama pull #{model}\n"
+        error_msg += "  2. The model may not support embeddings - verify it's an embedding model\n"
+        error_msg += "  3. Check if the model is working: curl http://localhost:11434/api/embeddings -d '{\"model\":\"#{model}\",\"input\":\"test\"}'\n"
+        error_msg += "Response: #{response_body.inspect[0..300]}"
+        raise Error, error_msg
       end
 
       # Return single array for single input, or array of arrays for multiple inputs

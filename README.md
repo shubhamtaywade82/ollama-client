@@ -753,8 +753,9 @@ client = Ollama::Client.new
 
 begin
   # Single text embedding
+  # Note: Use the full model name with tag if needed (e.g., "nomic-embed-text:latest")
   embedding = client.embeddings.embed(
-    model: "nomic-embed-text",  # Use an available embedding model
+    model: "nomic-embed-text:latest",  # Use an available embedding model
     input: "What is Ruby programming?"
   )
   # Returns: [0.123, -0.456, ...] (array of floats)
@@ -767,7 +768,7 @@ begin
 
   # Multiple texts
   embeddings = client.embeddings.embed(
-    model: "nomic-embed-text",
+    model: "nomic-embed-text:latest",
     input: ["What is Ruby?", "What is Python?", "What is JavaScript?"]
   )
   # Returns: [[...], [...], [...]] (array of embedding arrays)
@@ -782,6 +783,7 @@ rescue Ollama::NotFoundError => e
   puts "Model not found. Install an embedding model first:"
   puts "  ollama pull nomic-embed-text"
   puts "Or check available models: client.list_models"
+  puts "Note: Use the full model name with tag (e.g., 'nomic-embed-text:latest')"
 rescue Ollama::Error => e
   puts "Error: #{e.message}"
 end
