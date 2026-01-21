@@ -795,11 +795,19 @@ options = Ollama::Options.new(
 # Will raise ArgumentError if values are out of range
 # options.temperature = 3.0  # Error: temperature must be between 0.0 and 2.0
 
-client.generate(
-  prompt: "Analyze this data",
-  schema: analysis_schema,
-  options: options.to_h
+# Use with chat() - chat() accepts options parameter
+client.chat(
+  messages: [{ role: "user", content: "Analyze this data" }],
+  format: analysis_schema,
+  options: options.to_h,
+  allow_chat: true
 )
+
+# Note: generate() doesn't accept options parameter
+# For generate(), set options in config instead:
+# config = Ollama::Config.new
+# config.temperature = 0.7
+# client = Ollama::Client.new(config: config)
 ```
 
 ### Error Handling
@@ -821,6 +829,8 @@ begin
     prompt: "Return a simple result",
     schema: schema
   )
+  # Success - use the result
+  puts "Result: #{result['result']}"
 rescue Ollama::NotFoundError => e
   # 404 Not Found - model or endpoint doesn't exist
   # The error message automatically suggests similar model names if available
