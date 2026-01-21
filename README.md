@@ -308,7 +308,7 @@ schema = {
 begin
   result = client.generate(
     model: "llama3.1:8b",
-    prompt: "Your prompt here",
+    prompt: "Return a JSON object with field1 as a string and field2 as a number. Example: field1 could be 'example' and field2 could be 42.",
     schema: schema
   )
 
@@ -439,8 +439,15 @@ result = client.generate(
 )
 
 # ❌ AVOID: Implicit conversation history
-messages = [{ role: "user", content: "..." }]
-result = client.chat(messages: messages, format: decision_schema, allow_chat: true)  # History grows silently
+messages = [{ role: "user", content: "Decide the next action based on previous actions: search, calculate, validate" }]
+result = client.chat(messages: messages, format: decision_schema, allow_chat: true)
+
+# Problem: History grows silently - you must manually manage it
+messages << { role: "assistant", content: result.to_json }
+messages << { role: "user", content: "Now do the next step" }
+result2 = client.chat(messages: messages, format: decision_schema, allow_chat: true)
+# Now messages array has 3 items, and will keep growing...
+# This makes state management harder and schema validation weaker
 ```
 
 ### Example: Chat API (Advanced Use Case)
@@ -720,6 +727,17 @@ Use the `Options` class for type-checked model parameters:
 ```ruby
 require "ollama_client"
 
+client = Ollama::Client.new
+
+# Define schema
+analysis_schema = {
+  "type" => "object",
+  "required" => ["summary"],
+  "properties" => {
+    "summary" => { "type" => "string" }
+  }
+}
+
 # Options with validation
 options = Ollama::Options.new(
   temperature: 0.7,
@@ -744,8 +762,20 @@ client.generate(
 ```ruby
 require "ollama_client"
 
+client = Ollama::Client.new
+schema = {
+  "type" => "object",
+  "required" => ["result"],
+  "properties" => {
+    "result" => { "type" => "string" }
+  }
+}
+
 begin
-  result = client.generate(prompt: prompt, schema: schema)
+  result = client.generate(
+    prompt: "Return a simple result",
+    schema: schema
+  )
 rescue Ollama::NotFoundError => e
   # 404 Not Found - model or endpoint doesn't exist
   # The error message automatically suggests similar model names if available
