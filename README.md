@@ -420,7 +420,18 @@ end
 **For agents, prefer `generate()` with explicit state injection:**
 
 ```ruby
+# Define decision schema
+decision_schema = {
+  "type" => "object",
+  "required" => ["action", "reasoning"],
+  "properties" => {
+    "action" => { "type" => "string" },
+    "reasoning" => { "type" => "string" }
+  }
+}
+
 # ✅ GOOD: Explicit state in prompt
+actions = ["search", "calculate", "validate"]
 context = "Previous actions: #{actions.join(', ')}"
 result = client.generate(
   prompt: "Given context: #{context}. Decide next action.",
@@ -429,7 +440,7 @@ result = client.generate(
 
 # ❌ AVOID: Implicit conversation history
 messages = [{ role: "user", content: "..." }]
-result = client.chat(messages: messages, format: schema, allow_chat: true)  # History grows silently
+result = client.chat(messages: messages, format: decision_schema, allow_chat: true)  # History grows silently
 ```
 
 ### Example: Chat API (Advanced Use Case)
