@@ -44,6 +44,14 @@ module Ollama
       response_body = JSON.parse(res.body)
       embedding = response_body["embedding"]
 
+      if embedding.nil?
+        raise Error, "Embedding not found in response. Response keys: #{response_body.keys.join(', ')}"
+      end
+
+      if embedding.is_a?(Array) && embedding.empty?
+        raise Error, "Empty embedding returned. Check if the model supports embeddings."
+      end
+
       # Return single array for single input, or array of arrays for multiple inputs
       if input.is_a?(Array)
         # Ollama returns single embedding array even for multiple inputs

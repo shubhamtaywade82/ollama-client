@@ -681,21 +681,53 @@ require "ollama_client"
 
 client = Ollama::Client.new
 
-# Single text embedding
-embedding = client.embeddings.embed(
-  model: "all-minilm",
-  input: "What is Ruby programming?"
-)
-# Returns: [0.123, -0.456, ...] (array of floats)
+# Note: You need an embedding model installed in Ollama
+# Common models: nomic-embed-text, all-minilm, mxbai-embed-large
+# Check available models: client.list_models
 
-# Multiple texts
-embeddings = client.embeddings.embed(
-  model: "all-minilm",
-  input: ["What is Ruby?", "What is Python?", "What is JavaScript?"]
-)
-# Returns: [[...], [...], [...]] (array of embedding arrays)
+begin
+  # Single text embedding
+  embedding = client.embeddings.embed(
+    model: "nomic-embed-text",  # Use an available embedding model
+    input: "What is Ruby programming?"
+  )
+  # Returns: [0.123, -0.456, ...] (array of floats)
+  if embedding.empty?
+    puts "Warning: Empty embedding returned. Check model compatibility."
+  else
+    puts "Embedding dimension: #{embedding.length}"
+    puts "First few values: #{embedding.first(5).map { |v| v.round(4) }}"
+  end
+
+  # Multiple texts
+  embeddings = client.embeddings.embed(
+    model: "nomic-embed-text",
+    input: ["What is Ruby?", "What is Python?", "What is JavaScript?"]
+  )
+  # Returns: [[...], [...], [...]] (array of embedding arrays)
+  if embeddings.is_a?(Array) && embeddings.first.is_a?(Array)
+    puts "Number of embeddings: #{embeddings.length}"
+    puts "Each embedding dimension: #{embeddings.first.length}"
+  else
+    puts "Unexpected response format: #{embeddings.class}"
+  end
+
+rescue Ollama::NotFoundError => e
+  puts "Model not found. Install an embedding model first:"
+  puts "  ollama pull nomic-embed-text"
+  puts "Or check available models: client.list_models"
+rescue Ollama::Error => e
+  puts "Error: #{e.message}"
+end
 
 # Use for semantic similarity in agents
+def cosine_similarity(vec1, vec2)
+  dot_product = vec1.zip(vec2).sum { |a, b| a * b }
+  magnitude1 = Math.sqrt(vec1.sum { |x| x * x })
+  magnitude2 = Math.sqrt(vec2.sum { |x| x * x })
+  dot_product / (magnitude1 * magnitude2)
+end
+
 def find_similar(query_embedding, document_embeddings, threshold: 0.7)
   document_embeddings.select do |doc_emb|
     cosine_similarity(query_embedding, doc_emb) > threshold
