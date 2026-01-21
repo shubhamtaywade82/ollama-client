@@ -607,7 +607,7 @@ data = "Sales increased 25% this quarter, customer satisfaction is at 4.8/5"
 
 begin
   result = client.generate(
-    prompt: "Analyze this data: #{data}",
+    prompt: "Analyze this data: #{data}. Return confidence as a decimal between 0 and 1 (e.g., 0.85 for 85% confidence).",
     schema: analysis_schema
   )
 
@@ -629,7 +629,8 @@ begin
 
 rescue Ollama::SchemaViolationError => e
   puts "Analysis failed validation: #{e.message}"
-  # Could retry or use fallback logic
+  puts "The LLM response didn't match the schema constraints."
+  # Could retry with a clearer prompt or use fallback logic
 rescue Ollama::TimeoutError => e
   puts "Request timed out: #{e.message}"
 rescue Ollama::Error => e
