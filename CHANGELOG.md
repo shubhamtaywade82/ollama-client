@@ -1,6 +1,13 @@
 ## [Unreleased]
 
-- Add tag-triggered GitHub Actions release workflow for RubyGems publishing.
+## [0.2.5] - 2026-01-22
+
+- Add `Ollama::DocumentLoader` for loading files as context in queries
+- Enhance README with context provision methods and examples
+- Improve embeddings error handling and model usage guidance
+- Add comprehensive Ruby guide documentation
+- Update `generate()` method with enhanced functionality and usage examples
+- Improve error handling across client and embeddings modules
 
 ## [0.2.3] - 2026-01-17
 
