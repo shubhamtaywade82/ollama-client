@@ -98,6 +98,125 @@ gem install ollama-client
 - Don't use `chat()` for deterministic planners unless you're intentionally managing conversation state.
 - Don't let streaming output drive decisions (streaming is presentation-only).
 
+### Providing Context to Queries
+
+You can provide context to your queries in several ways:
+
+**Option 1: Include context directly in the prompt (generate)**
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+
+# Build prompt with context
+context = "User's previous actions: search, calculate, validate"
+user_query = "What should I do next?"
+
+full_prompt = "Given this context: #{context}\n\nUser asks: #{user_query}"
+
+result = client.generate(
+  prompt: full_prompt,
+  schema: {
+    "type" => "object",
+    "required" => ["action"],
+    "properties" => {
+      "action" => { "type" => "string" }
+    }
+  }
+)
+```
+
+**Option 2: Use system messages (chat/chat_raw)**
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+
+# Provide context via system message
+context = "You are analyzing market data. Current market status: Bullish. Key indicators: RSI 65, MACD positive."
+
+response = client.chat_raw(
+  messages: [
+    { role: "system", content: context },
+    { role: "user", content: "What's the next trading action?" }
+  ],
+  allow_chat: true
+)
+
+puts response.message.content
+```
+
+**Option 3: Use Planner with context parameter**
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+planner = Ollama::Agent::Planner.new(client)
+
+context = {
+  previous_actions: ["search", "calculate"],
+  user_preferences: "prefers conservative strategies"
+}
+
+plan = planner.run(
+  prompt: "Decide the next action",
+  context: context
+)
+```
+
+**Option 4: RAG-style context injection (using embeddings)**
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+
+# 1. Store document embeddings
+documents = [
+  "Ruby is a dynamic programming language",
+  "Python is great for data science",
+  "JavaScript runs in browsers"
+]
+
+# 2. When querying, find relevant context
+query = "What is Ruby?"
+# (In real RAG, you'd compute embeddings and find similar docs)
+
+# 3. Inject relevant context into prompt
+relevant_context = "Ruby is a dynamic programming language"  # Found via similarity search
+
+result = client.generate(
+  prompt: "Context: #{relevant_context}\n\nQuestion: #{query}\n\nAnswer based on the context:"
+)
+```
+
+**Option 5: Multi-turn conversation with accumulated context**
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+
+messages = [
+  { role: "system", content: "You are a helpful assistant with access to context." },
+  { role: "user", content: "What is Ruby?" }
+]
+
+# First response
+response1 = client.chat_raw(messages: messages, allow_chat: true)
+puts response1.message.content
+
+# Add context and continue conversation
+messages << { role: "assistant", content: response1.message.content }
+messages << { role: "user", content: "Tell me more about its use cases" }
+
+response2 = client.chat_raw(messages: messages, allow_chat: true)
+puts response2.message.content
+```
+
 ### Plain Text / Markdown Responses (No JSON Schema)
 
 For simple text or markdown responses without JSON validation, you can use either `generate()` or `chat_raw()`:
