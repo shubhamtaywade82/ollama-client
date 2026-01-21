@@ -167,26 +167,58 @@ plan = planner.run(
 )
 ```
 
-**Option 4: RAG-style context injection (using embeddings)**
+**Option 4: Load documents from directory (DocumentLoader)**
 
 ```ruby
 require "ollama_client"
 
 client = Ollama::Client.new
 
-# 1. Store document embeddings
-documents = [
-  "Ruby is a dynamic programming language",
-  "Python is great for data science",
-  "JavaScript runs in browsers"
-]
+# Load all documents from a directory (supports .txt, .md, .csv, .json)
+loader = Ollama::DocumentLoader.new("docs/")
+loader.load_all  # Loads all supported files
 
-# 2. When querying, find relevant context
+# Get all documents as context
+context = loader.to_context
+
+# Use in your query
+result = client.generate(
+  prompt: "Context from documents:\n#{context}\n\nQuestion: What is Ruby?",
+  schema: {
+    "type" => "object",
+    "required" => ["answer"],
+    "properties" => {
+      "answer" => { "type" => "string" }
+    }
+  }
+)
+
+# Or load specific files
+loader.load_file("ruby_guide.md")
+ruby_context = loader["ruby_guide.md"]
+
+result = client.generate(
+  prompt: "Based on this documentation:\n#{ruby_context}\n\nExplain Ruby's key features."
+)
+```
+
+**Option 5: RAG-style context injection (using embeddings + DocumentLoader)**
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+
+# 1. Load documents
+loader = Ollama::DocumentLoader.new("docs/")
+loader.load_all
+
+# 2. When querying, find relevant context using embeddings
 query = "What is Ruby?"
 # (In real RAG, you'd compute embeddings and find similar docs)
 
 # 3. Inject relevant context into prompt
-relevant_context = "Ruby is a dynamic programming language"  # Found via similarity search
+relevant_context = loader["ruby_guide.md"]  # Or find via similarity search
 
 result = client.generate(
   prompt: "Context: #{relevant_context}\n\nQuestion: #{query}\n\nAnswer based on the context:"
@@ -855,6 +887,63 @@ require "ollama_client"
 client = Ollama::Client.new
 models = client.list_models
 puts "Available models: #{models.join(', ')}"
+```
+
+### Loading Documents from Directory (DocumentLoader)
+
+Load files from a directory and use them as context for your queries. Supports `.txt`, `.md`, `.csv`, and `.json` files:
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+
+# Load all documents from a directory
+loader = Ollama::DocumentLoader.new("docs/")
+loader.load_all  # Loads all .txt, .md, .csv, .json files
+
+# Get all documents as a single context string
+context = loader.to_context
+
+# Use in your query
+result = client.generate(
+  prompt: "Context from documents:\n#{context}\n\nQuestion: What is Ruby?",
+  schema: {
+    "type" => "object",
+    "required" => ["answer"],
+    "properties" => {
+      "answer" => { "type" => "string" }
+    }
+  }
+)
+
+# Load specific file
+ruby_guide = loader.load_file("ruby_guide.md")
+
+# Access loaded documents
+all_files = loader.files  # ["ruby_guide.md", "python_intro.txt", ...]
+specific_doc = loader["ruby_guide.md"]
+
+# Load recursively from subdirectories
+loader.load_all(recursive: true)
+
+# Select documents by pattern
+ruby_docs = loader.select(/ruby/)
+```
+
+**Supported file types:**
+- **`.txt`** - Plain text files
+- **`.md`, `.markdown`** - Markdown files
+- **`.csv`** - CSV files (converted to readable text format)
+- **`.json`** - JSON files (pretty-printed)
+
+**Example directory structure:**
+```
+docs/
+  ├── ruby_guide.md
+  ├── python_intro.txt
+  ├── data.csv
+  └── config.json
 ```
 
 ### Embeddings for RAG/Semantic Search
