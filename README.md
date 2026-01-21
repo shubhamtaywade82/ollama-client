@@ -446,8 +446,10 @@ result = client.chat(messages: messages, format: decision_schema, allow_chat: tr
 messages << { role: "assistant", content: result.to_json }
 messages << { role: "user", content: "Now do the next step" }
 result2 = client.chat(messages: messages, format: decision_schema, allow_chat: true)
-# Now messages array has 3 items, and will keep growing...
-# This makes state management harder and schema validation weaker
+# messages.size is now 3, and will keep growing with each turn
+# You must manually track what's in the history
+# Schema validation can become weaker with accumulated context
+# Harder to reason about state in agent systems
 ```
 
 ### Example: Chat API (Advanced Use Case)
