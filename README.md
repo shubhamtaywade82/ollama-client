@@ -669,6 +669,61 @@ result2 = client.chat(messages: messages, format: decision_schema, allow_chat: t
 # Harder to reason about state in agent systems
 ```
 
+### Decision Table: `generate()` vs `chat()` vs `ChatSession`
+
+> **Use `generate()` for systems. Use `chat()` or `ChatSession` for humans.**
+
+| Use Case | Method | Schema Guarantees | Streaming | Memory | When to Use |
+|----------|--------|-------------------|-----------|--------|-------------|
+| **Agent planning/routing** | `generate()` | ✅ Strong | ❌ No | ❌ Stateless | Default for agents |
+| **Structured extraction** | `generate()` | ✅ Strong | ❌ No | ❌ Stateless | Data extraction, classification |
+| **Tool-calling loops** | `chat_raw()` | ⚠️ Weaker | ✅ Yes | ✅ Stateful | Executor agent internals |
+| **UI chat interface** | `ChatSession` | ⚠️ Best-effort | ✅ Yes | ✅ Stateful | Human-facing assistants |
+| **Multi-turn conversations** | `ChatSession` | ⚠️ Best-effort | ✅ Yes | ✅ Stateful | Interactive chat |
+
+**Core Rule:** Chat must be a feature flag, not default behavior.
+
+### Using `ChatSession` for Human-Facing Chat
+
+For UI assistants and interactive chat, use `ChatSession` to manage conversation state:
+
+```ruby
+require "ollama_client"
+
+# Enable chat in config
+config = Ollama::Config.new
+config.allow_chat = true
+config.streaming_enabled = true
+
+client = Ollama::Client.new(config: config)
+
+# Create streaming observer for presentation
+observer = Ollama::StreamingObserver.new do |event|
+  case event.type
+  when :token
+    print event.text
+  when :final
+    puts "\n--- DONE ---"
+  end
+end
+
+# Create chat session with system message
+chat = Ollama::ChatSession.new(
+  client,
+  system: "You are a helpful assistant",
+  stream: observer
+)
+
+# Send messages (history is managed automatically)
+chat.say("Hello")
+chat.say("Explain Ruby blocks")
+
+# Clear history if needed (keeps system message)
+chat.clear
+```
+
+**Important:** Schema validation in chat is **best-effort** for formatting, not correctness. Never use chat+schema for agent control flow.
+
 ### Example: Chat API (Advanced Use Case)
 
 ```ruby

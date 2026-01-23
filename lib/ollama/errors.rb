@@ -6,6 +6,7 @@ module Ollama
   class InvalidJSONError < Error; end
   class SchemaViolationError < Error; end
   class RetryExhaustedError < Error; end
+  class ChatNotAllowedError < Error; end
 
   # HTTP error with retry logic
   class HTTPError < Error

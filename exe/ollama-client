@@ -1,4 +1,130 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require_relative "../examples/chat_console"
+# Chat console using ChatSession with TTY reader for input only
+require_relative "../lib/ollama_client"
+require "tty-reader"
+
+# Build config from environment or defaults
+config = Ollama::Config.new
+config.base_url = ENV["OLLAMA_BASE_URL"] if ENV["OLLAMA_BASE_URL"]
+config.model = ENV["OLLAMA_MODEL"] || config.model
+config.temperature = ENV["OLLAMA_TEMPERATURE"].to_f if ENV["OLLAMA_TEMPERATURE"]
+
+# Enable chat + streaming (required for ChatSession)
+config.allow_chat = true
+config.streaming_enabled = true
+
+client = Ollama::Client.new(config: config)
+
+# Create streaming observer for real-time token display
+observer = Ollama::StreamingObserver.new do |event|
+  case event.type
+  when :token
+    print event.text
+    $stdout.flush
+  when :tool_call_detected
+    puts "\n[Tool call: #{event.name}]"
+  when :final
+    puts "\n"
+  end
+end
+
+# Create chat session with optional system message from env
+system_prompt = ENV.fetch("OLLAMA_SYSTEM", "You are a helpful assistant.")
+chat = Ollama::ChatSession.new(client, system: system_prompt, stream: observer)
+
+# Setup TTY reader for input with history (same pattern as chat_console.rb)
+def build_reader
+  TTY::Reader.new
+end
+
+def read_input(reader)
+  # Pass prompt directly to read_line - this is how TTY::Reader is designed to work
+  reader.read_line("You: ")
+end
+
+HISTORY_PATH = File.expand_path("~/.ollama_chat_history")
+
+def load_history(reader, path)
+  return unless File.exist?(path)
+
+  File.readlines(path, chomp: true).reverse_each do |line|
+    reader.add_to_history(line) unless line.strip.empty?
+  end
+rescue StandardError
+  # Ignore history loading errors
+end
+
+def save_history(path, text)
+  return if text.strip.empty?
+
+  history = []
+  history = File.readlines(path, chomp: true) if File.exist?(path)
+  history.delete(text)
+  history.unshift(text)
+  history = history.first(200) # Limit history size
+
+  File.write(path, history.join("\n") + "\n")
+rescue StandardError
+  # Ignore history saving errors
+end
+
+# Print simple banner
+puts "Ollama Chat Console"
+puts "Model: #{config.model}"
+puts "Base URL: #{config.base_url}"
+puts "Type 'quit' or 'exit' to exit, 'clear' to reset history."
+puts
+
+# Setup reader and load history
+reader = build_reader
+load_history(reader, HISTORY_PATH)
+
+# Main loop
+begin
+  loop do
+    # Use TTY reader with prompt (supports history, arrow keys, editing)
+    input = read_input(reader)
+
+    break if input.nil?
+
+    text = input.strip
+    next if text.empty?
+
+    # Handle commands
+    case text.downcase
+    when "quit", "exit", "/quit", "/exit"
+      puts "\nGoodbye!\n"
+      break
+    when "clear", "/clear"
+      chat.clear
+      puts "Conversation history cleared.\n\n"
+      next
+    end
+
+    # Save to history
+    save_history(HISTORY_PATH, text)
+
+    # Assistant response
+    print "Assistant: "
+
+    begin
+      response = chat.say(text)
+      # Ensure newline after streaming
+      puts "" if response.empty?
+    rescue Ollama::ChatNotAllowedError => e
+      puts "\n❌ Error: #{e.message}"
+      puts "Make sure config.allow_chat = true"
+    rescue Ollama::Error => e
+      puts "\n❌ Error: #{e.message}"
+    end
+
+    puts "" # Blank line between exchanges
+  end
+rescue Interrupt
+  puts "\n\nInterrupted. Goodbye!\n"
+rescue StandardError => e
+  puts "\nUnexpected error: #{e.message}\n"
+  puts "#{e.backtrace.first}\n" if ENV["DEBUG"]
+end

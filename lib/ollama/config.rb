@@ -15,7 +15,7 @@ module Ollama
   #   client = Ollama::Client.new(config: config)
   #
   class Config
-    attr_accessor :base_url, :model, :timeout, :retries, :temperature, :top_p, :num_ctx, :on_response
+    attr_accessor :base_url, :model, :timeout, :retries, :temperature, :top_p, :num_ctx, :on_response, :allow_chat, :streaming_enabled
 
     def initialize
       @base_url = "http://localhost:11434"
@@ -26,6 +26,8 @@ module Ollama
       @top_p = 0.9
       @num_ctx = 8192
       @on_response = nil
+      @allow_chat = false
+      @streaming_enabled = false
     end
 
     # Load configuration from JSON file (useful for production deployments)

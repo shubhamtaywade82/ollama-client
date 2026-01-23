@@ -368,11 +368,14 @@ module Ollama
     end
 
     def ensure_chat_allowed!(allow_chat:, strict:, method_name:)
-      return if allow_chat || strict
+      return if allow_chat || strict || @config.allow_chat
 
-      raise Error,
+      raise ChatNotAllowedError,
             "#{method_name}() is intentionally gated because it is easy to misuse inside agents. " \
-            "Prefer generate(). If you really want #{method_name}(), pass allow_chat: true (or strict: true)."
+            "Prefer generate() for deterministic, schema-first workflows. " \
+            "To use #{method_name}(), either: " \
+            "1) Pass allow_chat: true as a parameter, or " \
+            "2) Enable chat in config: config.allow_chat = true"
     end
 
     # Normalize tools to array of hashes for API
