@@ -286,8 +286,18 @@ end
 
 # Run examples
 if __FILE__ == $PROGRAM_NAME
+  # Load .env file if available
+  begin
+    require "dotenv"
+    Dotenv.overload
+  rescue LoadError
+    # dotenv not available, skip
+  end
+
   # Use longer timeout for complex schemas
   config = Ollama::Config.new
+  config.base_url = ENV.fetch("OLLAMA_BASE_URL", "http://localhost:11434")
+  config.model = ENV.fetch("OLLAMA_MODEL", config.model)
   config.timeout = 60 # 60 seconds for complex operations
   client = Ollama::Client.new(config: config)
 

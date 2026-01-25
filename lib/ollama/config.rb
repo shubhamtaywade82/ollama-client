@@ -18,7 +18,7 @@ module Ollama
     attr_accessor :base_url, :model, :timeout, :retries, :temperature, :top_p, :num_ctx, :on_response, :allow_chat, :streaming_enabled
 
     def initialize
-      @base_url = "http://localhost:11434"
+      @base_url = ENV.fetch("OLLAMA_BASE_URL", "http://localhost:11434")
       @model = "llama3.1:8b"
       @timeout = 20
       @retries = 2

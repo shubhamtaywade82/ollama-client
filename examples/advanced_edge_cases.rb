@@ -4,6 +4,14 @@
 # Advanced Example: Edge Cases and Boundary Testing
 # Demonstrates: Empty responses, malformed schemas, extreme values, special characters
 
+# Load .env file if available (overload to ensure .env takes precedence over shell env)
+begin
+  require "dotenv"
+  Dotenv.overload
+rescue LoadError
+  # dotenv not available, skip
+end
+
 require "json"
 require_relative "../lib/ollama_client"
 
@@ -234,7 +242,10 @@ end
 
 # Run tests
 if __FILE__ == $PROGRAM_NAME
-  client = Ollama::Client.new
+  config = Ollama::Config.new
+  config.base_url = ENV.fetch("OLLAMA_BASE_URL", "http://localhost:11434")
+  config.model = ENV.fetch("OLLAMA_MODEL", config.model)
+  client = Ollama::Client.new(config: config)
   tester = EdgeCaseTester.new(client: client)
   tester.run_all_tests
 end

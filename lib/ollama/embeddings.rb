@@ -100,7 +100,28 @@ module Ollama
       status_code = res.code.to_i
       raise NotFoundError.new(res.message, requested_model: requested_model) if status_code == 404
 
-      raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
+      # Extract error details from response body for better error messages
+      error_message = "HTTP #{res.code}: #{res.message}"
+      if res.body && !res.body.empty?
+        begin
+          error_body = JSON.parse(res.body)
+          if error_body["error"]
+            error_message += "\n\nServer error: #{error_body['error']}"
+          elsif status_code >= 500
+            # For 500+ errors, include body preview if not JSON or if it contains useful info
+            body_preview = res.body.length > 500 ? "#{res.body[0..500]}..." : res.body
+            error_message += "\n\nResponse: #{body_preview}"
+          end
+        rescue JSON::ParserError
+          # If body is not JSON, include it for 500+ errors
+          if status_code >= 500
+            body_preview = res.body.length > 500 ? "#{res.body[0..500]}..." : res.body
+            error_message += "\n\nResponse: #{body_preview}"
+          end
+        end
+      end
+
+      raise HTTPError.new(error_message, status_code)
     end
   end
 end

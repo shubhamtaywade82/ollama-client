@@ -6,12 +6,22 @@
 # This demonstrates the recommended way to build interactive chat UIs
 # with streaming and conversation history management.
 
+# Load .env file if available (overload to ensure .env takes precedence over shell env)
+begin
+  require "dotenv"
+  Dotenv.overload
+rescue LoadError
+  # dotenv not available, skip
+end
+
 require_relative "../lib/ollama_client"
 
 # Configure client with chat enabled
 config = Ollama::Config.new
 config.allow_chat = true
 config.streaming_enabled = true
+config.base_url = ENV.fetch("OLLAMA_BASE_URL", "http://localhost:11434")
+config.model = ENV.fetch("OLLAMA_MODEL", config.model)
 
 client = Ollama::Client.new(config: config)
 

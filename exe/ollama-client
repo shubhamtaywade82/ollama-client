@@ -1,14 +1,22 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+# Load .env file if available (overload to ensure .env takes precedence over shell env)
+begin
+  require "dotenv"
+  Dotenv.overload
+rescue LoadError
+  # dotenv not available, skip
+end
+
 # Chat console using ChatSession with TTY reader for input only
 require_relative "../lib/ollama_client"
 require "tty-reader"
 
 # Build config from environment or defaults
 config = Ollama::Config.new
-config.base_url = ENV["OLLAMA_BASE_URL"] if ENV["OLLAMA_BASE_URL"]
-config.model = ENV["OLLAMA_MODEL"] || config.model
+config.base_url = ENV.fetch("OLLAMA_BASE_URL", "http://localhost:11434")
+config.model = ENV.fetch("OLLAMA_MODEL", config.model)
 config.temperature = ENV["OLLAMA_TEMPERATURE"].to_f if ENV["OLLAMA_TEMPERATURE"]
 
 # Enable chat + streaming (required for ChatSession)
@@ -116,8 +124,13 @@ begin
     rescue Ollama::ChatNotAllowedError => e
       puts "\n❌ Error: #{e.message}"
       puts "Make sure config.allow_chat = true"
+    rescue Ollama::RetryExhaustedError => e
+      # RetryExhaustedError wraps the original error - show full message
+      puts "\n❌ #{e.message}"
     rescue Ollama::Error => e
       puts "\n❌ Error: #{e.message}"
+      # Show full error details if available (for debugging)
+      puts e.backtrace.first(3).join("\n") if ENV["DEBUG"]
     end
 
     puts "" # Blank line between exchanges

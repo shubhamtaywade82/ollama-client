@@ -160,7 +160,18 @@ end
 
 # Test scenarios
 if __FILE__ == $PROGRAM_NAME
-  client = Ollama::Client.new
+  # Load .env file if available
+  begin
+    require "dotenv"
+    Dotenv.overload
+  rescue LoadError
+    # dotenv not available, skip
+  end
+
+  config = Ollama::Config.new
+  config.base_url = ENV.fetch("OLLAMA_BASE_URL", "http://localhost:11434")
+  config.model = ENV.fetch("OLLAMA_MODEL", config.model)
+  client = Ollama::Client.new(config: config)
   agent = ResilientAgent.new(client: client)
 
   schema = {

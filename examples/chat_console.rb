@@ -1,6 +1,14 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+# Load .env file if available (overload to ensure .env takes precedence over shell env)
+begin
+  require "dotenv"
+  Dotenv.overload
+rescue LoadError
+  # dotenv not available, skip
+end
+
 require_relative "../lib/ollama_client"
 require "tty-reader"
 require "tty-screen"
@@ -8,8 +16,8 @@ require "tty-cursor"
 
 def build_config
   config = Ollama::Config.new
-  config.base_url = ENV["OLLAMA_BASE_URL"] if ENV["OLLAMA_BASE_URL"]
-  config.model = ENV["OLLAMA_MODEL"] if ENV["OLLAMA_MODEL"]
+  config.base_url = ENV.fetch("OLLAMA_BASE_URL", "http://localhost:11434")
+  config.model = ENV.fetch("OLLAMA_MODEL", config.model)
   config.temperature = ENV["OLLAMA_TEMPERATURE"].to_f if ENV["OLLAMA_TEMPERATURE"]
   config
 end
