@@ -13,6 +13,7 @@ require_relative "ollama/chat_session"
 require_relative "ollama/agent/messages"
 require_relative "ollama/agent/planner"
 require_relative "ollama/agent/executor"
+require_relative "ollama/personas"
 
 # Main entry point for OllamaClient gem
 #
