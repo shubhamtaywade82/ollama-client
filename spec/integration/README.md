@@ -14,29 +14,30 @@ Integration tests make **actual calls** to a running Ollama server to verify the
 
 ```bash
 # Run all integration tests (requires Ollama server)
-bundle exec rspec spec/integration/ --tag integration
+INTEGRATION=true bundle exec rspec spec/integration/
 
-# Or use the integration tag
-bundle exec rspec --tag integration
+# Or run all tests including integration
+INTEGRATION=true bundle exec rspec
 ```
 
 ### With Custom Configuration
 
 ```bash
 # Custom Ollama URL
-OLLAMA_URL=http://remote-server:11434 bundle exec rspec --tag integration
+OLLAMA_URL=http://remote-server:11434 INTEGRATION=true bundle exec rspec spec/integration/
 
 # Custom model
-OLLAMA_MODEL=llama3.2:3b bundle exec rspec --tag integration
+OLLAMA_MODEL=llama3.2:3b INTEGRATION=true bundle exec rspec spec/integration/
 
 # Custom embedding model
-OLLAMA_EMBEDDING_MODEL=nomic-embed-text bundle exec rspec --tag integration
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text INTEGRATION=true bundle exec rspec spec/integration/
 
 # All together
 OLLAMA_URL=http://localhost:11434 \
 OLLAMA_MODEL=llama3.1:8b \
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text \
-bundle exec rspec --tag integration
+INTEGRATION=true \
+bundle exec rspec spec/integration/
 ```
 
 ## What Gets Tested
@@ -61,9 +62,9 @@ If Ollama server is not available, tests will be automatically skipped with a he
 
 Integration tests are **automatically excluded** from CI/CD pipelines by default:
 
-- **GitHub Actions**: Runs `bundle exec rspec --tag ~integration` (excludes integration tests)
-- **CI Detection**: Tests automatically skip if `CI=true` and `RUN_INTEGRATION_TESTS != true`
-- **To enable in CI**: Set `RUN_INTEGRATION_TESTS=true` environment variable
+- **GitHub Actions**: Runs `bundle exec rake` which excludes integration tests unless `INTEGRATION=true`
+- **Default behavior**: Integration tests are filtered out unless `INTEGRATION` environment variable is set
+- **To enable in CI**: Set `INTEGRATION=true` environment variable
 
 This prevents CI failures when Ollama server is not available in the CI environment.
 
@@ -73,5 +74,5 @@ This prevents CI failures when Ollama server is not available in the CI environm
 - Unit tests use WebMock and don't require Ollama
 - Integration tests make **real HTTP calls**
 - Integration tests are **slower** than unit tests
-- Run unit tests: `bundle exec rspec --tag ~integration` (excludes integration)
-- Run integration tests: `bundle exec rspec --tag integration`
+- Run unit tests: `bundle exec rspec` or `bundle exec rake` (excludes integration by default)
+- Run integration tests: `INTEGRATION=true bundle exec rspec spec/integration/`

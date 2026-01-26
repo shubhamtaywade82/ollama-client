@@ -23,11 +23,14 @@ RSpec.configure do |config|
     c.syntax = :expect
   end
 
+  # Integration test configuration
+  config.filter_run_excluding type: :integration unless ENV["INTEGRATION"]
+
   # WebMock configuration
   config.before do |example|
     WebMock.reset!
     # Allow real connections for integration tests
-    if example.metadata[:integration]
+    if example.metadata[:type] == :integration
       WebMock.allow_net_connect!
     else
       WebMock.disable_net_connect!(allow_localhost: false)
@@ -35,17 +38,17 @@ RSpec.configure do |config|
   end
 
   # Ensure WebMock allows connections for integration tests
-  config.before(:each, :integration) do
+  config.before(:each, type: :integration) do
     WebMock.allow_net_connect!
   end
 
-  config.after(:each, :integration) do
+  config.after(:each, type: :integration) do
     # Keep allowing for next integration test
     WebMock.allow_net_connect!
   end
 
   config.after do |example|
     # Re-disable after non-integration tests
-    WebMock.disable_net_connect!(allow_localhost: false) unless example.metadata[:integration]
+    WebMock.disable_net_connect!(allow_localhost: false) unless example.metadata[:type] == :integration
   end
 end

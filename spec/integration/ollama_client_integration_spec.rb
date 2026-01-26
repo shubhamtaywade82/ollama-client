@@ -10,7 +10,7 @@
 require "spec_helper"
 
 # rubocop:disable RSpec/DescribeClass
-RSpec.describe "Ollama Client Integration", :integration do
+RSpec.describe "Ollama Client Integration", type: :integration do
   let(:base_url) { ENV.fetch("OLLAMA_URL", "http://localhost:11434") }
   let(:model) { ENV.fetch("OLLAMA_MODEL", "llama3.1:8b") }
   let(:config) do
@@ -26,11 +26,6 @@ RSpec.describe "Ollama Client Integration", :integration do
   # rubocop:disable RSpec/BeforeAfterAll
   # Integration tests need before(:all) to check Ollama availability once
   before(:all) do
-    # Skip integration tests in CI unless explicitly enabled
-    if ENV["CI"] && ENV["RUN_INTEGRATION_TESTS"] != "true"
-      skip "Integration tests skipped in CI. Set RUN_INTEGRATION_TESTS=true to enable."
-    end
-
     # Allow real HTTP connections for integration tests
     WebMock.allow_net_connect!
 
