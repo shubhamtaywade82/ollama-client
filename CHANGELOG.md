@@ -1,5 +1,18 @@
 ## [Unreleased]
 
+## [0.2.6] - 2026-01-26
+
+- Reorganize examples: move agent examples to separate repository, keep minimal client examples
+- Add comprehensive test coverage (increased from 65.66% to 79.59%)
+- Add test suite for `Ollama::DocumentLoader` (file loading, context building)
+- Add test suite for `Ollama::Embeddings` (API calls, error handling)
+- Add test suite for `Ollama::ChatSession` (session management)
+- Add test suite for tool classes (`Tool`, `Function`, `Parameters`, `Property`)
+- Rewrite testing documentation to focus on client-only testing (transport/protocol)
+- Add test checklist with specific test categories (G1-G3, C1-C3, A1-A2, F1-F3)
+- Update README with enhanced "What This Gem IS NOT" section
+- Fix RuboCop offenses and improve code quality
+
 ## [0.2.5] - 2026-01-22
 
 - Add `Ollama::DocumentLoader` for loading files as context in queries

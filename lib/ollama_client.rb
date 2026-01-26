@@ -1,5 +1,10 @@
 # frozen_string_literal: true
 
+# Load .env file if available (.env takes precedence over shell environment variables)
+require "dotenv"
+Dotenv.overload
+
+require_relative "ollama/version"
 require_relative "ollama/config"
 require_relative "ollama/errors"
 require_relative "ollama/schema_validator"

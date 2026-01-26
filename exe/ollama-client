@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 # Chat console using ChatSession with TTY reader for input only
+# Note: dotenv is automatically loaded by lib/ollama_client.rb
 require_relative "../lib/ollama_client"
 require "tty-reader"
 
@@ -34,7 +35,7 @@ end
 system_prompt = ENV.fetch("OLLAMA_SYSTEM", "You are a helpful assistant.")
 chat = Ollama::ChatSession.new(client, system: system_prompt, stream: observer)
 
-# Setup TTY reader for input with history (same pattern as chat_console.rb)
+# Setup TTY reader for input with history
 def build_reader
   TTY::Reader.new
 end
@@ -65,7 +66,7 @@ def save_history(path, text)
   history.unshift(text)
   history = history.first(200) # Limit history size
 
-  File.write(path, history.join("\n") + "\n")
+  File.write(path, "#{history.join("\n")}\n")
 rescue StandardError
   # Ignore history saving errors
 end

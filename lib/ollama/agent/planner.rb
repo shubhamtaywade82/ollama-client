@@ -35,9 +35,7 @@ module Ollama
         effective_system = system_prompt || @system_prompt
         full_prompt = prompt.to_s
 
-        if effective_system && !effective_system.empty?
-          full_prompt = "#{effective_system}\n\n#{full_prompt}"
-        end
+        full_prompt = "#{effective_system}\n\n#{full_prompt}" if effective_system && !effective_system.empty?
 
         if context && !context.empty?
           full_prompt = "#{full_prompt}\n\nContext (JSON):\n#{JSON.pretty_generate(context)}"

@@ -29,5 +29,8 @@ jobs:
         run: bundle install
       - name: Run RuboCop
         run: bundle exec rubocop
-      - name: Run RSpec
-        run: bundle exec rspec
+      - name: Run RSpec (exclude integration tests)
+        run: bundle exec rspec --tag ~integration
+        env:
+          # Integration tests require Ollama server - skip in CI unless explicitly enabled
+          RUN_INTEGRATION_TESTS: false

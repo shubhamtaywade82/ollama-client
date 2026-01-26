@@ -50,10 +50,13 @@ RSpec.describe Ollama::Client do
       }
     end
 
-    it "requires prompt and schema parameters" do
+    it "requires prompt parameter" do
       expect { client.generate }.to raise_error(ArgumentError)
-      expect { client.generate(prompt: "test") }.to raise_error(ArgumentError)
       expect { client.generate(schema: schema) }.to raise_error(ArgumentError)
+      # schema is optional - nil means plain text/markdown response
+      stub_request(:post, "http://localhost:11434/api/generate")
+        .to_return(status: 200, body: { response: "test response" }.to_json)
+      expect { client.generate(prompt: "test") }.not_to raise_error
     end
 
     context "when Ollama server is not available" do

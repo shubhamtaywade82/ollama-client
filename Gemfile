@@ -15,9 +15,11 @@ gem "rubocop-rake"
 gem "rubocop-rspec"
 
 # Testing utilities
+gem "simplecov", "~> 0.22", require: false
 gem "timecop", "~> 0.9"
 gem "webmock", "~> 3.18"
 
+gem "dotenv", "~> 2.8"
 gem "tty-cursor", "~> 0.7.1"
 gem "tty-prompt", "~> 0.23.1"
 gem "tty-reader", "~> 0.9.0"

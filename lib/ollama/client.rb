@@ -339,9 +339,9 @@ module Ollama
 
     private
 
-    def validate_generate_params!(prompt, schema)
+    def validate_generate_params!(prompt, _schema)
       raise ArgumentError, "prompt is required" if prompt.nil?
-      raise ArgumentError, "schema is required" if schema.nil?
+      # schema is optional - nil means plain text/markdown response
     end
 
     def process_generate_response(raw:, schema:, meta:, return_meta:)

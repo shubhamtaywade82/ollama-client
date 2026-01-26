@@ -38,6 +38,7 @@ module Ollama
   # - Chat personas: `/api/chat` + humans = explanatory conversation
   #
   # Mixing them breaks determinism and safety boundaries.
+  # rubocop:disable Metrics/ModuleLength
   module Personas
     # Minimal agent-safe persona for schema-based planning and structured outputs.
     #
@@ -50,7 +51,7 @@ module Ollama
     #
     # This prompt turns the LLM into a deterministic reasoning subroutine,
     # not a conversational partner. Use for planners, routers, decision engines.
-    ARCHITECT_AGENT = <<~PROMPT.freeze
+    ARCHITECT_AGENT = <<~PROMPT
       You are acting as a senior software architect and system designer.
 
       Operating rules:
@@ -84,7 +85,7 @@ module Ollama
     #
     # Designed for ChatSession, /api/chat, streaming, human-facing interactions.
     # Must NEVER be used for schema-based agent work.
-    ARCHITECT_CHAT = <<~PROMPT.freeze
+    ARCHITECT_CHAT = <<~PROMPT
       You are a senior software architect and systems engineer.
 
       You are interacting with a human in a conversational interface.
@@ -112,7 +113,7 @@ module Ollama
     # Designed for /api/generate, schema-validated, deterministic workflows.
     # This prompt turns the LLM into a deterministic reasoning subroutine
     # for market analysis, risk assessment, and trading decisions.
-    TRADING_AGENT = <<~PROMPT.freeze
+    TRADING_AGENT = <<~PROMPT
       You are acting as a quantitative trading system analyst.
 
       Operating rules:
@@ -146,7 +147,7 @@ module Ollama
     #
     # Designed for ChatSession, /api/chat, streaming, human-facing interactions.
     # Must NEVER be used for schema-based agent work.
-    TRADING_CHAT = <<~PROMPT.freeze
+    TRADING_CHAT = <<~PROMPT
       You are a quantitative trading system analyst.
 
       You are interacting with a human in a conversational interface.
@@ -174,7 +175,7 @@ module Ollama
     # Designed for /api/generate, schema-validated, deterministic workflows.
     # This prompt turns the LLM into a deterministic reasoning subroutine
     # for code quality assessment and refactoring decisions.
-    REVIEWER_AGENT = <<~PROMPT.freeze
+    REVIEWER_AGENT = <<~PROMPT
       You are acting as a code review assistant focused on maintainability and correctness.
 
       Operating rules:
@@ -208,7 +209,7 @@ module Ollama
     #
     # Designed for ChatSession, /api/chat, streaming, human-facing interactions.
     # Must NEVER be used for schema-based agent work.
-    REVIEWER_CHAT = <<~PROMPT.freeze
+    REVIEWER_CHAT = <<~PROMPT
       You are a code review assistant focused on maintainability and correctness.
 
       You are interacting with a human in a conversational interface.
@@ -282,4 +283,5 @@ module Ollama
       REGISTRY.key?(name.to_sym)
     end
   end
+  # rubocop:enable Metrics/ModuleLength
 end

@@ -62,8 +62,8 @@ plan = planner.run(
 )
 ```
 
-✅ This preserves determinism  
-✅ No chatty behavior  
+✅ This preserves determinism
+✅ No chatty behavior
 ✅ No markdown drift
 
 ### 2. Executor (Tool-Calling Agents)
@@ -258,10 +258,10 @@ You might be tempted to:
 
 **Don't.** Here's why:
 
-❌ All agents inherit it (bad)  
-❌ Hard to change per task  
-❌ Breaks determinism  
-❌ Makes debugging impossible  
+❌ All agents inherit it (bad)
+❌ Hard to change per task
+❌ Breaks determinism
+❌ Makes debugging impossible
 ❌ Pollutes structured outputs
 
 Your personalization is **contextual**, not universal.
@@ -345,7 +345,7 @@ chat = Ollama::ChatSession.new(
 
 ```ruby
 # WRONG - creates confusion
-prompt = Ollama::Personas.get(:architect, variant: :agent) + 
+prompt = Ollama::Personas.get(:architect, variant: :agent) +
          Ollama::Personas.get(:architect, variant: :chat)
 # This creates conflicting instructions
 ```
@@ -366,7 +366,7 @@ chat = Ollama::ChatSession.new(client, system: chat_persona)
 
 ## Summary
 
-**Q:** How do I use this customization with Ollama / Docker / ollama-client?  
+**Q:** How do I use this customization with Ollama / Docker / ollama-client?
 **A:**
 
 - You **do NOT install it into Ollama**

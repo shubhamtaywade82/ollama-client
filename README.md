@@ -26,11 +26,15 @@ Domain tools and application logic live **outside** this gem. For convenience, i
 
 ## 🚫 What This Gem IS NOT
 
-* ❌ Domain tool implementations
-* ❌ Domain logic
-* ❌ Memory store
-* ❌ Chat UI
-* ❌ A promise of full Ollama API coverage (it focuses on agent workflows)
+This gem is **NOT**:
+* ❌ A chatbot UI framework
+* ❌ A domain-specific agent implementation
+* ❌ A tool execution engine
+* ❌ A memory store
+* ❌ A promise of full Ollama API coverage (focuses on agent workflows)
+* ❌ An agent runtime (it provides transport + protocol, not agent logic)
+
+**Domain tools and application logic live outside this gem.**
 
 This keeps it **clean and future-proof**.
 
@@ -74,19 +78,19 @@ gem install ollama-client
 
 ### Primary API: `generate()`
 
-**`generate(prompt:, schema: nil)`** is the **primary and recommended method** for agent-grade usage:
+**`generate(prompt:, schema: nil, allow_plain_text: false)`** is the **primary and recommended method** for agent-grade usage:
 
 - ✅ Stateless, explicit state injection
 - ✅ Uses `/api/generate` endpoint
 - ✅ Ideal for: agent planning, tool routing, one-shot analysis, classification, extraction
 - ✅ No implicit memory or conversation history
-- ✅ Supports both structured JSON (with schema) and plain text/markdown (without schema)
+- ✅ Supports both structured JSON (with schema) and plain text/markdown (with `allow_plain_text: true`)
 
 **This is the method you should use for hybrid agents.**
 
 **Usage:**
-- **With schema** (structured JSON): `generate(prompt: "...", schema: {...})`
-- **Without schema** (plain text): `generate(prompt: "...")` - returns plain text/markdown
+- **With schema** (structured JSON): `generate(prompt: "...", schema: {...})` - returns Hash
+- **Without schema** (plain text): `generate(prompt: "...", allow_plain_text: true)` - returns String
 
 ### Choosing the Correct API (generate vs chat)
 
@@ -260,13 +264,14 @@ require "ollama_client"
 
 client = Ollama::Client.new
 
-# Get plain text/markdown response (no schema required)
+# Get plain text/markdown response (use allow_plain_text: true to skip schema)
 text_response = client.generate(
-  prompt: "Explain Ruby in simple terms"
+  prompt: "Explain Ruby in simple terms",
+  allow_plain_text: true
 )
 
 puts text_response
-# Output: Plain text or markdown explanation
+# Output: Plain text or markdown explanation (String)
 ```
 
 **Option 2: Using `chat_raw()` (for multi-turn conversations)**
@@ -289,8 +294,8 @@ puts text_response
 ```
 
 **When to use which:**
-- **`generate()` without schema** - Simple one-shot queries, explanations, text generation
-- **`generate()` with schema** - Structured JSON outputs for agents
+- **`generate()` with `allow_plain_text: true`** - Simple one-shot queries, explanations, text generation
+- **`generate()` with schema** - Structured JSON outputs for agents (default, recommended)
 - **`chat_raw()` without format** - Multi-turn conversations with plain text
 - **`chat_raw()` with format** - Multi-turn conversations with structured outputs
 
@@ -316,6 +321,40 @@ Within `Ollama::Agent`:
 require "ollama_client"
 
 client = Ollama::Client.new
+
+# Option 1: With schema (recommended for structured outputs)
+DECISION_SCHEMA = {
+  "type" => "object",
+  "required" => ["action", "reasoning"],
+  "properties" => {
+    "action" => {
+      "type" => "string",
+      "enum" => ["search", "calculate", "store", "retrieve", "finish"]
+    },
+    "reasoning" => {
+      "type" => "string"
+    }
+  }
+}
+
+planner = Ollama::Agent::Planner.new(client)
+
+plan = planner.run(
+  prompt: "Given the user request, decide the next action.",
+  schema: DECISION_SCHEMA,
+  context: { user_request: "Plan a weekend trip to Rome" }
+)
+
+puts plan["action"]      # => "search" (or one of the enum values)
+puts plan["reasoning"]    # => Explanation string
+```
+
+**Option 2: Without schema (returns any JSON)**
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
 planner = Ollama::Agent::Planner.new(client)
 
 plan = planner.run(
@@ -326,7 +365,7 @@ plan = planner.run(
   context: { user_request: "Plan a weekend trip to Rome" }
 )
 
-puts plan
+puts plan  # => Any valid JSON structure
 ```
 
 ### Executor Agent (tool loop, /api/chat)
@@ -1259,67 +1298,35 @@ end
 
 This keeps the `ollama-client` gem **domain-agnostic** and **reusable** across any project.
 
-**See `examples/tool_calling_pattern.rb` for a working implementation of this pattern.**
+**See the [ollama-agent-examples](https://github.com/shubhamtaywade82/ollama-agent-examples) repository for working implementations of this pattern.**
 
-## Advanced Examples
+## 📚 Examples
 
-The `examples/` directory contains advanced examples demonstrating production-grade patterns:
+### Minimal Examples (In This Repo)
 
-### `tool_calling_pattern.rb`
-**Working implementation of the ToolRouter pattern from the Architecture section:**
-- Tool registry and routing
-- LLM outputs intent, agent executes tools
-- Demonstrates the correct separation of concerns
-- Matches the pattern shown in README.md lines 430-500
+The `examples/` directory contains minimal examples demonstrating **client usage only**:
 
-### `dhanhq_trading_agent.rb`
-**Real-world integration: Ollama (reasoning) + DhanHQ (execution):**
-- Ollama analyzes market data and makes trading decisions
-- DhanHQ executes trades (place orders, check positions, etc.)
-- Demonstrates proper separation: LLM = reasoning, DhanHQ = execution
-- Shows risk management with super orders (SL/TP)
-- Perfect example of agent-grade tool calling pattern
+- **`basic_generate.rb`** - Basic `/generate` usage with schema validation
+- **`basic_chat.rb`** - Basic `/chat` usage
+- **`tool_calling_parsing.rb`** - Tool-call parsing (no execution)
+- **`tool_dto_example.rb`** - Tool DTO serialization
 
-### `advanced_multi_step_agent.rb`
-Multi-step agent workflow with:
-- Complex nested schemas
-- State management across steps
-- Confidence thresholds
-- Risk assessment
-- Error recovery
+These examples focus on **transport and protocol correctness**, not agent behavior.
 
-### `advanced_error_handling.rb`
-Comprehensive error handling patterns:
-- All error types (NotFoundError, HTTPError, TimeoutError, etc.)
-- Retry strategies with exponential backoff
-- Fallback mechanisms
-- Error statistics and observability
+### Full Agent Examples (Separate Repository)
 
-### `advanced_complex_schemas.rb`
-Real-world complex schemas:
-- Financial analysis (nested metrics, recommendations, risk factors)
-- Code review (issues, suggestions, effort estimation)
-- Research paper analysis (findings, methodology, citations)
+For complete agent examples (trading agents, coding agents, RAG agents, multi-step workflows, tool execution patterns, etc.), see:
 
-### `advanced_performance_testing.rb`
-Performance and observability:
-- Latency measurement (min, max, avg, p95, p99)
-- Throughput testing
-- Error rate tracking
-- Metrics export
+**[ollama-agent-examples](https://github.com/shubhamtaywade82/ollama-agent-examples)**
 
-### `advanced_edge_cases.rb`
-Boundary and edge case testing:
-- Empty/long prompts
-- Special characters and unicode
-- Minimal/strict schemas
-- Deeply nested structures
-- Enum constraints
+This separation keeps `ollama-client` focused on the transport layer while providing comprehensive examples for agent developers.
 
-Run any example:
-```bash
-ruby examples/advanced_multi_step_agent.rb
-```
+**Why this separation?**
+- Examples rot faster than APIs
+- Agent examples pull in domain-specific dependencies
+- Tool examples imply opinions about tool design
+- The client stays clean and maintainable
+- Users don't confuse client vs agent responsibilities
 
 ## Development
 

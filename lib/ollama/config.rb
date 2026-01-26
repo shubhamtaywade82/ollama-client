@@ -15,7 +15,8 @@ module Ollama
   #   client = Ollama::Client.new(config: config)
   #
   class Config
-    attr_accessor :base_url, :model, :timeout, :retries, :temperature, :top_p, :num_ctx, :on_response, :allow_chat, :streaming_enabled
+    attr_accessor :base_url, :model, :timeout, :retries, :temperature, :top_p, :num_ctx, :on_response, :allow_chat,
+                  :streaming_enabled
 
     def initialize
       @base_url = "http://localhost:11434"
