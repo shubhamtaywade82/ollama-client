@@ -6,13 +6,15 @@ module Ollama
   # Configuration class with safe defaults for agent-grade usage
   #
   # ⚠️ THREAD SAFETY WARNING:
-  # Global configuration via OllamaClient.configure is NOT thread-safe.
-  # For concurrent agents or multi-threaded applications, use per-client
-  # configuration instead:
+  # Global configuration access is mutex-protected, but modifying global config
+  # while clients are active can cause race conditions. For concurrent agents
+  # or multi-threaded applications, use per-client configuration (recommended):
   #
   #   config = Ollama::Config.new
   #   config.model = "llama3.1"
   #   client = Ollama::Client.new(config: config)
+  #
+  # Each client instance with its own config is thread-safe.
   #
   class Config
     attr_accessor :base_url, :model, :timeout, :retries, :temperature, :top_p, :num_ctx, :on_response, :allow_chat,

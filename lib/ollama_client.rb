@@ -23,13 +23,16 @@ require_relative "ollama/personas"
 # Main entry point for OllamaClient gem
 #
 # ⚠️ THREAD SAFETY WARNING:
-# Global configuration via OllamaClient.configure is NOT thread-safe.
-# For concurrent agents or multi-threaded applications, use per-client
-# configuration instead:
+# Global configuration access is protected by mutex, but modifying
+# global config while clients are active can cause race conditions.
+# For concurrent agents or multi-threaded applications, prefer
+# per-client configuration (recommended):
 #
 #   config = Ollama::Config.new
 #   config.model = "llama3.1"
 #   client = Ollama::Client.new(config: config)
+#
+# Each client instance is thread-safe when using its own config.
 #
 module OllamaClient
   @config_mutex = Mutex.new
@@ -44,8 +47,9 @@ module OllamaClient
   def self.configure
     if Thread.current != Thread.main && !@warned_thread_config
       @warned_thread_config = true
-      msg = "[ollama-client] Global OllamaClient.configure is not thread-safe. " \
-            "Prefer per-client config (Ollama::Client.new(config: ...))."
+      msg = "[ollama-client] Global OllamaClient.configure called from non-main thread. " \
+            "While access is mutex-protected, modifying global config concurrently can cause " \
+            "race conditions. Prefer per-client config: Ollama::Client.new(config: ...)"
       warn(msg)
     end
 

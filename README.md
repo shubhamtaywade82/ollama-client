@@ -72,27 +72,164 @@ Or install it yourself as:
 gem install ollama-client
 ```
 
+## Quick Start
+
+### Step 1: Simple Text Generation
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+
+# Get plain text response (no schema = plain text)
+response = client.generate(
+  prompt: "Explain Ruby blocks in one sentence"
+)
+
+puts response
+# => "Ruby blocks are anonymous functions passed to methods..."
+```
+
+### Step 2: Structured Outputs (Recommended for Agents)
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+
+# Define JSON schema
+schema = {
+  "type" => "object",
+  "required" => ["action", "reasoning"],
+  "properties" => {
+    "action" => { "type" => "string", "enum" => ["search", "calculate", "finish"] },
+    "reasoning" => { "type" => "string" }
+  }
+}
+
+# Get structured decision
+result = client.generate(
+  prompt: "User wants weather in Paris. What should I do?",
+  schema: schema
+)
+
+puts result["action"]      # => "search"
+puts result["reasoning"]    # => "Need to fetch weather data..."
+```
+
+### Step 3: Agent Planning (Stateless)
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+planner = Ollama::Agent::Planner.new(client)
+
+decision_schema = {
+  "type" => "object",
+  "required" => ["action"],
+  "properties" => {
+    "action" => { "type" => "string", "enum" => ["search", "calculate", "finish"] }
+  }
+}
+
+plan = planner.run(
+  prompt: "Decide the next action",
+  schema: decision_schema
+)
+
+# Use the structured decision
+case plan["action"]
+when "search"
+  # Execute search
+when "calculate"
+  # Execute calculation
+when "finish"
+  # Task complete
+end
+```
+
+### Step 4: Tool Calling (Stateful)
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+
+# Define tools
+tools = {
+  "get_weather" => ->(city:) { { city: city, temp: 22, condition: "sunny" } }
+}
+
+executor = Ollama::Agent::Executor.new(client, tools: tools)
+
+answer = executor.run(
+  system: "You are a helpful assistant. Use tools when needed.",
+  user: "What's the weather in Paris?"
+)
+
+puts answer
+# => "The weather in Paris is 22°C and sunny."
+```
+
+**Next Steps:** See [Choosing the Correct API](#choosing-the-correct-api-generate-vs-chat) below for guidance on when to use each method.
+
 ## Usage
 
 **Note:** You can use `require "ollama_client"` (recommended) or `require "ollama/client"` directly. The client works with or without the global `OllamaClient` configuration module.
 
 ### Primary API: `generate()`
 
-**`generate(prompt:, schema: nil, allow_plain_text: false)`** is the **primary and recommended method** for agent-grade usage:
+**`generate(prompt:, schema: nil, model: nil, strict: false, return_meta: false)`** is the **primary and recommended method** for agent-grade usage:
 
 - ✅ Stateless, explicit state injection
 - ✅ Uses `/api/generate` endpoint
 - ✅ Ideal for: agent planning, tool routing, one-shot analysis, classification, extraction
 - ✅ No implicit memory or conversation history
-- ✅ Supports both structured JSON (with schema) and plain text/markdown (with `allow_plain_text: true`)
+- ✅ Supports both structured JSON (with schema) and plain text/markdown (without schema)
 
 **This is the method you should use for hybrid agents.**
 
 **Usage:**
 - **With schema** (structured JSON): `generate(prompt: "...", schema: {...})` - returns Hash
-- **Without schema** (plain text): `generate(prompt: "...", allow_plain_text: true)` - returns String
+- **Without schema** (plain text): `generate(prompt: "...")` - returns String (plain text/markdown)
 
 ### Choosing the Correct API (generate vs chat)
+
+**Decision Tree:**
+
+```
+Need structured JSON output?
+├─ Yes → Use generate() with schema
+│   └─ Need conversation history?
+│       ├─ No → Use generate() directly
+│       └─ Yes → Include context in prompt (generate() is stateless)
+│
+└─ No → Need plain text/markdown?
+    ├─ Yes → Use generate() without schema
+    │   └─ Need conversation history?
+    │       ├─ No → Use generate() directly
+    │       └─ Yes → Include context in prompt
+    │
+    └─ Need tool calling?
+        ├─ Yes → Use Executor (chat API with tools)
+        │   └─ Multi-step workflow with tool loops
+        │
+        └─ No → Use ChatSession (chat API for UI)
+            └─ Human-facing chat interface
+```
+
+**Quick Reference:**
+
+| Use Case | Method | API Endpoint | State |
+|----------|--------|--------------|-------|
+| Agent planning/routing | `generate()` | `/api/generate` | Stateless |
+| Structured extraction | `generate()` | `/api/generate` | Stateless |
+| Simple text generation | `generate()` | `/api/generate` | Stateless |
+| Tool-calling loops | `Executor` | `/api/chat` | Stateful |
+| UI chat interface | `ChatSession` | `/api/chat` | Stateful |
+
+**Detailed Guidance:**
 
 - **Use `/api/generate`** (via `Ollama::Client#generate` or `Ollama::Agent::Planner`) for **stateless planner/router** steps where you want strict, deterministic structured outputs.
 - **Use `/api/chat`** (via `Ollama::Agent::Executor`) for **stateful tool-using** workflows where the model may request tool calls across multiple turns.
@@ -264,10 +401,9 @@ require "ollama_client"
 
 client = Ollama::Client.new
 
-# Get plain text/markdown response (use allow_plain_text: true to skip schema)
+# Get plain text/markdown response (omit schema for plain text)
 text_response = client.generate(
-  prompt: "Explain Ruby in simple terms",
-  allow_plain_text: true
+  prompt: "Explain Ruby in simple terms"
 )
 
 puts text_response
@@ -294,8 +430,8 @@ puts text_response
 ```
 
 **When to use which:**
-- **`generate()` with `allow_plain_text: true`** - Simple one-shot queries, explanations, text generation
-- **`generate()` with schema** - Structured JSON outputs for agents (default, recommended)
+- **`generate()` without schema** - Simple one-shot queries, explanations, text generation (returns plain text)
+- **`generate()` with schema** - Structured JSON outputs for agents (recommended for agents)
 - **`chat_raw()` without format** - Multi-turn conversations with plain text
 - **`chat_raw()` with format** - Multi-turn conversations with structured outputs
 
