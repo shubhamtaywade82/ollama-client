@@ -111,7 +111,62 @@ module Ollama
 
         raise Ollama::Error, "MCP HTTP error: #{res.code} #{res.message}" unless res.is_a?(Net::HTTPSuccess)
 
-        JSON.parse(res.body)
+        parse_response_body(res, body)
+      end
+
+      def parse_response_body(res, request_body)
+        content_type = res["Content-Type"].to_s.split(";").first.to_s.strip
+
+        if content_type == "text/event-stream"
+          parse_sse_response(res.body, request_body)
+        else
+          JSON.parse(res.body)
+        end
+      end
+
+      def parse_sse_response(body, request_body)
+        expected_id = request_body.is_a?(Hash) ? request_body["id"] : nil
+        messages = parse_all_sse_json_messages(body)
+        parsed = expected_id ? find_response_by_id(messages, expected_id) : messages.first
+        return parsed if parsed
+
+        raise Ollama::Error, "MCP SSE response had no JSON-RPC response for id #{expected_id.inspect}"
+      end
+
+      def parse_all_sse_json_messages(raw)
+        return [] if raw.nil? || raw.strip.empty?
+
+        messages = []
+        current_data = []
+
+        raw.each_line do |line|
+          if line.start_with?("data:")
+            current_data << line.sub(/\Adata:\s*/, "").strip
+          elsif line.strip.empty? && current_data.any?
+            push_parsed_message(messages, current_data.join("\n"))
+            current_data = []
+          end
+        end
+
+        push_parsed_message(messages, current_data.join("\n")) if current_data.any?
+        messages
+      end
+
+      def push_parsed_message(messages, payload)
+        return if payload.nil? || payload.empty? || payload == "[DONE]"
+
+        messages << JSON.parse(payload)
+      rescue JSON::ParserError
+        # Skip malformed or non-JSON data lines
+      end
+
+      def find_response_by_id(messages, expected_id)
+        messages.each do |msg|
+          next if msg["method"]
+
+          return msg if msg["id"] == expected_id
+        end
+        nil
       end
 
       def http_request(req)

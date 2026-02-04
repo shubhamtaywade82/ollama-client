@@ -57,6 +57,25 @@ RSpec.describe Ollama::MCP::HttpClient do
         hash_including(name: "read_docs", description: "Read repo docs", input_schema: { "type" => "object" })
       )
     end
+
+    it "parses SSE (text/event-stream) response when server returns it" do
+      stub_request(:post, url)
+        .with { |req| JSON.parse(req.body)["method"] == "initialize" }
+        .to_return(
+          status: 200,
+          body: { jsonrpc: "2.0", id: 1, result: { protocolVersion: "2025-11-25", capabilities: {} } }.to_json,
+          headers: { "Content-Type" => "application/json" }
+        )
+      stub_initialized
+      sse_body = "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{\"tools\":[]}}\n\n"
+      stub_request(:post, url)
+        .with { |req| JSON.parse(req.body)["method"] == "tools/list" }
+        .to_return(status: 200, body: sse_body, headers: { "Content-Type" => "text/event-stream" })
+
+      result = client.tools
+
+      expect(result).to eq([])
+    end
   end
 
   describe "#call_tool" do

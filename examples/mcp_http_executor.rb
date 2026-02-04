@@ -21,7 +21,7 @@
 #     }
 #   }
 
-require "ollama_client"
+require_relative "../lib/ollama_client"
 
 client = Ollama::Client.new
 
