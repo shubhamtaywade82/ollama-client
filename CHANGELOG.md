@@ -1,5 +1,14 @@
 ## [Unreleased]
 
+## [0.2.7] - 2026-02-04
+
+- Add MCP (Model Context Protocol) support for local and remote servers
+- Add `Ollama::MCP::StdioClient` for local MCP servers over stdio (e.g. `npx @modelcontextprotocol/server-filesystem`)
+- Add `Ollama::MCP::HttpClient` for remote MCP servers over HTTP (e.g. [gitmcp.io](https://gitmcp.io)/owner/repo)
+- Add `Ollama::MCP::ToolsBridge` to expose MCP tools to `Ollama::Agent::Executor` (`client:` or `stdio_client:`)
+- Add examples: `examples/mcp_executor.rb` (stdio), `examples/mcp_http_executor.rb` (URL)
+- Document MCP usage and GitMCP URL in README; fix RuboCop offenses in MCP code
+
 ## [0.2.6] - 2026-01-26
 
 - Reorganize examples: move agent examples to separate repository, keep minimal client examples

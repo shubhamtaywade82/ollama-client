@@ -21,7 +21,8 @@ module Ollama
     # @param input [String, Array<String>] Single text or array of texts
     # @return [Array<Float>, Array<Array<Float>>] Embedding vector(s)
     def embed(model:, input:)
-      uri = URI("#{@config.base_url}/api/embeddings")
+      # Use /api/embed (not /api/embeddings) - the working endpoint
+      uri = URI("#{@config.base_url}/api/embed")
       req = Net::HTTP::Post.new(uri)
       req["Content-Type"] = "application/json"
 
@@ -42,11 +43,12 @@ module Ollama
       handle_http_error(res, requested_model: model) unless res.is_a?(Net::HTTPSuccess)
 
       response_body = JSON.parse(res.body)
-      embedding = response_body["embedding"]
+      # /api/embed returns "embeddings" (plural) as array of arrays
+      embeddings = response_body["embeddings"] || response_body["embedding"]
 
-      validate_embedding_response!(embedding, response_body, model)
+      validate_embedding_response!(embeddings, response_body, model)
 
-      format_embedding_result(embedding, input)
+      format_embedding_result(embeddings, input)
     rescue JSON::ParserError => e
       raise InvalidJSONError, "Failed to parse embeddings response: #{e.message}"
     rescue Net::ReadTimeout, Net::OpenTimeout
@@ -57,42 +59,58 @@ module Ollama
 
     private
 
-    def validate_embedding_response!(embedding, response_body, model)
-      if embedding.nil?
+    def validate_embedding_response!(embeddings, response_body, model)
+      if embeddings.nil?
         keys = response_body.keys.join(", ")
         response_preview = response_body.inspect[0..200]
-        raise Error, "Embedding not found in response. Response keys: #{keys}. " \
+        raise Error, "Embeddings not found in response. Response keys: #{keys}. " \
                      "Full response: #{response_preview}"
       end
 
-      return unless embedding.is_a?(Array) && embedding.empty?
+      # Handle both formats: array of arrays [[...]] or single array [...]
+      # Check if it's empty or contains empty arrays
+      if embeddings.is_a?(Array) && (embeddings.empty? || (embeddings.first.is_a?(Array) && embeddings.first.empty?))
+        error_msg = build_empty_embedding_error_message(model, response_body)
+        raise Error, error_msg
+      end
 
-      error_msg = build_empty_embedding_error_message(model, response_body)
-      raise Error, error_msg
+      nil
     end
 
     def build_empty_embedding_error_message(model, response_body)
-      curl_command = "curl http://localhost:11434/api/embeddings " \
+      curl_command = "curl -X POST http://localhost:11434/api/embed " \
                      "-d '{\"model\":\"#{model}\",\"input\":\"test\"}'"
       response_preview = response_body.inspect[0..300]
 
+      # Check for error messages in response
+      error_hint = ""
+      if response_body.is_a?(Hash)
+        if response_body.key?("error")
+          error_hint = "\n  Error from Ollama: #{response_body["error"]}"
+        elsif response_body.key?("message")
+          error_hint = "\n  Message from Ollama: #{response_body["message"]}"
+        end
+      end
+
       "Empty embedding returned. This usually means:\n  " \
         "1. The model may not be properly loaded - try: ollama pull #{model}\n  " \
-        "2. The model may not support embeddings - verify it's an embedding model\n  " \
-        "3. Check if the model is working: #{curl_command}\n" \
+        "2. The model file may be corrupted - try: ollama rm #{model} && ollama pull #{model}\n  " \
+        "3. The model may not support embeddings - verify it's an embedding model\n  " \
+        "4. Check if the model is working: #{curl_command}#{error_hint}\n" \
         "Response: #{response_preview}"
     end
 
-    def format_embedding_result(embedding, input)
-      return embedding unless input.is_a?(Array)
-
-      # Ollama returns single embedding array even for multiple inputs
-      # We need to check the response structure
-      if embedding.is_a?(Array) && embedding.first.is_a?(Array)
-        embedding
+    def format_embedding_result(embeddings, input)
+      # /api/embed returns "embeddings" as array of arrays [[...]]
+      # For single input, it's [[...]], for multiple inputs it's [[...], [...], ...]
+      if embeddings.is_a?(Array) && embeddings.first.is_a?(Array)
+        # Already in correct format (array of arrays)
+        # For single input, return first embedding array
+        # For multiple inputs, return all embedding arrays
+        input.is_a?(Array) ? embeddings : embeddings.first
       else
-        # Single embedding returned, wrap it
-        [embedding]
+        # Fallback: single array format (shouldn't happen with /api/embed)
+        input.is_a?(Array) ? [embeddings] : embeddings
       end
     end
 

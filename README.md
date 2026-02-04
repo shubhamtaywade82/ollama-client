@@ -439,7 +439,7 @@ puts text_response
 
 This gem intentionally focuses on **agent building blocks**:
 
-- **Supported**: `/api/generate`, `/api/chat`, `/api/tags`, `/api/ping`, `/api/embeddings`
+- **Supported**: `/api/generate`, `/api/chat`, `/api/tags`, `/api/ping`, `/api/embed`
 - **Not guaranteed**: full endpoint parity with every Ollama release (advanced model mgmt, etc.)
 
 ### Agent endpoint mapping (unambiguous)
@@ -1020,6 +1020,58 @@ end
 - Both methods accept `tools:` parameter (Tool object, array of Tool objects, or array of hashes)
 - For agent tool loops, use `Ollama::Agent::Executor` instead (handles tool execution automatically)
 
+### MCP support (local and remote servers)
+
+You can connect to [Model Context Protocol](https://modelcontextprotocol.io) (MCP) servers and use their tools with the Executor.
+
+**Remote MCP server (HTTP URL, e.g. [GitMCP](https://gitmcp.io)):**
+
+```ruby
+require "ollama_client"
+
+client = Ollama::Client.new
+
+# Remote MCP server URL (e.g. GitMCP: https://gitmcp.io/owner/repo)
+mcp_client = Ollama::MCP::HttpClient.new(
+  url: "https://gitmcp.io/shubhamtaywade82/agent-runtime",
+  timeout_seconds: 60
+)
+
+bridge = Ollama::MCP::ToolsBridge.new(client: mcp_client)
+tools = bridge.tools_for_executor
+
+executor = Ollama::Agent::Executor.new(client, tools: tools)
+answer = executor.run(
+  system: "You have access to the agent-runtime docs. Use tools when the user asks about the repo.",
+  user: "What does this repo do?"
+)
+
+puts answer
+mcp_client.close
+```
+
+**Local MCP server (stdio, e.g. filesystem server):**
+
+```ruby
+# Local MCP server via stdio (requires Node.js/npx)
+mcp_client = Ollama::MCP::StdioClient.new(
+  command: "npx",
+  args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+  timeout_seconds: 60
+)
+
+bridge = Ollama::MCP::ToolsBridge.new(stdio_client: mcp_client)  # or client: mcp_client
+tools = bridge.tools_for_executor
+# ... same executor usage
+mcp_client.close
+```
+
+- **Stdio**: `Ollama::MCP::StdioClient` — spawns a subprocess; use for local servers (e.g. `npx @modelcontextprotocol/server-filesystem`).
+- **HTTP**: `Ollama::MCP::HttpClient` — POSTs JSON-RPC to a URL; use for remote servers (e.g. [gitmcp.io/owner/repo](https://gitmcp.io)).
+- **Bridge**: `Ollama::MCP::ToolsBridge.new(client: mcp_client)` or `stdio_client: mcp_client`; then `tools_for_executor` for the Executor.
+- No extra gem; implementation is self-contained.
+- See [examples/mcp_executor.rb](examples/mcp_executor.rb) (stdio) and [examples/mcp_http_executor.rb](examples/mcp_http_executor.rb) (URL).
+
 ### Example: Data Analysis with Validation
 
 ```ruby
@@ -1188,42 +1240,37 @@ client = Ollama::Client.new
 # Note: You need an embedding model installed in Ollama
 # Common models: nomic-embed-text, all-minilm, mxbai-embed-large
 # Check available models: client.list_models
+# The client uses /api/embed endpoint internally
 
 begin
   # Single text embedding
-  # Note: Use the full model name with tag if needed (e.g., "nomic-embed-text:latest")
+  # Note: Model name can be with or without tag (e.g., "nomic-embed-text" or "nomic-embed-text:latest")
   embedding = client.embeddings.embed(
-    model: "nomic-embed-text:latest",  # Use an available embedding model
+    model: "nomic-embed-text",  # Use an available embedding model
     input: "What is Ruby programming?"
   )
   # Returns: [0.123, -0.456, ...] (array of floats)
-  if embedding.empty?
-    puts "Warning: Empty embedding returned. Check model compatibility."
-  else
-    puts "Embedding dimension: #{embedding.length}"
-    puts "First few values: #{embedding.first(5).map { |v| v.round(4) }}"
-  end
+  # For nomic-embed-text, dimension is typically 768
+  puts "Embedding dimension: #{embedding.length}"
+  puts "First few values: #{embedding.first(5).map { |v| v.round(4) }}"
 
   # Multiple texts
   embeddings = client.embeddings.embed(
-    model: "nomic-embed-text:latest",
+    model: "nomic-embed-text",
     input: ["What is Ruby?", "What is Python?", "What is JavaScript?"]
   )
   # Returns: [[...], [...], [...]] (array of embedding arrays)
-  if embeddings.is_a?(Array) && embeddings.first.is_a?(Array)
-    puts "Number of embeddings: #{embeddings.length}"
-    puts "Each embedding dimension: #{embeddings.first.length}"
-  else
-    puts "Unexpected response format: #{embeddings.class}"
-  end
+  # Each inner array is an embedding vector for the corresponding input text
+  puts "Number of embeddings: #{embeddings.length}"
+  puts "Each embedding dimension: #{embeddings.first.length}"
 
 rescue Ollama::NotFoundError => e
   puts "Model not found. Install an embedding model first:"
   puts "  ollama pull nomic-embed-text"
   puts "Or check available models: client.list_models"
-  puts "Note: Use the full model name with tag (e.g., 'nomic-embed-text:latest')"
 rescue Ollama::Error => e
   puts "Error: #{e.message}"
+  # Error message includes helpful troubleshooting steps
 end
 
 # Use for semantic similarity in agents

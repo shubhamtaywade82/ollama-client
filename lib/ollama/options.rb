@@ -8,7 +8,9 @@ module Ollama
   #
   # Example:
   #   options = Ollama::Options.new(temperature: 0.7, top_p: 0.95)
-  #   client.generate(prompt: "...", schema: {...}, options: options.to_h)
+  #   client.chat(messages: [...], format: {...}, options: options.to_h, allow_chat: true)
+  #
+  # Note: generate() doesn't accept options parameter - set options in config instead
   class Options
     VALID_KEYS = %i[temperature top_p top_k num_ctx repeat_penalty seed].freeze
 

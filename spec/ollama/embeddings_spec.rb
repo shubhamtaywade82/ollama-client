@@ -22,7 +22,7 @@ RSpec.describe Ollama::Embeddings do
   describe "#embed" do
     context "with single text input" do
       it "returns embedding vector" do
-        stub_request(:post, "http://localhost:11434/api/embeddings")
+        stub_request(:post, "http://localhost:11434/api/embed")
           .with(
             body: hash_including(
               model: "nomic-embed-text",
@@ -32,7 +32,7 @@ RSpec.describe Ollama::Embeddings do
           .to_return(
             status: 200,
             body: {
-              embedding: [0.1, 0.2, 0.3, 0.4, 0.5]
+              embeddings: [[0.1, 0.2, 0.3, 0.4, 0.5]]
             }.to_json
           )
 
@@ -45,7 +45,7 @@ RSpec.describe Ollama::Embeddings do
 
     context "with array input" do
       it "returns array of embedding vectors" do
-        stub_request(:post, "http://localhost:11434/api/embeddings")
+        stub_request(:post, "http://localhost:11434/api/embed")
           .with(
             body: hash_including(
               model: "nomic-embed-text",
@@ -55,7 +55,7 @@ RSpec.describe Ollama::Embeddings do
           .to_return(
             status: 200,
             body: {
-              embedding: [[0.1, 0.2], [0.3, 0.4]]
+              embeddings: [[0.1, 0.2], [0.3, 0.4]]
             }.to_json
           )
 
@@ -66,30 +66,13 @@ RSpec.describe Ollama::Embeddings do
 
         expect(result).to be_an(Array)
         expect(result.first).to be_an(Array)
-      end
-
-      it "wraps single embedding when Ollama returns single array" do
-        stub_request(:post, "http://localhost:11434/api/embeddings")
-          .to_return(
-            status: 200,
-            body: {
-              embedding: [0.1, 0.2, 0.3]
-            }.to_json
-          )
-
-        result = embeddings.embed(
-          model: "nomic-embed-text",
-          input: %w[text1 text2]
-        )
-
-        expect(result).to be_an(Array)
-        expect(result.length).to eq(1)
+        expect(result.length).to eq(2)
       end
     end
 
     context "when handling errors" do
       it "raises NotFoundError on 404" do
-        stub_request(:post, "http://localhost:11434/api/embeddings")
+        stub_request(:post, "http://localhost:11434/api/embed")
           .to_return(status: 404, body: "Not Found")
 
         expect do
@@ -98,7 +81,7 @@ RSpec.describe Ollama::Embeddings do
       end
 
       it "raises HTTPError on other HTTP errors" do
-        stub_request(:post, "http://localhost:11434/api/embeddings")
+        stub_request(:post, "http://localhost:11434/api/embed")
           .to_return(status: 500, body: "Internal Server Error")
 
         expect do
@@ -107,7 +90,7 @@ RSpec.describe Ollama::Embeddings do
       end
 
       it "raises InvalidJSONError on malformed JSON response" do
-        stub_request(:post, "http://localhost:11434/api/embeddings")
+        stub_request(:post, "http://localhost:11434/api/embed")
           .to_return(status: 200, body: "not json")
 
         expect do
@@ -116,7 +99,7 @@ RSpec.describe Ollama::Embeddings do
       end
 
       it "raises TimeoutError on timeout" do
-        stub_request(:post, "http://localhost:11434/api/embeddings")
+        stub_request(:post, "http://localhost:11434/api/embed")
           .to_timeout
 
         expect do
@@ -125,7 +108,7 @@ RSpec.describe Ollama::Embeddings do
       end
 
       it "raises Error on connection failure" do
-        stub_request(:post, "http://localhost:11434/api/embeddings")
+        stub_request(:post, "http://localhost:11434/api/embed")
           .to_raise(Errno::ECONNREFUSED)
 
         expect do
@@ -133,8 +116,8 @@ RSpec.describe Ollama::Embeddings do
         end.to raise_error(Ollama::Error, /Connection failed/)
       end
 
-      it "raises Error when embedding is missing from response" do
-        stub_request(:post, "http://localhost:11434/api/embeddings")
+      it "raises Error when embeddings are missing from response" do
+        stub_request(:post, "http://localhost:11434/api/embed")
           .to_return(
             status: 200,
             body: { other_key: "value" }.to_json
@@ -142,14 +125,26 @@ RSpec.describe Ollama::Embeddings do
 
         expect do
           embeddings.embed(model: "nomic-embed-text", input: "test")
-        end.to raise_error(Ollama::Error, /Embedding not found/)
+        end.to raise_error(Ollama::Error, /Embeddings not found/)
       end
 
-      it "raises Error when embedding is empty array" do
-        stub_request(:post, "http://localhost:11434/api/embeddings")
+      it "raises Error when embeddings is empty array" do
+        stub_request(:post, "http://localhost:11434/api/embed")
           .to_return(
             status: 200,
-            body: { embedding: [] }.to_json
+            body: { embeddings: [] }.to_json
+          )
+
+        expect do
+          embeddings.embed(model: "nomic-embed-text", input: "test")
+        end.to raise_error(Ollama::Error, /Empty embedding/)
+      end
+
+      it "raises Error when embeddings contains empty array" do
+        stub_request(:post, "http://localhost:11434/api/embed")
+          .to_return(
+            status: 200,
+            body: { embeddings: [[]] }.to_json
           )
 
         expect do

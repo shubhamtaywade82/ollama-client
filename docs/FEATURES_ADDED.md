@@ -43,7 +43,18 @@ client = Ollama::Client.new(config: config)
 **Usage**:
 ```ruby
 options = Ollama::Options.new(temperature: 0.7, top_p: 0.95)
-client.generate(prompt: "...", schema: {...}, options: options.to_h)
+# Use with chat() - chat() accepts options parameter
+client.chat(
+  messages: [{ role: "user", content: "..." }],
+  format: {...},
+  options: options.to_h,
+  allow_chat: true
+)
+
+# Note: generate() doesn't accept options - use config instead
+# config = Ollama::Config.new
+# config.temperature = 0.7
+# client = Ollama::Client.new(config: config)
 ```
 
 **Files Added**:
