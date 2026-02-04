@@ -33,11 +33,26 @@ mcp_client = Ollama::MCP::HttpClient.new(
 bridge = Ollama::MCP::ToolsBridge.new(client: mcp_client)
 tools = bridge.tools_for_executor
 
-executor = Ollama::Agent::Executor.new(client, tools: tools)
+# Wrap tools with simple logging so you can SEE HTTP MCP tool calls in the terminal.
+logged_tools = tools.each_with_object({}) do |(name, entry), hash|
+  callable = entry[:callable]
+  hash[name] = {
+    tool: entry[:tool],
+    callable: ->(**kwargs) do
+      warn "[MCP HTTP TOOL] #{name}(#{kwargs.inspect})"
+      callable.call(**kwargs)
+    end
+  }
+end
+
+executor = Ollama::Agent::Executor.new(client, tools: logged_tools)
 
 answer = executor.run(
-  system: "You have access to the agent-runtime repository docs. Use tools when the user asks about the repo.",
-  user: "What does this repository do? Summarize briefly."
+  system: "You have access to MCP tools for the agent-runtime repository. " \
+          "When the user asks about the repo or its files, you MUST invoke tools " \
+          "via the function-calling interface. Never just print JSON that looks " \
+          "like a tool call; that will not be executed.",
+  user: "What does this repository do? Summarize briefly using the MCP tools instead of guessing."
 )
 
 puts answer
