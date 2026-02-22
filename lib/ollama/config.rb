@@ -21,7 +21,7 @@ module Ollama
 
     def initialize
       @base_url = "http://localhost:11434"
-      @model = "llama3.2"
+      @model = "llama3.1:8b"
       @timeout = 30
       @retries = 2
       @strict_json = true

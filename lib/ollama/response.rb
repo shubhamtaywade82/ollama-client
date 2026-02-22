@@ -3,15 +3,19 @@
 require "json"
 
 module Ollama
-  # Response wrapper for chat_raw() that provides method access to response data
+  # Response wrapper for chat() that provides method access to response data
   #
   # Example:
-  #   response = client.chat_raw(...)
-  #   response.message&.tool_calls  # Access tool_calls
-  #   response.message&.content     # Access content
+  #   response = client.chat(messages: [...])
+  #   response.message&.content      # Access content
+  #   response.message&.thinking     # Access thinking output
+  #   response.message&.tool_calls   # Access tool_calls
+  #   response.done?                 # Check if generation finished
+  #   response.done_reason           # Why generation stopped
+  #   response.total_duration        # Total time in nanoseconds
   class Response
     def initialize(data)
-      @data = data
+      @data = data || {}
     end
 
     # Access the message object
@@ -22,9 +26,74 @@ module Ollama
       Message.new(msg)
     end
 
+    # Whether generation has finished
+    def done?
+      @data["done"] || @data[:done] || false
+    end
+
+    # Reason the generation stopped
+    def done_reason
+      @data["done_reason"] || @data[:done_reason]
+    end
+
+    # Model name used
+    def model
+      @data["model"] || @data[:model]
+    end
+
+    # ISO 8601 timestamp of response creation
+    def created_at
+      @data["created_at"] || @data[:created_at]
+    end
+
+    # Total time spent generating in nanoseconds
+    def total_duration
+      @data["total_duration"] || @data[:total_duration]
+    end
+
+    # Time spent loading the model in nanoseconds
+    def load_duration
+      @data["load_duration"] || @data[:load_duration]
+    end
+
+    # Number of tokens in the prompt
+    def prompt_eval_count
+      @data["prompt_eval_count"] || @data[:prompt_eval_count]
+    end
+
+    # Time spent evaluating the prompt in nanoseconds
+    def prompt_eval_duration
+      @data["prompt_eval_duration"] || @data[:prompt_eval_duration]
+    end
+
+    # Number of tokens generated in the response
+    def eval_count
+      @data["eval_count"] || @data[:eval_count]
+    end
+
+    # Time spent generating tokens in nanoseconds
+    def eval_duration
+      @data["eval_duration"] || @data[:eval_duration]
+    end
+
+    # Log probability information when logprobs are enabled
+    def logprobs
+      @data["logprobs"] || @data[:logprobs]
+    end
+
     # Access raw data as hash
     def to_h
       @data
+    end
+
+    # Convenient content accessor (shorthand for message&.content)
+    def content
+      message&.content
+    end
+
+    # Delegate hash access to underlying data
+    def [](key)
+      @data[key]
     end
 
     # Delegate other methods to underlying hash
@@ -41,11 +110,15 @@ module Ollama
     # Message wrapper for accessing message fields
     class Message
       def initialize(data)
-        @data = data
+        @data = data || {}
       end
 
       def content
         @data["content"] || @data[:content]
+      end
+
+      def thinking
+        @data["thinking"] || @data[:thinking]
       end
 
       def tool_calls
@@ -57,6 +130,10 @@ module Ollama
 
       def role
         @data["role"] || @data[:role]
+      end
+
+      def images
+        @data["images"] || @data[:images]
       end
 
       def to_h
@@ -100,6 +177,10 @@ module Ollama
 
           def name
             @data["name"] || @data[:name]
+          end
+
+          def description
+            @data["description"] || @data[:description]
           end
 
           def arguments

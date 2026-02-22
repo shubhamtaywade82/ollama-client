@@ -19,8 +19,12 @@ module Ollama
     #
     # @param model [String] Embedding model name (e.g., "all-minilm")
     # @param input [String, Array<String>] Single text or array of texts
+    # @param truncate [Boolean, nil] If true, truncate inputs exceeding context window
+    # @param dimensions [Integer, nil] Number of dimensions for embeddings
+    # @param keep_alive [String, nil] Model keep-alive duration (e.g. "5m")
+    # @param options [Hash, nil] Runtime options (temperature, etc.)
     # @return [Array<Float>, Array<Array<Float>>] Embedding vector(s)
-    def embed(model:, input:)
+    def embed(model:, input:, truncate: nil, dimensions: nil, keep_alive: nil, options: nil)
       # Use /api/embed (not /api/embeddings) - the working endpoint
       uri = URI("#{@config.base_url}/api/embed")
       req = Net::HTTP::Post.new(uri)
@@ -30,6 +34,10 @@ module Ollama
         model: model,
         input: input
       }
+      body[:truncate] = truncate unless truncate.nil?
+      body[:dimensions] = dimensions if dimensions
+      body[:keep_alive] = keep_alive if keep_alive
+      body[:options] = options if options
 
       req.body = body.to_json
 

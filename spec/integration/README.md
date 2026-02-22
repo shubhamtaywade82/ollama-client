@@ -6,7 +6,7 @@ Integration tests make **actual calls** to a running Ollama server to verify the
 
 1. **Ollama server running** (default: `http://localhost:11434`)
 2. **At least one model installed** (e.g., `llama3.1:8b`)
-3. **Optional**: Embedding model for embedding tests (e.g., `nomic-embed-text`)
+3. **Optional**: Embedding model for embedding tests (e.g., `nomic-embed-text:latest`)
 
 ## Running Integration Tests
 
@@ -30,12 +30,12 @@ OLLAMA_URL=http://remote-server:11434 INTEGRATION=true bundle exec rspec spec/in
 OLLAMA_MODEL=llama3.2:3b INTEGRATION=true bundle exec rspec spec/integration/
 
 # Custom embedding model
-OLLAMA_EMBEDDING_MODEL=nomic-embed-text INTEGRATION=true bundle exec rspec spec/integration/
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text:latest INTEGRATION=true bundle exec rspec spec/integration/
 
 # All together
 OLLAMA_URL=http://localhost:11434 \
 OLLAMA_MODEL=llama3.1:8b \
-OLLAMA_EMBEDDING_MODEL=nomic-embed-text \
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text:latest \
 INTEGRATION=true \
 bundle exec rspec spec/integration/
 ```

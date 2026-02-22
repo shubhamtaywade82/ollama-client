@@ -11,7 +11,7 @@ require "ollama_client"
 
 client = Ollama::Client.new(
   config: Ollama::Config.new.tap do |c|
-    c.model = "llama3.2"
+    c.model = "llama3.1:8b"
     c.timeout = 15
     c.retries = 2
     c.strict_json = true # <-- This enables validation & automatic repair!

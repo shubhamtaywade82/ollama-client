@@ -9,7 +9,7 @@ RSpec.describe Ollama::Client, type: :integration do
 
   let(:client) do
     Ollama::Client.new(config: Ollama::Config.new.tap do |c|
-      c.model = "llama3.2" # Adjust if your local model differs
+      c.model = "llama3.1:8b" # Adjust if your local model differs
       c.timeout = 60 # Allow longer timeouts for real generation
     end)
   end

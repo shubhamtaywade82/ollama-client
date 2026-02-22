@@ -12,13 +12,8 @@
 Metrics/BlockLength:
   Max: 26
 
-# Offense count: 1
-# Configuration parameters: CountComments, Max, CountAsOne.
-Metrics/ClassLength:
-  Exclude:
-    - 'spec/**/*'
-    - 'examples/**/*'
-    - 'lib/ollama/client.rb'
+# Offense count: 0  (resolved via module extraction in lib/ollama/client/)
+# Metrics/ClassLength - no longer needed
 
 # Offense count: 1
 # Configuration parameters: CountComments, Max, CountAsOne, AllowedMethods, AllowedPatterns.

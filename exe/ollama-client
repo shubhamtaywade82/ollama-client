@@ -1,131 +1,187 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Chat console using ChatSession with TTY reader for input only
-# Note: dotenv is automatically loaded by lib/ollama_client.rb
+# ollama-client CLI — strict, JSON-first interface
+# Uses the same Ollama::Client contracts as the library.
+# No interactive chat. No hidden behavior.
+
 require_relative "../lib/ollama_client"
-require "tty-reader"
+require "optparse"
 
-# Build config from environment or defaults
-config = Ollama::Config.new
-config.base_url = ENV["OLLAMA_BASE_URL"] if ENV["OLLAMA_BASE_URL"]
-config.model = ENV["OLLAMA_MODEL"] || config.model
-config.temperature = ENV["OLLAMA_TEMPERATURE"].to_f if ENV["OLLAMA_TEMPERATURE"]
+module OllamaCLI
+  COMMANDS = %w[generate embed models pull].freeze
 
-# Enable chat + streaming (required for ChatSession)
-config.allow_chat = true
-config.streaming_enabled = true
-
-client = Ollama::Client.new(config: config)
-
-# Create streaming observer for real-time token display
-observer = Ollama::StreamingObserver.new do |event|
-  case event.type
-  when :token
-    print event.text
-    $stdout.flush
-  when :tool_call_detected
-    puts "\n[Tool call: #{event.name}]"
-  when :final
-    puts "\n"
-  end
-end
-
-# Create chat session with optional system message from env
-system_prompt = ENV.fetch("OLLAMA_SYSTEM", "You are a helpful assistant.")
-chat = Ollama::ChatSession.new(client, system: system_prompt, stream: observer)
-
-# Setup TTY reader for input with history
-def build_reader
-  TTY::Reader.new
-end
-
-def read_input(reader)
-  # Pass prompt directly to read_line - this is how TTY::Reader is designed to work
-  reader.read_line("You: ")
-end
-
-HISTORY_PATH = File.expand_path("~/.ollama_chat_history")
-
-def load_history(reader, path)
-  return unless File.exist?(path)
-
-  File.readlines(path, chomp: true).reverse_each do |line|
-    reader.add_to_history(line) unless line.strip.empty?
-  end
-rescue StandardError
-  # Ignore history loading errors
-end
-
-def save_history(path, text)
-  return if text.strip.empty?
-
-  history = []
-  history = File.readlines(path, chomp: true) if File.exist?(path)
-  history.delete(text)
-  history.unshift(text)
-  history = history.first(200) # Limit history size
-
-  File.write(path, "#{history.join("\n")}\n")
-rescue StandardError
-  # Ignore history saving errors
-end
-
-# Print simple banner
-puts "Ollama Chat Console"
-puts "Model: #{config.model}"
-puts "Base URL: #{config.base_url}"
-puts "Type 'quit' or 'exit' to exit, 'clear' to reset history."
-puts
-
-# Setup reader and load history
-reader = build_reader
-load_history(reader, HISTORY_PATH)
-
-# Main loop
-begin
-  loop do
-    # Use TTY reader with prompt (supports history, arrow keys, editing)
-    input = read_input(reader)
-
-    break if input.nil?
-
-    text = input.strip
-    next if text.empty?
-
-    # Handle commands
-    case text.downcase
-    when "quit", "exit", "/quit", "/exit"
-      puts "\nGoodbye!\n"
-      break
-    when "clear", "/clear"
-      chat.clear
-      puts "Conversation history cleared.\n\n"
-      next
+  # Parse top-level command
+  def self.run(args = ARGV)
+    if args.empty? || %w[-h --help help].include?(args.first)
+      print_usage
+      exit 0
     end
 
-    # Save to history
-    save_history(HISTORY_PATH, text)
+    command = args.shift
 
-    # Assistant response
-    print "Assistant: "
-
-    begin
-      response = chat.say(text)
-      # Ensure newline after streaming
-      puts "" if response.empty?
-    rescue Ollama::ChatNotAllowedError => e
-      puts "\n❌ Error: #{e.message}"
-      puts "Make sure config.allow_chat = true"
-    rescue Ollama::Error => e
-      puts "\n❌ Error: #{e.message}"
+    unless COMMANDS.include?(command)
+      warn "Unknown command: #{command}"
+      warn "Available: #{COMMANDS.join(", ")}"
+      exit 1
     end
 
-    puts "" # Blank line between exchanges
+    send(:"cmd_#{command}", args)
+  rescue Ollama::Error => e
+    output_error(e)
+    exit 1
   end
-rescue Interrupt
-  puts "\n\nInterrupted. Goodbye!\n"
-rescue StandardError => e
-  puts "\nUnexpected error: #{e.message}\n"
-  puts "#{e.backtrace.first}\n" if ENV["DEBUG"]
+
+  # ── generate ──────────────────────────────────────
+
+  def self.cmd_generate(args)
+    options = { json: false }
+    parser = OptionParser.new do |opts|
+      opts.banner = "Usage: ollama-client generate [options]"
+      opts.on("--prompt PROMPT", "Prompt text (required)") { |v| options[:prompt] = v }
+      opts.on("--model MODEL", "Model name") { |v| options[:model] = v }
+      opts.on("--schema FILE", "JSON schema file for structured output") { |v| options[:schema] = v }
+      opts.on("--json", "Force JSON output wrapper") { options[:json] = true }
+      opts.on("--stream", "Stream tokens to stdout") { options[:stream] = true }
+      opts.on("-h", "--help", "Show this help") do
+        puts opts
+        exit 0
+      end
+    end
+    parser.parse!(args)
+
+    unless options[:prompt]
+      warn "Error: --prompt is required"
+      warn parser
+      exit 1
+    end
+
+    schema = nil
+    schema = JSON.parse(File.read(options[:schema])) if options[:schema]
+
+    client = build_client(options[:model])
+
+    hooks = {}
+    if options[:stream]
+      hooks[:on_token] = lambda { |token|
+        print token
+        $stdout.flush
+      }
+      hooks[:on_complete] = -> { puts }
+    end
+
+    result = client.generate(prompt: options[:prompt], schema: schema, hooks: hooks)
+
+    if options[:json] || schema
+      puts JSON.pretty_generate(
+        { status: "ok", model: client.instance_variable_get(:@config).model, result: result }
+      )
+    else
+      puts result unless options[:stream] # already printed via hooks
+    end
+  end
+
+  # ── embed ─────────────────────────────────────────
+
+  def self.cmd_embed(args)
+    options = {}
+    parser = OptionParser.new do |opts|
+      opts.banner = "Usage: ollama-client embed [options]"
+      opts.on("--input TEXT", "Text to embed (required)") { |v| options[:input] = v }
+      opts.on("--model MODEL", "Embedding model") { |v| options[:model] = v }
+      opts.on("-h", "--help", "Show this help") do
+        puts opts
+        exit 0
+      end
+    end
+    parser.parse!(args)
+
+    unless options[:input]
+      warn "Error: --input is required"
+      warn parser
+      exit 1
+    end
+
+    client = build_client
+    model = options[:model] || "nomic-embed-text"
+    vectors = client.embeddings.embed(model: model, input: options[:input])
+
+    puts JSON.pretty_generate({ status: "ok", model: model, dimensions: vectors.length, embedding: vectors })
+  end
+
+  # ── models ────────────────────────────────────────
+
+  def self.cmd_models(args)
+    OptionParser.new do |opts|
+      opts.banner = "Usage: ollama-client models"
+      opts.on("-h", "--help", "Show this help") do
+        puts opts
+        exit 0
+      end
+    end.parse!(args)
+
+    client = build_client
+    models = client.list_models
+
+    puts JSON.pretty_generate({ status: "ok", count: models.length, models: models })
+  end
+
+  # ── pull ──────────────────────────────────────────
+
+  def self.cmd_pull(args)
+    if args.empty? || args.first.start_with?("-")
+      warn "Usage: ollama-client pull MODEL_NAME"
+      exit 1
+    end
+
+    model_name = args.shift
+    client = build_client
+    client.pull(model_name)
+
+    puts JSON.pretty_generate({ status: "ok", pulled: model_name })
+  end
+
+  # ── helpers ───────────────────────────────────────
+
+  def self.build_client(model = nil)
+    config = Ollama::Config.new
+    config.base_url = ENV["OLLAMA_BASE_URL"] if ENV["OLLAMA_BASE_URL"]
+    config.model = model if model
+    Ollama::Client.new(config: config)
+  end
+
+  def self.output_error(error)
+    payload = { status: "error", error: error.class.name, message: error.message }
+    warn JSON.pretty_generate(payload)
+  end
+
+  def self.print_usage
+    puts <<~USAGE
+      ollama-client v#{Ollama::VERSION} — Production-safe Ollama CLI
+
+      Usage: ollama-client <command> [options]
+
+      Commands:
+        generate   Generate text or structured JSON from a prompt
+        embed      Generate embedding vectors for text
+        models     List locally available models
+        pull       Pull/download a model from Ollama registry
+
+      Options:
+        -h, --help Show help for any command
+
+      Examples:
+        ollama-client generate --prompt "Explain Ruby blocks" --json
+        ollama-client generate --prompt "Classify this" --schema schema.json
+        ollama-client generate --prompt "Write a poem" --stream
+        ollama-client embed --input "What is Ruby?" --model nomic-embed-text
+        ollama-client models
+        ollama-client pull llama3.2
+
+      Environment:
+        OLLAMA_BASE_URL  Override base URL (default: http://localhost:11434)
+    USAGE
+  end
 end
+
+OllamaCLI.run

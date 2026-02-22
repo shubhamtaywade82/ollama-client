@@ -1,51 +1,30 @@
-# Ollama::Client (v1.0.0)
+# Ollama::Client
 
-> A production-safe Ollama client for Rails & agent systems.
+[![CI](https://github.com/shubhamtaywade82/ollama-client/actions/workflows/main.yml/badge.svg)](https://github.com/shubhamtaywade82/ollama-client/actions)
+[![Gem Version](https://badge.fury.io/rb/ollama-client.svg)](https://rubygems.org/gems/ollama-client)
+[![Ruby](https://img.shields.io/badge/ruby-%3E%3D%203.0-ruby.svg)](https://www.ruby-lang.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.txt)
 
-This is **NOT** a cosmetic wrapper or a chatbot UI library.
-It is an opinionated, failure-aware client designed to enforce invariants when connecting your production applications or deterministic agent planners to a local or remote Ollama instance.
+> **A production-safe Ollama client for Rails & agent systems.**
 
-Prioritizing **correctness, determinism, and failure-aware design over feature volume**.
+Not a chatbot UI. Not a 1:1 API wrapper.
+A failure-aware, contract-driven client that covers **all 12 Ollama API endpoints** with production guarantees.
 
-## 🎯 Positioning
+**Correctness. Determinism. Failure-aware design. Nothing else.**
 
-There are several Ruby clients for Ollama. Why choose this one?
+## Why This Gem Exists
 
-### Why this gem exists
-*   **Predictable Failures**: What happens when your background job hits Ollama and the model isn't downloaded yet? What happens if it returns invalid JSON when your schema mandated it? This client handles these automatically (auto-pulling the model, structured repair prompts) instead of throwing obscure parse errors.
-*   **Rails & Sidekiq Safe**: Opinionated defaults (`timeout: 30`, `retries: 2`). Implements exponential backoff on timeouts. Fast-fails when the server is genuinely unreachable.
-*   **No Silent Coercions**: If a JSON schema is provided, the library will enforce strictly parsed JSON. It does not implicitly fall back to plain-text string mapping.
-*   **Opt-in Observability**: Streaming is supported via observer callbacks (`on_token`, `on_error`, `on_complete`) rather than leaking raw SSE connections that corrupt your application state.
+Other Ollama clients give you raw HTTP access. This one gives you **production guarantees**:
 
-### Comparison
-
-| Feature / Trait | `ollama-client` (This Gem) | `ollama-ruby` / `ollama-ai` |
-| :--- | :--- | :--- |
-| **Focus** | Production Rails & deterministic agents | General-purpose API wrapper |
-| **Philosophy** | Failure-aware, strict contracts, minimal | Feature-complete 1:1 API mappings |
-| **JSON Repair** | Automated repair prompts on parse failure | Manual |
-| **Missing Model**| Auto-pulls the model lazily and retries | Raises instant error |
-| **Timeouts** | Exponential backoff retries | Standard HTTP raises |
-| **Footprint** | Surgical (`/generate`, `/embeddings`, etc) | Massive (Chat, UI, Vision, etc) |
-
-### When NOT to use this gem
-Do **not** use `ollama-client` if:
-*   You are building a Chatbot UI and want a stateful conversation thread abstraction.
-*   You need specialized domain endpoints like Vision parsing or raw file uploading.
-*   You want a 1:1 DSL mapping of every API parameter Ollama offers.
-
-## 🔒 v1.0 Stability Contract
-
-With the release of `v1.0.0`, the public API of this gem is locked.
-1. All public methods have explicit contracts.
-2. The gem will fail loudly and predictably.
-3. No silent coercion of malformed JSON.
-4. Typed error classes (`Ollama::TimeoutError`, `Ollama::InvalidJSONError`, `Ollama::SchemaViolationError`) are preferred over generic exceptions.
-5. We guarantee no backwards-incompatible API changes before `v2.0.0`.
+| What goes wrong | What other gems do | What `ollama-client` does |
+|---|---|---|
+| Model isn't downloaded | Raise error | Auto-pull → retry |
+| Ollama server is down | Hang for 60s | Fast-fail instantly |
+| LLM returns broken JSON | Crash your parser | Repair prompt → retry |
+| Request times out | Raise immediately | Exponential backoff |
+| Schema violation | You find out in prod | `SchemaViolationError` before it reaches your code |
 
 ## Installation
-
-Add this line to your application's Gemfile:
 
 ```ruby
 gem "ollama-client"
@@ -53,30 +32,104 @@ gem "ollama-client"
 
 ## Quick Start
 
-The defaults are opinionated out-of-the-box for production stability:
+Works out of the box — all defaults are production-safe:
 
 ```ruby
 require "ollama_client"
 
-client = Ollama::Client.new(
-  config: Ollama::Config.new.tap do |c|
-    c.model = "llama3.2"
-    c.timeout = 30
-    c.retries = 2
-    c.strict_json = true
-  end
+client = Ollama::Client.new
+# model: "llama3.1:8b", timeout: 30, retries: 2, strict_json: true
+```
+
+### Chat (Multi-turn Conversations)
+
+The primary endpoint for agentic usage:
+
+```ruby
+response = client.chat(
+  messages: [
+    { role: "system", content: "You are a helpful assistant." },
+    { role: "user", content: "What is Ruby?" }
+  ]
+)
+
+response.message.content  # => "Ruby is a dynamic, open source..."
+response.message.role     # => "assistant"
+response.done?            # => true
+response.done_reason      # => "stop"
+response.total_duration   # => 1234567 (nanoseconds)
+```
+
+#### Tool Calling
+
+```ruby
+messages = [{ role: "user", content: "What is the weather in London?" }]
+
+tools = [
+  {
+    type: "function",
+    function: {
+      name: "get_weather",
+      description: "Get weather for a city",
+      parameters: {
+        type: "object",
+        properties: { city: { type: "string" } },
+        required: ["city"]
+      }
+    }
+  }
+]
+
+response = client.chat(messages: messages, tools: tools)
+response.message.tool_calls.first.name       # => "get_weather"
+response.message.tool_calls.first.arguments  # => { "city" => "London" }
+```
+
+#### Structured Output (JSON Schema)
+
+```ruby
+messages = [{ role: "user", content: "What is the capital of France? Answer in JSON." }]
+schema = { type: "object", properties: { answer: { type: "string" } } }
+
+response = client.chat(messages: messages, format: schema)
+JSON.parse(response.message.content)  # => { "answer" => "Paris" }
+```
+
+#### Thinking Mode
+
+> **Note:** Requires a thinking-capable model (e.g. `deepseek-coder:6.7b`, `qwen3:0.6b`).
+
+```ruby
+messages = [{ role: "user", content: "What is the square root of 144?" }]
+
+response = client.chat(messages: messages, model: "qwen3:0.6b", think: true)
+response.message.thinking  # => "Let me reason through this..."
+response.message.content   # => "The answer is 12."
+```
+
+#### Chat Options
+
+```ruby
+messages = [{ role: "user", content: "Hello" }]
+
+client.chat(
+  messages: messages,
+  model: "qwen2.5-coder:7b",             # Override default model
+  options: { temperature: 0.8 }, # Runtime options
+  keep_alive: "10m",           # Keep model loaded
+  logprobs: true,              # Return log probabilities
+  top_logprobs: 5
 )
 ```
 
-### 1. Simple Generation
+### Generate (Prompt → Completion)
 
 ```ruby
-response = client.generate(prompt: "Explain Ruby blocks in one sentence.")
-puts response
-# => "Ruby blocks are anonymous functions..."
+client.generate(prompt: "Explain Ruby blocks in one sentence.")
+# => "Ruby blocks are anonymous closures passed to methods..."
 ```
 
-### 2. Structured Agents (Planners)
+#### Structured JSON (Agents / Planners)
 
 ```ruby
 schema = {
@@ -88,44 +141,208 @@ schema = {
   }
 }
 
-# If the LLM generates invalid JSON, `ollama-client` will intercept the failure
-# and automatically append a repair prompt, retrying the request seamlessly.
-result = client.generate(
-  prompt: "User wants weather in Paris. What should I do?",
-  schema: schema
-)
-
-puts result["action"]     # => "search"
-puts result["confidence"] # => 0.95
+result = client.generate(prompt: "User wants weather in Paris.", schema: schema)
+result["action"]     # => "search"
+result["confidence"] # => 0.95
 ```
 
-### 3. Streaming (Observer Hooks)
+If the LLM returns invalid JSON, the client automatically retries with a repair prompt. You get valid output or a typed exception — never a silent failure.
 
-We **do not expose raw SSE streams** to prevent state corruption. Pass observer callbacks:
+#### Generate Options
 
 ```ruby
 client.generate(
+  prompt: "Write a poem",
+  system: "You are a poet",          # System prompt
+  images: ["base64data..."],         # Vision models
+  think: true,                       # Thinking output
+  keep_alive: "5m",                  # Keep model loaded
+  suffix: "The end.",                # Fill-in-the-middle
+  raw: true,                         # Skip prompt templating
+  options: { temperature: 0.8 }      # Runtime options
+)
+```
+
+### Streaming (Observer Hooks)
+
+No raw SSE. No state corruption risk. Works with both `chat` and `generate`:
+
+```ruby
+# Stream generate tokens
+client.generate(
   prompt: "Write a haiku about code.",
   hooks: {
-    on_token: ->(token) { print token },
-    on_error: ->(err) { puts "\nError: #{err.message}" },
-    on_complete: -> { puts "\nDone!" }
+    on_token:    ->(token) { print token },
+    on_error:    ->(err)   { warn err.message },
+    on_complete: ->        { puts "\nDone" }
+  }
+)
+
+# Stream chat tokens with log probabilities
+client.chat(
+  messages: [{ role: "user", content: "Tell me a story" }],
+  logprobs: true,
+  hooks: {
+    # If your block takes 2 args, it receives the logprobs array for that token
+    on_token: ->(token, logprobs) {
+      print token
+      # logprobs is an Array of Hashes, e.g. [{"token"=>"Once", "logprob"=>-0.12}, ...]
+    },
+    on_complete: -> { puts }
   }
 )
 ```
 
-### 4. Fetching Embeddings (RAG)
+### Embeddings (RAG)
 
 ```ruby
-vectors = client.embeddings.embed(model: "all-minilm", input: "What is Ruby?")
+client.embeddings.embed(model: "nomic-embed-text:latest", input: "What is Ruby?")
 # => [0.12, -0.05, 0.88, ...]
+
+# Batch embeddings
+client.embeddings.embed(model: "nomic-embed-text:latest", input: ["text1", "text2"])
+
+# With options
+client.embeddings.embed(
+  model: "nomic-embed-text:latest",
+  input: "text",
+  truncate: true,        # Truncate long inputs
+  dimensions: 256,       # Embedding dimensions
+  keep_alive: "5m"       # Keep model loaded
+)
+```
+
+### Model Management
+
+```ruby
+client.list_models              # Full model objects (name, size, details, etc.)
+client.list_model_names         # Just names: ["qwen2.5-coder:7b", "llama3.1:8b", ...]
+client.list_running             # Currently loaded models (aliased as `ps`)
+client.show_model(model: "qwen2.5-coder:7b")           # Model details, capabilities
+client.show_model(model: "qwen2.5-coder:7b", verbose: true)  # Include model_info
+client.pull("llama3.1:8b")                      # Download a model
+client.delete_model(model: "old-model")      # Remove a model
+client.copy_model(source: "qwen2.5-coder:7b", destination: "qwen2.5-coder:7b-backup")
+client.create_model(model: "my-model", from: "qwen2.5-coder:7b", system: "You are Alpaca")
+client.push_model(model: "user/my-model")    # Push to registry
+client.version                               # => "0.12.6"
+```
+
+### Runtime Options
+
+Pass via `options:` on `chat` or `generate`:
+
+```ruby
+messages = [{ role: "user", content: "Tell me a joke" }]
+
+options = Ollama::Options.new(
+  temperature: 0.7,
+  num_predict: 256,
+  stop: ["END"],
+  presence_penalty: 0.5,
+  frequency_penalty: -0.3
+)
+
+client.chat(messages: messages, options: options.to_h)
+```
+
+<details>
+<summary>All supported options</summary>
+
+| Option | Type | Description |
+|---|---|---|
+| `temperature` | Float (0–2) | Sampling temperature |
+| `top_p` | Float (0–1) | Nucleus sampling |
+| `top_k` | Integer | Top-K sampling |
+| `num_ctx` | Integer | Context window size |
+| `num_predict` | Integer | Max tokens to generate |
+| `repeat_penalty` | Float (0–2) | Repeat penalty |
+| `seed` | Integer | Random seed |
+| `stop` | Array | Stop sequences |
+| `tfs_z` | Float | Tail-free sampling |
+| `mirostat` | 0/1/2 | Mirostat sampling mode |
+| `mirostat_tau` | Float | Mirostat target entropy |
+| `mirostat_eta` | Float | Mirostat learning rate |
+| `typical_p` | Float (0–1) | Typical-p sampling |
+| `presence_penalty` | Float (-2–2) | Presence penalty |
+| `frequency_penalty` | Float (-2–2) | Frequency penalty |
+| `num_gpu` | Integer | GPU layers |
+| `num_thread` | Integer | CPU threads |
+| `num_keep` | Integer | Tokens to keep for context |
+
+</details>
+
+## CLI
+
+A strict, JSON-first CLI ships with the gem:
+
+```bash
+# Generate text
+ollama-client generate --prompt "Explain Ruby blocks"
+
+# Structured output with schema
+ollama-client generate --prompt "Classify this" --schema schema.json --json
+
+# Stream tokens
+ollama-client generate --prompt "Write a poem" --stream
+
+# Embeddings
+ollama-client embed --input "What is Ruby?" --model nomic-embed-text:latest
+
+# List models
+ollama-client models
+
+# Pull a model
+ollama-client pull llama3.1:8b
+```
+
+All errors output as structured JSON to stderr. No hidden behavior.
+
+## Console (Debug Mode)
+
+```bash
+bin/console
+```
+
+```ruby
+verbose!  # Enable HTTP request/response logging
+quiet!    # Disable it
+
+client = Ollama::Client.new
+client.version  # Prints full HTTP request/response to STDERR
 ```
 
 ## Failure Behaviors
 
-* **Model Missing (HTTP 404)**: If you request a model that isn't downloaded, the client catches the `NotFoundError`, calls `/pull` automatically, blocks until downloaded, and retries your original request.
-* **Server Unreachable (ECONNREFUSED)**: Fails fast instantly. We won't spin your background worker for 60 seconds waiting for a server that isn't running.
-* **Timeout Errors**: Caught internally. Retried automatically adhering to exponential backoff (`sleep(2 ** attempts)`).
-* **Malformed JSON**: When `strict_json` is enabled (default), a `SchemaViolationError` or `InvalidJSONError` triggers an automatic repair request under the hood, injecting a `CRITICAL FIX` instruction. You get valid JSON, or a typed exception if retries exhaust.
+| Scenario | What happens |
+|---|---|
+| **Model missing (404)** | Auto-pull → retry your request |
+| **Server unreachable** | Instant `Ollama::Error` — no waiting |
+| **Timeout** | Exponential backoff (`2^attempt` seconds) |
+| **Invalid JSON** | Repair prompt → retry → `InvalidJSONError` if exhausted |
+| **Schema violation** | Repair prompt → retry → `SchemaViolationError` if exhausted |
+| **Streaming error** | `StreamError` raised with Ollama's error message |
 
-See `examples/` for more detailed patterns.
+## v1.0 Stability Contract
+
+The public API is locked. See [API_CONTRACT.md](API_CONTRACT.md) for the full specification.
+
+1. All method signatures are stable until v2.0
+2. Error class hierarchy is stable until v2.0
+3. Recovery behaviors (auto-pull, backoff, repair) are guaranteed
+4. No silent coercion of malformed JSON — ever
+5. Typed errors over generic exceptions — always
+
+## Testing
+
+```bash
+# Unit + lint
+bundle exec rake
+
+# Integration (requires running Ollama)
+OLLAMA_INTEGRATION=1 bundle exec rspec spec/integration/
+```
+
+## License
+
+MIT. See [LICENSE.txt](LICENSE.txt).

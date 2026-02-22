@@ -10,6 +10,7 @@ AllCops:
   SuggestExtensions: true
   Exclude:
     - "devagent_proper.rb"
+    - "bin/console"
 
 Style/StringLiterals:
   EnforcedStyle: double_quotes
@@ -24,12 +25,14 @@ Metrics/MethodLength:
   Exclude:
     - "spec/**/*"
     - "examples/**/*"
+    - "exe/**/*"
 
 Metrics/AbcSize:
   Max: 45
   Exclude:
     - "spec/**/*"
     - "examples/**/*"
+    - "exe/**/*"
 
 Metrics/ClassLength:
   Max: 300
@@ -52,6 +55,11 @@ Metrics/BlockLength:
     - "spec/**/*"
     - "*.gemspec"
     - "examples/**/*"
+    - "exe/**/*"
+
+Metrics/ModuleLength:
+  Exclude:
+    - "exe/**/*"
 
 RSpec/ExampleLength:
   Max: 15
@@ -92,6 +100,7 @@ RSpec/SpecFilePathFormat:
 Style/Documentation:
   Exclude:
     - "examples/**/*"
+    - "exe/**/*"
 
 Style/WordArray:
   Exclude:

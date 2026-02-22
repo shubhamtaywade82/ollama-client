@@ -7,6 +7,7 @@ module Ollama
   class SchemaViolationError < Error; end
   class RetryExhaustedError < Error; end
   class ChatNotAllowedError < Error; end
+  class StreamError < Error; end
 
   # HTTP error with retry logic
   class HTTPError < Error

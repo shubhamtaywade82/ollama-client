@@ -30,7 +30,7 @@ bundle exec rspec --tag integration
 
 3. **Optional: Embedding model** (for embedding tests)
    ```bash
-   ollama pull nomic-embed-text
+   ollama pull nomic-embed-text:latest
    ```
 
 ## Test Coverage
@@ -90,12 +90,12 @@ OLLAMA_URL=http://remote-server:11434 bundle exec rspec --tag integration
 OLLAMA_MODEL=llama3.2:3b bundle exec rspec --tag integration
 
 # Custom embedding model
-OLLAMA_EMBEDDING_MODEL=nomic-embed-text bundle exec rspec --tag integration
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text:latest bundle exec rspec --tag integration
 
 # All together
 OLLAMA_URL=http://localhost:11434 \
 OLLAMA_MODEL=llama3.1:8b \
-OLLAMA_EMBEDDING_MODEL=nomic-embed-text \
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text:latest \
 bundle exec rspec --tag integration
 ```
 
@@ -142,9 +142,9 @@ bundle exec rspec --tag integration
 - Set model: `OLLAMA_MODEL=your-model`
 
 ### "Empty embedding returned"
-- Install embedding model: `ollama pull nomic-embed-text`
+- Install embedding model: `ollama pull nomic-embed-text:latest`
 - Verify model supports embeddings
-- Set model: `OLLAMA_EMBEDDING_MODEL=nomic-embed-text`
+- Set model: `OLLAMA_EMBEDDING_MODEL=nomic-embed-text:latest`
 
 ### "HTTP 400: Bad Request" (tool calling)
 - Some models don't support tool calling

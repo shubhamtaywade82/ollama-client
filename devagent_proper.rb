@@ -111,7 +111,7 @@ end
 class DevAgent
   attr_reader :agent, :state, :audit_log
 
-  def initialize(model: "llama3.2")
+  def initialize(model: "llama3.1:8b")
     # 1. Setup Ollama client (pure transport)
     @client = Ollama::Client.new(model: model)
 
@@ -299,7 +299,7 @@ end
 # ============================================================================
 
 class DevAgentFSM < AgentRuntime::AgentFSM
-  def initialize(model: "llama3.2")
+  def initialize(model: "llama3.1:8b")
     @client = Ollama::Client.new(model: model)
 
     @tools = AgentRuntime::ToolRegistry.new({

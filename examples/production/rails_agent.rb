@@ -10,7 +10,7 @@ class AiPlanningJob
   def self.ollama_client
     @ollama_client ||= Ollama::Client.new(
       config: Ollama::Config.new.tap do |c|
-        c.model = "llama3.2"    # Use a small, fast model
+        c.model = "llama3.1:8b" # Use a small, fast model
         c.timeout = 45          # Background jobs can afford longer timeouts
         c.retries = 3           # Let the built-in exponential backoff work
         c.strict_json = true    # Enforce JSON repair
@@ -41,7 +41,7 @@ class AiPlanningJob
     begin
       # In this step:
       # - If the model is missing, `ollama-client` will pause and pull it directly.
-      # - If `llama3.2` returns invalid JSON, the client will immediately hit it again appending a repair instruction.
+      # - If `llama3.1:8b` returns invalid JSON, the client will immediately hit it again appending a repair instruction.
       # - If the Ollama server is offline, it fails instantly so Sidekiq can handle the exception queue without waiting 45s.
       plan = self.class.ollama_client.generate(prompt: prompt, schema: schema)
 
