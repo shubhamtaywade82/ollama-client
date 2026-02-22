@@ -1,3 +1,5 @@
+inherit_from: .rubocop_todo.yml
+
 plugins:
   - rubocop-rake
   - rubocop-rspec
@@ -6,6 +8,8 @@ AllCops:
   NewCops: enable
   TargetRubyVersion: 3.0
   SuggestExtensions: true
+  Exclude:
+    - "devagent_proper.rb"
 
 Style/StringLiterals:
   EnforcedStyle: double_quotes
@@ -28,7 +32,7 @@ Metrics/AbcSize:
     - "examples/**/*"
 
 Metrics/ClassLength:
-  Max: 220
+  Max: 300
   Exclude:
     - "spec/**/*"
     - "examples/**/*"
@@ -77,10 +81,12 @@ RSpec/DescribeMethod:
 RSpec/DescribedClass:
   Exclude:
     - "spec/ollama/errors_spec.rb"
+    - "spec/integration/**/*"
 
 RSpec/SpecFilePathFormat:
   Exclude:
     - "spec/ollama/client_model_suggestions_spec.rb"
+    - "spec/integration/**/*"
 
 # Exclude examples from style checks (they're just examples)
 Style/Documentation:

@@ -1,49 +1,25 @@
-## [Unreleased]
+# Changelog
 
-## [0.2.7] - 2026-02-04
+All notable changes to this project will be documented in this file.
 
-- Add MCP (Model Context Protocol) support for local and remote servers
-- Add `Ollama::MCP::StdioClient` for local MCP servers over stdio (e.g. `npx @modelcontextprotocol/server-filesystem`)
-- Add `Ollama::MCP::HttpClient` for remote MCP servers over HTTP (e.g. [gitmcp.io](https://gitmcp.io)/owner/repo)
-- Add `Ollama::MCP::ToolsBridge` to expose MCP tools to `Ollama::Agent::Executor` (`client:` or `stdio_client:`)
-- Add examples: `examples/mcp_executor.rb` (stdio), `examples/mcp_http_executor.rb` (URL)
-- Document MCP usage and GitMCP URL in README; fix RuboCop offenses in MCP code
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.6] - 2026-01-26
+## [1.0.0] - 2026-02-22
 
-- Reorganize examples: move agent examples to separate repository, keep minimal client examples
-- Add comprehensive test coverage (increased from 65.66% to 79.59%)
-- Add test suite for `Ollama::DocumentLoader` (file loading, context building)
-- Add test suite for `Ollama::Embeddings` (API calls, error handling)
-- Add test suite for `Ollama::ChatSession` (session management)
-- Add test suite for tool classes (`Tool`, `Function`, `Parameters`, `Property`)
-- Rewrite testing documentation to focus on client-only testing (transport/protocol)
-- Add test checklist with specific test categories (G1-G3, C1-C3, A1-A2, F1-F3)
-- Update README with enhanced "What This Gem IS NOT" section
-- Fix RuboCop offenses and improve code quality
+### Changed
+- **Massive surface area reduction:** Removed `chat`, `chat_raw`, `call_chat_api`, `call_chat_api_raw`, and related endpoints.
+- **Architectural Shift:** Removed all chatbot UI logic (`ChatSession`, `Personas`), abstract Agent implementations (`Planner`, `Executor`), and `DocumentLoader` to enforce strict low-level determinism.
+- **API Contracts:** `Client#generate` now handles strict JSON schemas directly and implements resilient auto-recovery.
+- **Defaults:** Opinionated defaults out-of-the-box (`timeout: 30`, `retries: 2`, `strict_json: true`).
+- **Streaming Hooks:** Deprecated raw SSE streaming over `chat` in favor of safe observer callbacks (`on_token`, `on_error`, `on_complete`) on `generate`.
+- **Model Auto-Pulling:** If `generate` receives a 404 Model Not Found, it attempts to synchronously `/pull` the model once, and then automatically retries generation.
+- **JSON Repair Loop:** Provided `strict_json: true`, if a model hallucinates malformed JSON formatting (like wrapping in markdown code blocks), the client automatically loops a retry with a CRITICAL repair prompt to seamlessly fix the output.
+- **Backoff:** Encountering a `Net::ReadTimeout` now triggers an exponential backoff sleep (`2 ** attempt`) between retries rather than immediately re-hammering the server.
 
-## [0.2.5] - 2026-01-22
+### Security
+- **Strict Error Boundaries:** Malformed payloads can no longer leak into application state due to strict `SchemaViolationError` bounding.
+- **Fast-fail Networking:** Encountering `Errno::ECONNREFUSED` fast-fails immediately.
 
-- Add `Ollama::DocumentLoader` for loading files as context in queries
-- Enhance README with context provision methods and examples
-- Improve embeddings error handling and model usage guidance
-- Add comprehensive Ruby guide documentation
-- Update `generate()` method with enhanced functionality and usage examples
-- Improve error handling across client and embeddings modules
-
-## [0.2.3] - 2026-01-17
-
-- Add per-call `model:` override for `Ollama::Client#generate`.
-- Document `generate` model override usage in README.
-- Add spec to cover per-call `model:` in 404 error path.
-
-## [0.2.0] - 2026-01-12
-
-- Add `Ollama::Agent::Planner` (stateless `/api/generate`)
-- Add `Ollama::Agent::Executor` (stateful `/api/chat` tool loop)
-- Add `Ollama::StreamingObserver` + disciplined streaming support (Executor only)
-- Add `Ollama::Client#chat_raw` (full response body, supports tool calls)
-
-## [0.1.0] - 2026-01-04
-
-- Initial release
+### Rationale
+Version `1.0.0` repositions `ollama-client` away from a bloated general-purpose wrapper toward a production-safe, failure-aware adapter intentionally crafted for Headless Rails Jobs and Agent Systems. By severing chat tools and abstractions, the gem commits to a strictly deterministic API that doesn't collapse under back-pressure, missing models, or temporary JSON formatting hallucinations.
