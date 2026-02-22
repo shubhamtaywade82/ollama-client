@@ -153,12 +153,10 @@ If the LLM returns invalid JSON, the client automatically retries with a repair 
 ```ruby
 client.generate(
   prompt: "Write a poem",
+  model: "qwen3:0.6b",               # Explicitly use a thinking model
   system: "You are a poet",          # System prompt
-  images: ["base64data..."],         # Vision models
   think: true,                       # Thinking output
   keep_alive: "5m",                  # Keep model loaded
-  suffix: "The end.",                # Fill-in-the-middle
-  raw: true,                         # Skip prompt templating
   options: { temperature: 0.8 }      # Runtime options
 )
 ```
@@ -281,6 +279,7 @@ A strict, JSON-first CLI ships with the gem:
 ollama-client generate --prompt "Explain Ruby blocks"
 
 # Structured output with schema
+echo '{"type":"object","properties":{"category":{"type":"string"}}}' > schema.json
 ollama-client generate --prompt "Classify this" --schema schema.json --json
 
 # Stream tokens

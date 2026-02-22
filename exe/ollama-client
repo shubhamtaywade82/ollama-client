@@ -176,7 +176,7 @@ module OllamaCLI
         ollama-client generate --prompt "Write a poem" --stream
         ollama-client embed --input "What is Ruby?" --model nomic-embed-text
         ollama-client models
-        ollama-client pull llama3.2
+        ollama-client pull llama3.1:8b
 
       Environment:
         OLLAMA_BASE_URL  Override base URL (default: http://localhost:11434)
