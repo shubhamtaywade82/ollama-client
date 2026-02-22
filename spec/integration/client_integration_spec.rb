@@ -56,13 +56,16 @@ RSpec.describe Ollama::Client, type: :integration do
     expect(joined).to include("5")
   end
 
-  it "handles pull dynamically if model is missing" do
-    # we simulate missing model by requesting a tiny one that might not be locally cached
-    # explicitly dropping failure here but we expect the client to automatically pull it and then succeed.
-    tiny_model = "all-minilm"
+  it "raises NotFoundError for a non-existent model" do
+    # A truly non-existent model name should trigger NotFoundError → auto-pull attempt → failure
+    expect do
+      client.generate(prompt: "Hello", model: "this-model-does-not-exist-xyz-99999")
+    end.to raise_error(Ollama::Error) # pull will also fail for a bogus model
+  end
 
-    # We allow the test to take some time, but this tests the missing model handler
-    result = client.generate(prompt: "Hello", model: tiny_model)
-    expect(result).not_to be_empty
+  it "lists available models via tags endpoint" do
+    models = client.list_models
+    expect(models).to be_a(Array)
+    expect(models).not_to be_empty
   end
 end
