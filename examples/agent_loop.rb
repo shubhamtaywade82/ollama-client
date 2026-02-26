@@ -10,7 +10,7 @@ require_relative "../lib/ollama_client"
 
 client = Ollama::Client.new(
   config: Ollama::Config.new.tap do |c|
-    # Note: Tool calling requires a capable model (like qwen2.5-coder or llama3.1)
+    # NOTE: Tool calling requires a capable model (like qwen2.5-coder or llama3.1)
     c.model = "llama3.1:8b"
   end
 )
@@ -61,7 +61,6 @@ def get_time(city:)
   # Simulate timezone math
   offset = case city.downcase
            when "paris" then 1   # CET (+1)
-           when "london" then 0  # GMT
            when "tokyo" then 9   # JST (+9)
            else 0
            end

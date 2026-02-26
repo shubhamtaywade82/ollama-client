@@ -70,19 +70,20 @@ RSpec.describe Ollama::Client do
     end
 
     it "accepts system, images, think, keep_alive, suffix, raw parameters" do
-      stub_request(:post, "http://localhost:11434/api/generate")
-        .with(body: hash_including(
-          "system" => "You are helpful",
-          "images" => ["base64data"],
-          "think" => true,
-          "keep_alive" => "5m",
-          "suffix" => "end",
-          "raw" => true
-        ))
-        .to_return(status: 200, body: { response: "test" }.to_json)
+      stub_request(:post, /generate/)
+        .with(body: hash_including({
+                                     system: "You are helpful",
+                                     images: ["base64data"],
+                                     think: true,
+                                     keep_alive: "5m",
+                                     suffix: "end",
+                                     raw: true
+                                   }))
+        .to_return(body: { response: "ok" }.to_json)
 
       expect do
         client.generate(
+          model: "deepseek-r1",
           prompt: "test", system: "You are helpful", images: ["base64data"],
           think: true, keep_alive: "5m", suffix: "end", raw: true
         )

@@ -12,20 +12,23 @@ module Ollama
       # @param system [String, nil] System prompt
       # @param images [Array<String>, nil] Base64-encoded images for vision models
       # @param think [Boolean, String, nil] Enable thinking output (true/false/"high"/"medium"/"low")
+      # @param return_reasoning [Boolean] Whether to extract and return reasoning structured separately
       # @param keep_alive [String, nil] Model keep-alive duration (e.g. "5m", "0")
       # @param suffix [String, nil] Fill-in-the-middle text after prompt
       # @param raw [Boolean, nil] When true, skip prompt templating
       # @param options [Hash, nil] Runtime options (temperature, top_p, num_ctx, etc.)
       # @param hooks [Hash] Streaming callbacks (:on_token, :on_error, :on_complete)
-      # rubocop:disable Metrics/MethodLength, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/ParameterLists
+      # rubocop:disable Metrics/MethodLength, Metrics/ParameterLists
       def generate(prompt:, schema: nil, model: nil, strict: @config.strict_json, return_meta: false,
-                   system: nil, images: nil, think: nil, keep_alive: nil, suffix: nil, raw: nil,
+                   system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil,
                    options: nil, hooks: {})
         raise ArgumentError, "prompt is required" if prompt.nil?
 
+        validate_thinking_capability!(model, think)
+
         attempts = 0
         started_at = monotonic_time
-        current_prompt = prompt
+        current_prompt = build_prompt(prompt, think, return_reasoning)
         pulled_models = []
 
         begin
@@ -36,19 +39,8 @@ module Ollama
             suffix: suffix, raw: raw, options: options
           )
 
-          response_data = schema ? parse_and_validate_schema_response(raw_response, schema) : raw_response
-
-          return response_data unless return_meta
-
-          {
-            "data" => response_data,
-            "meta" => {
-              "endpoint" => "/api/generate",
-              "model" => model || @config.model,
-              "attempts" => attempts,
-              "latency_ms" => elapsed_ms(started_at)
-            }
-          }
+          response_data = process_generate_response(raw_response, schema, think, return_reasoning)
+          format_response(response_data, return_meta, model, attempts, started_at)
         rescue NotFoundError => e
           target_model = model || @config.model
           raise enhance_not_found_error(e) if pulled_models.include?(target_model) || attempts > @config.retries
@@ -61,7 +53,7 @@ module Ollama
 
           sleep(2**attempts)
           retry
-        rescue InvalidJSONError, SchemaViolationError => e
+        rescue InvalidJSONError, SchemaViolationError, ThinkingFormatError => e
           raise e if strict && attempts > @config.retries
           raise RetryExhaustedError, "Failed after #{attempts} attempts: #{e.message}" if attempts > @config.retries
 
@@ -80,9 +72,77 @@ module Ollama
           retry
         end
       end
-      # rubocop:enable Metrics/MethodLength, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/ParameterLists
+      # rubocop:enable Metrics/MethodLength, Metrics/ParameterLists
 
       private
+
+      def validate_thinking_capability!(model, think)
+        return unless think
+        return if Ollama::Capabilities.for("name" => model || @config.model)["thinking"]
+
+        raise UnsupportedThinkingModel, "Model #{model || @config.model} is not marked as reasoning-capable"
+      end
+
+      def build_prompt(prompt, thinking, _return_reasoning)
+        return prompt unless thinking
+
+        <<~PROMPT
+          Think step-by-step using <think> tags.
+
+          #{prompt}
+        PROMPT
+      end
+
+      def process_generate_response(raw_response, schema, think, return_reasoning)
+        if think && return_reasoning
+          extract_reasoning(raw_response, schema)
+        elsif schema
+          parsed = parse_json_response(raw_response)
+          SchemaValidator.validate!(parsed, schema)
+          parsed
+        else
+          raw_response
+        end
+      end
+
+      def format_response(response_data, return_meta, model, attempts, started_at)
+        return response_data unless return_meta
+
+        {
+          "data" => response_data,
+          "meta" => {
+            "endpoint" => "/api/generate",
+            "model" => model || @config.model,
+            "attempts" => attempts,
+            "latency_ms" => elapsed_ms(started_at)
+          }
+        }
+      end
+
+      def extract_reasoning(raw_text, user_schema)
+        reasoning = ""
+        final_output = raw_text
+
+        if raw_text.match?(%r{<think>(.*?)</think>}mi)
+          reasoning = raw_text.match(%r{<think>(.*?)</think>}mi)[1].strip
+          final_output = raw_text.sub(%r{<think>.*?</think>}mi, "").strip
+        elsif raw_text.include?("</think>")
+          parts = raw_text.split("</think>", 2)
+          reasoning = parts[0].sub("<think>", "").strip
+          final_output = parts[1].strip
+        end
+
+        if user_schema
+          parsed_final = parse_json_response(final_output)
+          SchemaValidator.validate!(parsed_final, user_schema)
+          final_output = parsed_final
+        end
+
+        {
+          "reasoning" => reasoning,
+          "final" => final_output
+        }
+      end
 
       # rubocop:disable Metrics/MethodLength, Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/ParameterLists
       def call_generate_api(prompt:, schema:, model:, hooks:, system: nil, images: nil,

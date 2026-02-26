@@ -11,6 +11,7 @@ require_relative "response"
 require_relative "client/chat"
 require_relative "client/generate"
 require_relative "client/model_management"
+require_relative "capabilities"
 
 module Ollama
   # Main client class for interacting with the Ollama API.

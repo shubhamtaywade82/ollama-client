@@ -148,6 +148,33 @@ result["confidence"] # => 0.95
 
 If the LLM returns invalid JSON, the client automatically retries with a repair prompt. You get valid output or a typed exception — never a silent failure.
 
+#### Structured Thinking (Zero-Magic CoT extraction)
+
+You can ask reasoning models to output their thoughts separately from the final answer. `ollama-client` enforces this via strict JSON schema prompting.
+
+> **Note:** Requires a thinking model. Supported defaults: `/deepseek/i`, `/qwen/i`, `/r1/i`.
+
+```ruby
+schema = {
+  "type" => "object",
+  "required" => ["decision"],
+  "properties" => {
+    "decision" => { "type" => "string" }
+  }
+}
+
+result = client.generate(
+  model: "deepseek-r1",
+  prompt: "Should we BUY or WAIT?",
+  schema: schema,
+  think: true,
+  return_reasoning: true
+)
+
+result["reasoning"]          # => "...step by step analysis..."
+result["final"]["decision"]  # => "WAIT"
+```
+
 #### Generate Options
 
 ```ruby
@@ -213,7 +240,8 @@ client.embeddings.embed(
 ### Model Management
 
 ```ruby
-client.list_models              # Full model objects (name, size, details, etc.)
+client.list_models              # Returns models with details & automatic capabilities map
+# => [{ "name" => "llama3.1", "capabilities" => { "tools" => true, "thinking" => false, ... }, ... }]
 client.list_model_names         # Just names: ["qwen2.5-coder:7b", "llama3.1:8b", ...]
 client.list_running             # Currently loaded models (aliased as `ps`)
 client.show_model(model: "qwen2.5-coder:7b")           # Model details, capabilities

@@ -19,7 +19,10 @@ module Ollama
 
         res = http_request(show_uri, req)
         handle_http_error(res, requested_model: model) unless res.is_a?(Net::HTTPSuccess)
-        JSON.parse(res.body)
+
+        parsed = JSON.parse(res.body)
+        parsed["capabilities"] = Capabilities.for(parsed)
+        parsed
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse show response: #{e.message}"
       end
@@ -149,7 +152,9 @@ module Ollama
         raise Error, "Failed to fetch models: HTTP #{res.code}" unless res.is_a?(Net::HTTPSuccess)
 
         body = JSON.parse(res.body)
-        body["models"] || []
+        models = body["models"] || []
+        models.each { |m| m["capabilities"] = Capabilities.for(m) }
+        models
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse models response: #{e.message}"
       end
@@ -173,7 +178,9 @@ module Ollama
         raise Error, "Failed to fetch running models: HTTP #{res.code}" unless res.is_a?(Net::HTTPSuccess)
 
         body = JSON.parse(res.body)
-        body["models"] || []
+        models = body["models"] || []
+        models.each { |m| m["capabilities"] = Capabilities.for(m) }
+        models
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse running models response: #{e.message}"
       end

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require_relative "lib/ollama_client"
 require "pp"
 client = Ollama::Client.new(config: Ollama::Config.new { |c| c.model = "qwen2.5-coder:7b" })

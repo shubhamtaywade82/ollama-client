@@ -41,6 +41,8 @@ module OllamaCLI
       opts.on("--prompt PROMPT", "Prompt text (required)") { |v| options[:prompt] = v }
       opts.on("--model MODEL", "Model name") { |v| options[:model] = v }
       opts.on("--schema FILE", "JSON schema file for structured output") { |v| options[:schema] = v }
+      opts.on("--think", "Enable thinking output feature for compatible models") { options[:think] = true }
+      opts.on("--return-reasoning", "Return separate reasoning and final blocks") { options[:return_reasoning] = true }
       opts.on("--json", "Force JSON output wrapper") { options[:json] = true }
       opts.on("--stream", "Stream tokens to stdout") { options[:stream] = true }
       opts.on("-h", "--help", "Show this help") do
@@ -70,14 +72,22 @@ module OllamaCLI
       hooks[:on_complete] = -> { puts }
     end
 
-    result = client.generate(prompt: options[:prompt], schema: schema, hooks: hooks)
+    result = client.generate(
+      prompt: options[:prompt],
+      schema: schema,
+      hooks: hooks,
+      think: options[:think],
+      return_reasoning: options[:return_reasoning]
+    )
 
-    if options[:json] || schema
+    if options[:stream]
+      # Already printed to stdout via stream hooks
+    elsif options[:json] || schema || (options[:think] && options[:return_reasoning])
       puts JSON.pretty_generate(
         { status: "ok", model: client.instance_variable_get(:@config).model, result: result }
       )
     else
-      puts result unless options[:stream] # already printed via hooks
+      puts result
     end
   end
 
@@ -171,12 +181,14 @@ module OllamaCLI
         -h, --help Show help for any command
 
       Examples:
-        ollama-client generate --prompt "Explain Ruby blocks" --json
-        ollama-client generate --prompt "Classify this" --schema schema.json
-        ollama-client generate --prompt "Write a poem" --stream
-        ollama-client embed --input "What is Ruby?" --model nomic-embed-text
+        ollama-client generate --prompt "Explain Ruby blocks" --model codellama:7b --json
+        ollama-client generate --prompt "Classify this" --model qwen2.5:0.5b --schema schema.json
+        ollama-client generate --prompt "Write a poem" --model qwen3:latest --stream
+        ollama-client generate --prompt "Solve 5x5" --model qwen3:0.6b --think --return-reasoning
+        ollama-client generate --prompt "Analyze the image" --model qwen3-vl:latest
+        ollama-client embed --input "What is Ruby?" --model nomic-embed-text:latest
         ollama-client models
-        ollama-client pull llama3.1:8b
+        ollama-client pull qwen3:0.6b
 
       Environment:
         OLLAMA_BASE_URL  Override base URL (default: http://localhost:11434)

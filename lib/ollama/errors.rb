@@ -8,6 +8,8 @@ module Ollama
   class RetryExhaustedError < Error; end
   class ChatNotAllowedError < Error; end
   class StreamError < Error; end
+  class ThinkingFormatError < Error; end
+  class UnsupportedThinkingModel < Error; end
 
   # HTTP error with retry logic
   class HTTPError < Error
