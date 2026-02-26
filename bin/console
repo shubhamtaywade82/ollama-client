@@ -4,8 +4,40 @@
 require "bundler/setup"
 require "ollama_client"
 
-# You can add fixtures and/or initialization code here to make experimenting
-# with your gem easier. You can also use a different console, if you like.
+# Verbose HTTP logging toggle — type `verbose!` in the console to enable
+def verbose!
+  $http_debug = true
+  puts "\e[32m✓ Verbose HTTP logging ON — all requests/responses will be printed to STDERR\e[0m"
+end
+
+def quiet!
+  $http_debug = false
+  puts "\e[33m✓ Verbose HTTP logging OFF\e[0m"
+end
+
+# Monkey-patch Net::HTTP to optionally log request/response details
+module Net
+  class HTTP
+    alias_method :_original_request, :request
+    def request(req, body = nil, &block)
+      if $http_debug
+        warn "\e[36m→ #{req.method} #{req.path}\e[0m"
+        warn "  Body: #{req.body[0..500]}" if req.body
+      end
+      _original_request(req, body, &block).tap do |res|
+        if $http_debug
+          warn "\e[36m← #{res.code} #{res.message}\e[0m"
+          warn "  Body: #{res.body.to_s[0..500]}" if res.body.is_a?(String)
+        end
+      end
+    end
+  end
+end
+
+puts "ollama-client v#{Ollama::VERSION} console"
+puts "  Type \e[1mverbose!\e[0m to enable HTTP debug logging"
+puts "  Type \e[1mquiet!\e[0m  to disable it"
+puts ""
 
 require "irb"
 IRB.start(__FILE__)

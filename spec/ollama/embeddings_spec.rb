@@ -25,7 +25,7 @@ RSpec.describe Ollama::Embeddings do
         stub_request(:post, "http://localhost:11434/api/embed")
           .with(
             body: hash_including(
-              model: "nomic-embed-text",
+              model: "nomic-embed-text:latest",
               input: "What is Ruby?"
             )
           )
@@ -36,7 +36,7 @@ RSpec.describe Ollama::Embeddings do
             }.to_json
           )
 
-        result = embeddings.embed(model: "nomic-embed-text", input: "What is Ruby?")
+        result = embeddings.embed(model: "nomic-embed-text:latest", input: "What is Ruby?")
 
         expect(result).to be_an(Array)
         expect(result).to eq([0.1, 0.2, 0.3, 0.4, 0.5])
@@ -48,7 +48,7 @@ RSpec.describe Ollama::Embeddings do
         stub_request(:post, "http://localhost:11434/api/embed")
           .with(
             body: hash_including(
-              model: "nomic-embed-text",
+              model: "nomic-embed-text:latest",
               input: ["What is Ruby?", "What is Python?"]
             )
           )
@@ -60,7 +60,7 @@ RSpec.describe Ollama::Embeddings do
           )
 
         result = embeddings.embed(
-          model: "nomic-embed-text",
+          model: "nomic-embed-text:latest",
           input: ["What is Ruby?", "What is Python?"]
         )
 
@@ -85,7 +85,7 @@ RSpec.describe Ollama::Embeddings do
           .to_return(status: 500, body: "Internal Server Error")
 
         expect do
-          embeddings.embed(model: "nomic-embed-text", input: "test")
+          embeddings.embed(model: "nomic-embed-text:latest", input: "test")
         end.to raise_error(Ollama::HTTPError)
       end
 
@@ -94,7 +94,7 @@ RSpec.describe Ollama::Embeddings do
           .to_return(status: 200, body: "not json")
 
         expect do
-          embeddings.embed(model: "nomic-embed-text", input: "test")
+          embeddings.embed(model: "nomic-embed-text:latest", input: "test")
         end.to raise_error(Ollama::InvalidJSONError)
       end
 
@@ -103,7 +103,7 @@ RSpec.describe Ollama::Embeddings do
           .to_timeout
 
         expect do
-          embeddings.embed(model: "nomic-embed-text", input: "test")
+          embeddings.embed(model: "nomic-embed-text:latest", input: "test")
         end.to raise_error(Ollama::TimeoutError)
       end
 
@@ -112,7 +112,7 @@ RSpec.describe Ollama::Embeddings do
           .to_raise(Errno::ECONNREFUSED)
 
         expect do
-          embeddings.embed(model: "nomic-embed-text", input: "test")
+          embeddings.embed(model: "nomic-embed-text:latest", input: "test")
         end.to raise_error(Ollama::Error, /Connection failed/)
       end
 
@@ -124,7 +124,7 @@ RSpec.describe Ollama::Embeddings do
           )
 
         expect do
-          embeddings.embed(model: "nomic-embed-text", input: "test")
+          embeddings.embed(model: "nomic-embed-text:latest", input: "test")
         end.to raise_error(Ollama::Error, /Embeddings not found/)
       end
 
@@ -136,7 +136,7 @@ RSpec.describe Ollama::Embeddings do
           )
 
         expect do
-          embeddings.embed(model: "nomic-embed-text", input: "test")
+          embeddings.embed(model: "nomic-embed-text:latest", input: "test")
         end.to raise_error(Ollama::Error, /Empty embedding/)
       end
 
@@ -148,7 +148,7 @@ RSpec.describe Ollama::Embeddings do
           )
 
         expect do
-          embeddings.embed(model: "nomic-embed-text", input: "test")
+          embeddings.embed(model: "nomic-embed-text:latest", input: "test")
         end.to raise_error(Ollama::Error, /Empty embedding/)
       end
     end

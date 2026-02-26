@@ -17,20 +17,18 @@ module Ollama
   # Each client instance with its own config is thread-safe.
   #
   class Config
-    attr_accessor :base_url, :model, :timeout, :retries, :temperature, :top_p, :num_ctx, :on_response, :allow_chat,
-                  :streaming_enabled
+    attr_accessor :base_url, :model, :timeout, :retries, :temperature, :top_p, :num_ctx, :on_response, :strict_json
 
     def initialize
       @base_url = "http://localhost:11434"
       @model = "llama3.1:8b"
-      @timeout = 20
+      @timeout = 30
       @retries = 2
+      @strict_json = true
       @temperature = 0.2
       @top_p = 0.9
       @num_ctx = 8192
       @on_response = nil
-      @allow_chat = false
-      @streaming_enabled = false
     end
 
     # Load configuration from JSON file (useful for production deployments)
@@ -56,6 +54,7 @@ module Ollama
       config.model = data["model"] if data.key?("model")
       config.timeout = data["timeout"] if data.key?("timeout")
       config.retries = data["retries"] if data.key?("retries")
+      config.strict_json = data["strict_json"] if data.key?("strict_json")
       config.temperature = data["temperature"] if data.key?("temperature")
       config.top_p = data["top_p"] if data.key?("top_p")
       config.num_ctx = data["num_ctx"] if data.key?("num_ctx")
