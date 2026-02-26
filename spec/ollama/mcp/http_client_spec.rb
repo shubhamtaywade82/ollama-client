@@ -86,7 +86,7 @@ RSpec.describe Ollama::MCP::HttpClient do
 
       stub_request(:post, url)
         .with do |req|
-          JSON.parse(req.body)["method"] == "tools/call" && JSON.parse(req.body).dig("params",
+        JSON.parse(req.body)["method"] == "tools/call" && JSON.parse(req.body).dig("params",
                                                                                      "name") == "read_docs"
       end
         .to_return(
