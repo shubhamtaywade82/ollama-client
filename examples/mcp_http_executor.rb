@@ -38,7 +38,7 @@ logged_tools = tools.each_with_object({}) do |(name, entry), hash|
   callable = entry[:callable]
   hash[name] = {
     tool: entry[:tool],
-    callable: ->(**kwargs) do
+    callable: lambda do |**kwargs|
       warn "[MCP HTTP TOOL] #{name}(#{kwargs.inspect})"
       callable.call(**kwargs)
     end
