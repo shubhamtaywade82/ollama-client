@@ -31,7 +31,7 @@ module Ollama
       #
       # @param model [String] Model name to delete (required)
       # @return [true]
-      def delete_model(model:) # rubocop:disable Naming/PredicateMethod
+      def delete_model(model:)
         delete_uri = URI("#{@config.base_url}/api/delete")
         req = Net::HTTP::Delete.new(delete_uri)
         req["Content-Type"] = "application/json"
@@ -47,7 +47,7 @@ module Ollama
       # @param source [String] Existing model name to copy from (required)
       # @param destination [String] New model name to create (required)
       # @return [true]
-      def copy_model(source:, destination:) # rubocop:disable Naming/PredicateMethod
+      def copy_model(source:, destination:)
         copy_uri = URI("#{@config.base_url}/api/copy")
         req = Net::HTTP::Post.new(copy_uri)
         req["Content-Type"] = "application/json"
