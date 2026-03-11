@@ -138,9 +138,9 @@ RSpec.describe Ollama::Client do
         stub_request(:post, "http://localhost:11434/api/generate")
           .to_return(status: 200, body: "Not JSON")
 
-        expect {
+        expect do
           client.generate(prompt: "original prompt", schema: schema, strict: true)
-        }.to raise_error(Ollama::InvalidJSONError)
+        end.to raise_error(Ollama::InvalidJSONError)
       end
     end
 
