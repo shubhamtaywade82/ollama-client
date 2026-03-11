@@ -39,6 +39,9 @@ module Ollama
             suffix: suffix, raw: raw, options: options
           )
 
+          emit_response_hook(raw_response,
+                             endpoint: "/api/generate", model: model || @config.model, attempt: attempts)
+
           response_data = process_generate_response(raw_response, schema, think, return_reasoning)
           format_response(response_data, return_meta, model, attempts, started_at)
         rescue NotFoundError => e
@@ -54,7 +57,7 @@ module Ollama
           sleep(2**attempts)
           retry
         rescue InvalidJSONError, SchemaViolationError, ThinkingFormatError => e
-          raise e if strict && attempts > @config.retries
+          raise e if strict
           raise RetryExhaustedError, "Failed after #{attempts} attempts: #{e.message}" if attempts > @config.retries
 
           repair_msg = "CRITICAL FIX: Your last response was invalid or violated the schema. " \
