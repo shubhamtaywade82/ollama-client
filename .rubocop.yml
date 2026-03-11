@@ -123,3 +123,8 @@ Lint/AmbiguousOperatorPrecedence:
 Layout/TrailingEmptyLines:
   Exclude:
     - "examples/**/*"
+
+Naming/PredicateMethod:
+  AllowedMethods:
+    - delete_model
+    - copy_model
