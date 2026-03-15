@@ -96,7 +96,8 @@ module Ollama
       @data[key]
     end
 
-    # Delegate other methods to underlying hash
+    # Delegate unknown methods to underlying hash for forward compatibility.
+    # This allows accessing any raw response fields not covered by explicit accessors.
     def method_missing(method, ...)
       return super unless @data.respond_to?(method)
 

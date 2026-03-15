@@ -56,7 +56,7 @@ module Ollama
         rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
           hooks[:on_error]&.call(e)
           raise Error, "Connection failed: #{e.message}"
-        rescue StandardError => e
+        rescue Error => e
           hooks[:on_error]&.call(e)
           raise e
         end

@@ -36,6 +36,9 @@ module Ollama
     # @param path [String] Path to JSON config file
     # @return [Config] New Config instance
     #
+    # The caller is responsible for ensuring the config path is trusted.
+    # Do not pass unvalidated user input directly to this method.
+    #
     # Example JSON:
     #   {
     #     "base_url": "http://localhost:11434",

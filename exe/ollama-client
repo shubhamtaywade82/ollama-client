@@ -59,7 +59,7 @@ module OllamaCLI
     end
 
     schema = nil
-    schema = JSON.parse(File.read(options[:schema])) if options[:schema]
+    schema = load_json_schema(options[:schema]) if options[:schema]
 
     client = build_client(options[:model])
 
@@ -152,6 +152,15 @@ module OllamaCLI
   end
 
   # ── helpers ───────────────────────────────────────
+
+  def self.load_json_schema(path)
+    absolute = File.expand_path(path, Dir.pwd)
+    unless absolute.start_with?(File.join(Dir.pwd, ""))
+      raise ArgumentError, "Schema path must be within the current working directory"
+    end
+
+    JSON.parse(File.read(absolute))
+  end
 
   def self.build_client(model = nil)
     config = Ollama::Config.new

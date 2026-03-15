@@ -19,10 +19,12 @@ module Ollama
       # @param options [Hash, nil] Runtime options (temperature, top_p, num_ctx, etc.)
       # @param hooks [Hash] Streaming callbacks (:on_token, :on_error, :on_complete)
       # rubocop:disable Metrics/MethodLength, Metrics/ParameterLists
-      def generate(prompt:, schema: nil, model: nil, strict: @config.strict_json, return_meta: false,
+      def generate(prompt:, schema: nil, model: nil, strict: nil, return_meta: false,
                    system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil,
                    options: nil, hooks: {})
         raise ArgumentError, "prompt is required" if prompt.nil?
+
+        strict = @config.strict_json if strict.nil?
 
         validate_thinking_capability!(model, think)
 
@@ -196,7 +198,7 @@ module Ollama
         rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
           hooks[:on_error]&.call(e)
           raise Error, "Connection failed: #{e.message}"
-        rescue StandardError => e
+        rescue Error => e
           hooks[:on_error]&.call(e)
           raise e
         end

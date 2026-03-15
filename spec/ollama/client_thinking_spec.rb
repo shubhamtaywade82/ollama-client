@@ -4,11 +4,7 @@ require "spec_helper"
 
 RSpec.describe Ollama::Client do
   describe "#generate thinking" do
-    let(:client) { described_class.new }
-
-    before do
-      Ollama::Config.new
-    end
+    let(:client) { described_class.new(config: Ollama::Config.new) }
 
     it "raises UnsupportedThinkingModel if model is not reasoning-capable" do
       expect do

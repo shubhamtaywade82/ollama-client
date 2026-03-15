@@ -21,7 +21,12 @@ client = Ollama::Client.new(config: Ollama::Config.new)
 
 | Method | Signature | Returns |
 |---|---|---|
-| `generate` | `(prompt:, schema: nil, model: nil, strict: config.strict_json, return_meta: false, system: nil, images: nil, think: nil, keep_alive: nil, suffix: nil, raw: nil, options: nil, hooks: {})` | `String` (no schema) or `Hash` (with schema) |
+| `generate` | `(prompt:, schema: nil, model: nil, strict: config.strict_json, return_meta: false, system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil, options: nil, hooks: {})` | `String` (no schema) or `Hash` (with schema) |
+
+When `think: true` and `return_reasoning: true`, the return value is a `Hash` with:
+
+- `"reasoning"` — the extracted reasoning text (may be empty string)
+- `"final"` — either a `String` (no schema) or a `Hash` (when `schema:` is provided)
 
 #### Model Management
 
