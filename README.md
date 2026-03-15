@@ -38,7 +38,7 @@ Works out of the box — all defaults are production-safe:
 require "ollama_client"
 
 client = Ollama::Client.new
-# model: "llama3.1:8b", timeout: 30, retries: 2, strict_json: true
+# model: "llama3.2:3b", timeout: 30, retries: 2, strict_json: true
 ```
 
 ### Chat (Multi-turn Conversations)
@@ -242,11 +242,11 @@ client.embeddings.embed(
 ```ruby
 client.list_models              # Returns models with details & automatic capabilities map
 # => [{ "name" => "llama3.1", "capabilities" => { "tools" => true, "thinking" => false, ... }, ... }]
-client.list_model_names         # Just names: ["qwen2.5-coder:7b", "llama3.1:8b", ...]
+client.list_model_names         # Just names: ["qwen2.5-coder:7b", "llama3.2:3b", ...]
 client.list_running             # Currently loaded models (aliased as `ps`)
 client.show_model(model: "qwen2.5-coder:7b")           # Model details, capabilities
 client.show_model(model: "qwen2.5-coder:7b", verbose: true)  # Include model_info
-client.pull("llama3.1:8b")                      # Download a model
+client.pull("llama3.2:3b")                      # Download a model
 client.delete_model(model: "old-model")      # Remove a model
 client.copy_model(source: "qwen2.5-coder:7b", destination: "qwen2.5-coder:7b-backup")
 client.create_model(model: "my-model", from: "qwen2.5-coder:7b", system: "You are Alpaca")
@@ -320,7 +320,7 @@ ollama-client embed --input "What is Ruby?" --model nomic-embed-text:latest
 ollama-client models
 
 # Pull a model
-ollama-client pull llama3.1:8b
+ollama-client pull llama3.2:3b
 ```
 
 All errors output as structured JSON to stderr. No hidden behavior.

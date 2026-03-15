@@ -46,7 +46,7 @@ client = Ollama::Client.new
 
 # Defaults:
 # - base_url: "http://localhost:11434"
-# - model: "llama3.1:8b"
+# - model: "llama3.2:3b"
 # - timeout: 20 seconds
 # - retries: 2
 # - temperature: 0.2
@@ -107,7 +107,7 @@ Create a `config.json` file:
 ```json
 {
   "base_url": "http://localhost:11434",
-  "model": "llama3.1:8b",
+  "model": "llama3.2:3b",
   "timeout": 30,
   "retries": 3,
   "temperature": 0.2,
@@ -311,7 +311,7 @@ require "ollama_client"
 # Step 2: Create client (using environment variables from .env)
 config = Ollama::Config.new
 config.base_url = ENV["OLLAMA_BASE_URL"] || "http://localhost:11434"
-config.model = ENV["OLLAMA_MODEL"] || "llama3.1:8b"
+config.model = ENV["OLLAMA_MODEL"] || "llama3.2:3b"
 config.temperature = ENV["OLLAMA_TEMPERATURE"].to_f if ENV["OLLAMA_TEMPERATURE"]
 
 client = Ollama::Client.new(config: config)
@@ -328,7 +328,7 @@ begin
       }
     }
   )
-  
+
   puts "✅ Success!"
   puts "Response: #{result['greeting']}"
 rescue Ollama::Error => e
@@ -343,7 +343,7 @@ end
 | Option | Default | Description |
 |--------|---------|-------------|
 | `base_url` | `"http://localhost:11434"` | Ollama server URL |
-| `model` | `"llama3.1:8b"` | Default model to use |
+| `model` | `"llama3.2:3b"` | Default model to use |
 | `timeout` | `20` | Request timeout in seconds |
 | `retries` | `2` | Number of retry attempts on failure |
 | `temperature` | `0.2` | Model temperature (0.0-2.0) |

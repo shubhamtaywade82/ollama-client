@@ -10,7 +10,7 @@ bundle exec rspec --tag integration
 
 # Run with custom configuration
 OLLAMA_URL=http://localhost:11434 \
-OLLAMA_MODEL=llama3.1:8b \
+OLLAMA_MODEL=llama3.2:3b \
 bundle exec rspec --tag integration
 ```
 
@@ -25,7 +25,7 @@ bundle exec rspec --tag integration
 2. **At least one model installed**
    ```bash
    # Install a model
-   ollama pull llama3.1:8b
+   ollama pull llama3.2:3b
    ```
 
 3. **Optional: Embedding model** (for embedding tests)
@@ -94,7 +94,7 @@ OLLAMA_EMBEDDING_MODEL=nomic-embed-text:latest bundle exec rspec --tag integrati
 
 # All together
 OLLAMA_URL=http://localhost:11434 \
-OLLAMA_MODEL=llama3.1:8b \
+OLLAMA_MODEL=llama3.2:3b \
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text:latest \
 bundle exec rspec --tag integration
 ```
@@ -138,7 +138,7 @@ bundle exec rspec --tag integration
 - Verify connection: `curl http://localhost:11434/api/tags`
 
 ### "Model not found"
-- Install model: `ollama pull llama3.1:8b`
+- Install model: `ollama pull llama3.2:3b`
 - Set model: `OLLAMA_MODEL=your-model`
 
 ### "Empty embedding returned"

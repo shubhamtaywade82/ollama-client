@@ -12,7 +12,7 @@ client = Ollama::Client.new
 
 # Or with custom config
 config = Ollama::Config.new
-config.model = ENV["OLLAMA_MODEL"] || "llama3.1:8b"
+config.model = ENV["OLLAMA_MODEL"] || "llama3.2:3b"
 config.base_url = ENV["OLLAMA_BASE_URL"] || "http://localhost:11434"
 client = Ollama::Client.new(config: config)
 ```
@@ -183,7 +183,7 @@ begin
     prompt: "Design a caching layer for a high-traffic API.",
     schema: DECISION_SCHEMA
   )
-  
+
   puts "✅ Success!"
   puts "Action: #{plan['action']}"
   puts "Reasoning: #{plan['reasoning']}"

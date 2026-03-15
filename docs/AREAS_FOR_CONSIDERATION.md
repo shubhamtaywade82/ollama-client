@@ -125,7 +125,7 @@ end
 ```ruby
 module OllamaClient
   @config_mutex = Mutex.new
-  
+
   def self.configure
     @config_mutex.synchronize do
       @config ||= Ollama::Config.new
@@ -270,11 +270,11 @@ Need structured output?
 ```ruby
 # High-level API for beginners
 class SimpleAgent
-  def initialize(model: "llama3.1:8b")
+  def initialize(model: "llama3.2:3b")
     @client = Ollama::Client.new
     @model = model
   end
-  
+
   def ask(question, schema: nil)
     if schema
       @client.generate(prompt: question, schema: schema)

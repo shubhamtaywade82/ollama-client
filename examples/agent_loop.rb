@@ -11,7 +11,7 @@ require_relative "../lib/ollama_client"
 client = Ollama::Client.new(
   config: Ollama::Config.new.tap do |c|
     # NOTE: Tool calling requires a capable model (like qwen2.5-coder or llama3.1)
-    c.model = "llama3.1:8b"
+    c.model = "llama3.2:3b"
   end
 )
 

@@ -218,7 +218,7 @@ Both consoles support environment variables:
 **Chat Console:**
 ```bash
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.1:8b
+OLLAMA_MODEL=llama3.2:3b
 OLLAMA_TEMPERATURE=0.7
 OLLAMA_SYSTEM="You are a helpful assistant"
 ```

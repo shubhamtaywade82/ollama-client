@@ -12,7 +12,7 @@ RSpec.describe Ollama::Client do
     before do
       OllamaClient.configure do |c|
         c.base_url = "http://localhost:11434"
-        c.model = "llama3.1:8b"
+        c.model = "llama3.2:3b"
         c.timeout = 30
         c.retries = 2
         c.strict_json = true
@@ -26,7 +26,7 @@ RSpec.describe Ollama::Client do
       client = described_class.new
       config = client.instance_variable_get(:@config)
       expect(config).to be_a(Ollama::Config)
-      expect(config.model).to eq("llama3.1:8b")
+      expect(config.model).to eq("llama3.2:3b")
     end
 
     it "accepts custom config" do
@@ -194,12 +194,12 @@ RSpec.describe Ollama::Client do
     it "sends a basic chat request and returns Response" do
       stub_request(:post, "http://localhost:11434/api/chat")
         .with(body: hash_including(
-          "model" => "llama3.1:8b",
+          "model" => "llama3.2:3b",
           "messages" => [{ "role" => "user", "content" => "Hello" }],
           "stream" => false
         ))
         .to_return(status: 200, body: {
-          model: "llama3.1:8b",
+          model: "llama3.2:3b",
           message: { role: "assistant", content: "Hi there!" },
           done: true,
           done_reason: "stop",
@@ -491,11 +491,11 @@ RSpec.describe Ollama::Client do
     it "returns array of model name strings" do
       stub_request(:get, "http://localhost:11434/api/tags")
         .to_return(status: 200, body: {
-          models: [{ name: "qwen2.5-coder:7b" }, { name: "llama3.1:8b" }]
+          models: [{ name: "qwen2.5-coder:7b" }, { name: "llama3.2:3b" }]
         }.to_json)
 
       names = client.list_model_names
-      expect(names).to eq(%w[qwen2.5-coder:7b llama3.1:8b])
+      expect(names).to eq(%w[qwen2.5-coder:7b llama3.2:3b])
     end
   end
 
@@ -549,7 +549,7 @@ RSpec.describe Ollama::Config do
     it "sets safe defaults" do
       config = described_class.new
       expect(config.base_url).to eq("http://localhost:11434")
-      expect(config.model).to eq("llama3.1:8b")
+      expect(config.model).to eq("llama3.2:3b")
       expect(config.timeout).to eq(30)
       expect(config.retries).to eq(2)
       expect(config.strict_json).to be(true)
