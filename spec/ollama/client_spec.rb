@@ -134,19 +134,13 @@ RSpec.describe Ollama::Client do
     end
 
     context "when hitting invalid JSON with strict mode" do
-      it "appends repair prompt and retries" do
-        # First request returns invalid JSON
+      it "raises immediately without retrying" do
         stub_request(:post, "http://localhost:11434/api/generate")
-          .with(body: /original prompt/)
           .to_return(status: 200, body: "Not JSON")
 
-        # Second request successfully returns JSON
-        stub_request(:post, "http://localhost:11434/api/generate")
-          .with(body: /CRITICAL FIX/)
-          .to_return(status: 200, body: { response: '{"test":"fixed"}' }.to_json)
-
-        result = client.generate(prompt: "original prompt", schema: schema, strict: true)
-        expect(result).to eq("test" => "fixed")
+        expect do
+          client.generate(prompt: "original prompt", schema: schema, strict: true)
+        end.to raise_error(Ollama::InvalidJSONError)
       end
     end
 

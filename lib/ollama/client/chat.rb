@@ -61,6 +61,9 @@ module Ollama
           raise e
         end
 
+        emit_response_hook(response_data.is_a?(Hash) ? response_data.to_json : response_data,
+                           endpoint: "/api/chat", model: model || @config.model)
+
         Response.new(response_data)
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse chat response: #{e.message}"

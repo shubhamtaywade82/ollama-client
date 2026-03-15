@@ -85,7 +85,15 @@ module Ollama
       raise HTTPError.new("HTTP #{res.code}: #{error_message}", status_code)
     end
 
-    # Parse error message from JSON response body (Ollama returns {"error": "..."})
+    def emit_response_hook(raw, meta)
+      hook = @config.on_response
+      return unless hook.respond_to?(:call)
+
+      hook.call(raw, meta)
+    rescue StandardError
+      nil
+    end
+
     def extract_error_message(res)
       body = res.body
       return nil if body.nil? || body.empty?
