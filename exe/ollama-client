@@ -163,6 +163,7 @@ module OllamaCLI
   def self.build_client(model = nil)
     config = Ollama::Config.new
     config.base_url = ENV["OLLAMA_BASE_URL"] if ENV["OLLAMA_BASE_URL"]
+    config.api_key = ENV["OLLAMA_API_KEY"] if ENV["OLLAMA_API_KEY"]
     config.model = model if model
     Ollama::Client.new(config: config)
   end
@@ -199,6 +200,7 @@ module OllamaCLI
 
       Environment:
         OLLAMA_BASE_URL  Override base URL (default: http://localhost:11434)
+        OLLAMA_API_KEY   Optional Bearer token for Ollama Cloud (https://ollama.com)
     USAGE
   end
 end

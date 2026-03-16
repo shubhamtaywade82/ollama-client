@@ -98,6 +98,7 @@ All attributes are read/write via `attr_accessor`:
 | Attribute | Type | Default | Description |
 |---|---|---|---|
 | `base_url` | `String` | `"http://localhost:11434"` | Ollama server URL |
+| `api_key` | `String, nil` | `nil` | Optional Bearer token for Ollama Cloud (`https://ollama.com`) |
 | `model` | `String` | `"llama3.2:3b"` | Default model for generation |
 | `timeout` | `Integer` | `30` | HTTP read/open timeout in seconds |
 | `retries` | `Integer` | `2` | Max retry attempts |

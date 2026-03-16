@@ -178,11 +178,14 @@ module Ollama
         end
 
         req.body = body.to_json
+        @config.apply_auth_to(req)
 
         full_response = +""
 
         begin
+          use_ssl = generate_uri.scheme == "https"
           Net::HTTP.start(generate_uri.hostname, generate_uri.port,
+                          use_ssl: use_ssl,
                           read_timeout: @config.timeout, open_timeout: @config.timeout) do |h|
             h.request(req) do |res|
               handle_http_error(res, requested_model: model || @config.model) unless res.is_a?(Net::HTTPSuccess)

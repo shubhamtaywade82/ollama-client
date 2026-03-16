@@ -38,11 +38,14 @@ module Ollama
         body[:options] = build_options(options)
 
         req.body = body.to_json
+        @config.apply_auth_to(req)
 
         response_data = nil
 
         begin
+          use_ssl = chat_uri.scheme == "https"
           Net::HTTP.start(chat_uri.hostname, chat_uri.port,
+                          use_ssl: use_ssl,
                           read_timeout: @config.timeout, open_timeout: @config.timeout) do |h|
             h.request(req) do |res|
               handle_http_error(res, requested_model: model || @config.model) unless res.is_a?(Net::HTTPSuccess)

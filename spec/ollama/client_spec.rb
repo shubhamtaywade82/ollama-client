@@ -542,6 +542,23 @@ RSpec.describe Ollama::Client do
       expect(client.version).to eq("0.12.6")
     end
   end
+
+  describe "Ollama Cloud (api_key)" do
+    it "sends Authorization Bearer header when config has api_key" do
+      config = Ollama::Config.new
+      config.base_url = "http://localhost:11434"
+      config.api_key = "cloud-key"
+      client = described_class.new(config: config)
+
+      stub_request(:post, "http://localhost:11434/api/generate")
+        .with(headers: { "Authorization" => "Bearer cloud-key" })
+        .to_return(status: 200, body: { response: "Hi", done: true }.to_json)
+
+      client.generate(prompt: "Hello", model: "llama3.2:3b")
+      expect(WebMock).to have_requested(:post, "http://localhost:11434/api/generate")
+        .with(headers: { "Authorization" => "Bearer cloud-key" })
+    end
+  end
 end
 
 RSpec.describe Ollama::Config do
@@ -556,6 +573,32 @@ RSpec.describe Ollama::Config do
       expect(config.temperature).to eq(0.2)
       expect(config.top_p).to eq(0.9)
       expect(config.num_ctx).to eq(8192)
+      expect(config.api_key).to be_nil
+    end
+  end
+
+  describe "#apply_auth_to" do
+    it "sets Authorization Bearer header when api_key is set" do
+      config = described_class.new
+      config.api_key = "secret"
+      req = Net::HTTP::Post.new(URI("http://localhost/api/chat"))
+      config.apply_auth_to(req)
+      expect(req["Authorization"]).to eq("Bearer secret")
+    end
+
+    it "does not set Authorization when api_key is nil" do
+      config = described_class.new
+      req = Net::HTTP::Post.new(URI("http://localhost/api/chat"))
+      config.apply_auth_to(req)
+      expect(req["Authorization"]).to be_nil
+    end
+
+    it "does not set Authorization when api_key is empty string" do
+      config = described_class.new
+      config.api_key = "  "
+      req = Net::HTTP::Post.new(URI("http://localhost/api/chat"))
+      config.apply_auth_to(req)
+      expect(req["Authorization"]).to be_nil
     end
   end
 end

@@ -75,13 +75,30 @@ config.streaming_enabled = true             # Enable streaming (if needed)
 client = Ollama::Client.new(config: config)
 ```
 
-### Option C: Client from Environment Variables
+### Option C: Ollama Cloud
+
+To use [Ollama Cloud](https://docs.ollama.com/cloud) models (hosted at ollama.com), set the base URL to `https://ollama.com` and provide an API key from [ollama.com/settings/keys](https://ollama.com/settings/keys):
+
+```ruby
+config = Ollama::Config.new
+config.base_url = "https://ollama.com"
+config.api_key = ENV["OLLAMA_API_KEY"]  # or your API key
+client = Ollama::Client.new(config: config)
+
+# Use a cloud model (e.g. gpt-oss:120b-cloud)
+client.chat(messages: [{ role: "user", content: "Why is the sky blue?" }], model: "gpt-oss:120b-cloud")
+```
+
+All requests will send `Authorization: Bearer <api_key>` and use HTTPS. The same client works for chat, generate, embeddings, and model listing.
+
+### Option D: Client from Environment Variables
 
 The gem automatically loads `.env` file. You can set these environment variables:
 
 ```bash
 # In your .env file or shell environment
 OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_API_KEY=your_key_for_ollama_cloud   # optional, for https://ollama.com
 OLLAMA_MODEL=qwen2.5:14b
 OLLAMA_TEMPERATURE=0.1
 ```
@@ -94,13 +111,14 @@ require "ollama_client"
 # Create config and read from environment
 config = Ollama::Config.new
 config.base_url = ENV["OLLAMA_BASE_URL"] if ENV["OLLAMA_BASE_URL"]
+config.api_key = ENV["OLLAMA_API_KEY"] if ENV["OLLAMA_API_KEY"]
 config.model = ENV["OLLAMA_MODEL"] if ENV["OLLAMA_MODEL"]
 config.temperature = ENV["OLLAMA_TEMPERATURE"].to_f if ENV["OLLAMA_TEMPERATURE"]
 
 client = Ollama::Client.new(config: config)
 ```
 
-### Option D: Client from JSON Config File
+### Option E: Client from JSON Config File
 
 Create a `config.json` file:
 

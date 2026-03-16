@@ -17,7 +17,7 @@ module Ollama
   # Each client instance with its own config is thread-safe.
   #
   class Config
-    attr_accessor :base_url, :model, :timeout, :retries, :temperature, :top_p, :num_ctx, :on_response, :strict_json
+    attr_accessor :base_url, :model, :timeout, :retries, :temperature, :top_p, :num_ctx, :on_response, :strict_json, :api_key
 
     def initialize
       @base_url = "http://localhost:11434"
@@ -29,6 +29,17 @@ module Ollama
       @top_p = 0.9
       @num_ctx = 8192
       @on_response = nil
+      @api_key = nil
+    end
+
+    # Set Authorization header on a request when api_key is configured (e.g. for Ollama Cloud).
+    # No-op when api_key is nil or empty.
+    #
+    # @param req [Net::HTTP::Request]
+    def apply_auth_to(req)
+      return if api_key.nil? || api_key.to_s.strip.empty?
+
+      req["Authorization"] = "Bearer #{api_key}"
     end
 
     # Load configuration from JSON file (useful for production deployments)
@@ -42,6 +53,7 @@ module Ollama
     # Example JSON:
     #   {
     #     "base_url": "http://localhost:11434",
+    #     "api_key": "optional-for-ollama-cloud",
     #     "model": "llama3.2:3b",
     #     "timeout": 30,
     #     "retries": 3,
@@ -54,6 +66,7 @@ module Ollama
       config = new
 
       config.base_url = data["base_url"] if data.key?("base_url")
+      config.api_key = data["api_key"] if data.key?("api_key")
       config.model = data["model"] if data.key?("model")
       config.timeout = data["timeout"] if data.key?("timeout")
       config.retries = data["retries"] if data.key?("retries")

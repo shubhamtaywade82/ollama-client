@@ -62,9 +62,12 @@ module Ollama
 
     # Shared HTTP request helper for simple (non-streaming) requests
     def http_request(uri, req, read_timeout: @config.timeout)
+      @config.apply_auth_to(req)
+      use_ssl = uri.scheme == "https"
       Net::HTTP.start(
         uri.hostname,
         uri.port,
+        use_ssl: use_ssl,
         read_timeout: read_timeout,
         open_timeout: @config.timeout
       ) { |http| http.request(req) }

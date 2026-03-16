@@ -125,10 +125,13 @@ module Ollama
         req = Net::HTTP::Post.new(pull_uri)
         req["Content-Type"] = "application/json"
         req.body = { model: model_name, stream: false }.to_json
+        @config.apply_auth_to(req)
 
+        use_ssl = pull_uri.scheme == "https"
         res = Net::HTTP.start(
           pull_uri.hostname,
           pull_uri.port,
+          use_ssl: use_ssl,
           read_timeout: @config.timeout * 10,
           open_timeout: @config.timeout
         ) { |http| http.request(req) }

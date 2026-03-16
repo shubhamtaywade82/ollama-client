@@ -40,10 +40,13 @@ module Ollama
       body[:options] = options if options
 
       req.body = body.to_json
+      @config.apply_auth_to(req)
 
+      use_ssl = uri.scheme == "https"
       res = Net::HTTP.start(
         uri.hostname,
         uri.port,
+        use_ssl: use_ssl,
         read_timeout: @config.timeout,
         open_timeout: @config.timeout
       ) { |http| http.request(req) }
