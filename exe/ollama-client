@@ -155,9 +155,7 @@ module OllamaCLI
 
   def self.load_json_schema(path)
     absolute = File.expand_path(path, Dir.pwd)
-    unless absolute.start_with?(File.join(Dir.pwd, ""))
-      raise ArgumentError, "Schema path must be within the current working directory"
-    end
+    raise ArgumentError, "Schema path must be within the current working directory" unless absolute.start_with?(File.join(Dir.pwd, ""))
 
     JSON.parse(File.read(absolute))
   end
