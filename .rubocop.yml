@@ -1,3 +1,5 @@
+inherit_from: .rubocop_todo.yml
+
 plugins:
   - rubocop-rake
   - rubocop-rspec
@@ -8,7 +10,9 @@ AllCops:
   SuggestExtensions: true
   Exclude:
     - 'vendor/**/*'
-
+    - 'bin/*'
+    - "devagent_proper.rb"
+    - "bin/console"
 
 Style/StringLiterals:
   EnforcedStyle: double_quotes
@@ -23,15 +27,17 @@ Metrics/MethodLength:
   Exclude:
     - "spec/**/*"
     - "examples/**/*"
+    - "exe/**/*"
 
 Metrics/AbcSize:
   Max: 45
   Exclude:
     - "spec/**/*"
     - "examples/**/*"
+    - "exe/**/*"
 
 Metrics/ClassLength:
-  Max: 220
+  Max: 300
   Exclude:
     - "spec/**/*"
     - "examples/**/*"
@@ -51,6 +57,11 @@ Metrics/BlockLength:
     - "spec/**/*"
     - "*.gemspec"
     - "examples/**/*"
+    - "exe/**/*"
+
+Metrics/ModuleLength:
+  Exclude:
+    - "exe/**/*"
 
 RSpec/ExampleLength:
   Max: 15
@@ -80,15 +91,18 @@ RSpec/DescribeMethod:
 RSpec/DescribedClass:
   Exclude:
     - "spec/ollama/errors_spec.rb"
+    - "spec/integration/**/*"
 
 RSpec/SpecFilePathFormat:
   Exclude:
     - "spec/ollama/client_model_suggestions_spec.rb"
+    - "spec/integration/**/*"
 
 # Exclude examples from style checks (they're just examples)
 Style/Documentation:
   Exclude:
     - "examples/**/*"
+    - "exe/**/*"
 
 Style/WordArray:
   Exclude:
@@ -109,3 +123,8 @@ Lint/AmbiguousOperatorPrecedence:
 Layout/TrailingEmptyLines:
   Exclude:
     - "examples/**/*"
+
+Naming/PredicateMethod:
+  AllowedMethods:
+    - delete_model
+    - copy_model

@@ -8,12 +8,12 @@ Gem::Specification.new do |spec|
   spec.authors = ["Shubham Taywade"]
   spec.email = ["shubhamtaywade82@gmail.com"]
 
-  spec.summary = "An agent-first Ruby client for Ollama (planner/executor + safe tool loops)"
-  spec.description = "A production-ready, agent-first Ruby client for the Ollama API with schema validation, " \
-                     "bounded retries, and explicit safety defaults. Includes a minimal agent layer " \
-                     "(Ollama::Agent::Planner for deterministic /api/generate, and Ollama::Agent::Executor for " \
-                     "stateful /api/chat tool loops with disciplined, observer-only streaming). " \
-                     "Not a chatbot UI and not a promise of full Ollama endpoint coverage."
+  spec.summary = "A production-safe Ollama client for Rails & agent systems"
+  spec.description = "A failure-aware, contract-driven Ruby client for the Ollama API. " \
+                     "Provides deterministic /generate with strict JSON schema validation, " \
+                     "automatic model pulling, exponential backoff on timeouts, and " \
+                     "observer-style streaming hooks. Designed for Rails background jobs " \
+                     "and agent planners — not a chatbot UI."
   spec.homepage = "https://github.com/shubhamtaywade82/ollama-client"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.0.0"
@@ -40,7 +40,6 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_dependency "bigdecimal"
-  spec.add_dependency "csv"
   spec.add_dependency "json-schema", "~> 4.0"
 
   # For more information and examples about making a new gem, check out our

@@ -24,7 +24,7 @@ RSpec.configure do |config|
   end
 
   # Integration test configuration
-  config.filter_run_excluding type: :integration unless ENV["INTEGRATION"]
+  config.filter_run_excluding type: :integration unless ENV["OLLAMA_INTEGRATION"] == "1" || ENV["INTEGRATION"]
 
   # WebMock configuration
   config.before do |example|

@@ -133,7 +133,7 @@ result = client.generate(
 
 puts result["meta"]["latency_ms"]  # 245.32
 puts result["meta"]["attempts"]     # 1
-puts result["meta"]["model"]       # "llama3.1:8b"
+puts result["meta"]["model"]       # "llama3.2:3b"
 ```
 
 ### Health Check

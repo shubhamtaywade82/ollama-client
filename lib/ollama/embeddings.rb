@@ -19,8 +19,12 @@ module Ollama
     #
     # @param model [String] Embedding model name (e.g., "all-minilm")
     # @param input [String, Array<String>] Single text or array of texts
+    # @param truncate [Boolean, nil] If true, truncate inputs exceeding context window
+    # @param dimensions [Integer, nil] Number of dimensions for embeddings
+    # @param keep_alive [String, nil] Model keep-alive duration (e.g. "5m")
+    # @param options [Hash, nil] Runtime options (temperature, etc.)
     # @return [Array<Float>, Array<Array<Float>>] Embedding vector(s)
-    def embed(model:, input:)
+    def embed(model:, input:, truncate: nil, dimensions: nil, keep_alive: nil, options: nil)
       # Use /api/embed (not /api/embeddings) - the working endpoint
       uri = URI("#{@config.base_url}/api/embed")
       req = Net::HTTP::Post.new(uri)
@@ -30,14 +34,17 @@ module Ollama
         model: model,
         input: input
       }
+      body[:truncate] = truncate unless truncate.nil?
+      body[:dimensions] = dimensions if dimensions
+      body[:keep_alive] = keep_alive if keep_alive
+      body[:options] = options if options
 
       req.body = body.to_json
-
+      @config.apply_auth_to(req)
       res = Net::HTTP.start(
         uri.hostname,
         uri.port,
-        read_timeout: @config.timeout,
-        open_timeout: @config.timeout
+        **@config.http_connection_options(uri)
       ) { |http| http.request(req) }
 
       handle_http_error(res, requested_model: model) unless res.is_a?(Net::HTTPSuccess)
@@ -116,9 +123,21 @@ module Ollama
 
     def handle_http_error(res, requested_model: nil)
       status_code = res.code.to_i
-      raise NotFoundError.new(res.message, requested_model: requested_model) if status_code == 404
+      error_message = extract_error_message(res) || res.message
 
-      raise HTTPError.new("HTTP #{res.code}: #{res.message}", status_code)
+      raise NotFoundError.new(error_message, requested_model: requested_model) if status_code == 404
+
+      raise HTTPError.new("HTTP #{res.code}: #{error_message}", status_code)
+    end
+
+    def extract_error_message(res)
+      body = res.body
+      return nil if body.nil? || body.empty?
+
+      parsed = JSON.parse(body)
+      parsed["error"] if parsed.is_a?(Hash)
+    rescue JSON::ParserError
+      nil
     end
   end
 end
