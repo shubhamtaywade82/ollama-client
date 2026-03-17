@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-03-17
+
+### Added
+- Ollama Cloud support via `Ollama::Config#api_key` and HTTPS `base_url` (e.g. `https://ollama.com`).
+- `Ollama::Config#http_connection_options` to centralize Net::HTTP connection options (including SSL and timeouts).
+- `Ollama::Config#inspect` now redacts `api_key` while keeping other attributes visible.
+
+### Changed
+- Chat, generate, embeddings, and model management HTTP calls now share connection-option logic but keep existing behavior.
+
 ## [1.0.0] - 2026-02-22
 
 ### Changed

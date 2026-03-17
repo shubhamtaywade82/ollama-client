@@ -37,9 +37,38 @@ module Ollama
     #
     # @param req [Net::HTTP::Request]
     def apply_auth_to(req)
-      return if api_key.nil? || api_key.to_s.strip.empty?
+      return if api_key.to_s.strip.empty?
 
       req["Authorization"] = "Bearer #{api_key}"
+    end
+
+    # Net::HTTP connection options built from current config and target URI.
+    #
+    # @param uri [URI]
+    # @param read_timeout [Integer]
+    # @return [Hash] options suitable for Net::HTTP.start
+    def http_connection_options(uri, read_timeout: timeout)
+      {
+        use_ssl: uri.scheme == "https",
+        read_timeout: read_timeout,
+        open_timeout: timeout
+      }
+    end
+
+    def inspect
+      attributes = {
+        base_url: base_url.inspect,
+        model: model.inspect,
+        timeout: timeout,
+        retries: retries,
+        strict_json: strict_json,
+        temperature: temperature,
+        top_p: top_p,
+        num_ctx: num_ctx,
+        api_key: "(redacted)"
+      }
+
+      "#<#{self.class.name} #{attributes.map { |k, v| "#{k}=#{v}" }.join(" ")}>"
     end
 
     # Load configuration from JSON file (useful for production deployments)
