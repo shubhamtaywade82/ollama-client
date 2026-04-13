@@ -124,6 +124,11 @@ Layout/TrailingEmptyLines:
   Exclude:
     - "examples/**/*"
 
+Naming/FileName:
+  Exclude:
+    # Hyphenated path matches gem name for `require "ollama-client"`.
+    - "lib/ollama-client.rb"
+
 Naming/PredicateMethod:
   AllowedMethods:
     - delete_model
