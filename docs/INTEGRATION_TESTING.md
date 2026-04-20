@@ -14,6 +14,16 @@ OLLAMA_MODEL=llama3.2:3b \
 bundle exec rspec --tag integration
 ```
 
+## Live smoke script (manual branch checks)
+
+For one command that prints `PASS` / `SKIP` / `FAIL` per check—model profiles, extended `chat`, generate streaming hooks, `JsonFragmentExtractor`, embeddings, history sanitizer, and optional Gemma-specific flows—run:
+
+```bash
+bundle exec ruby script/live_branch_smoke.rb
+```
+
+Environment variables are documented in the header of `script/live_branch_smoke.rb` (for example `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, optional `OLLAMA_GEMMA_MODEL`, `OLLAMA_EMBED_MODEL`, and `OLLAMA_API_KEY` for Ollama Cloud). Exit code `0` means every executed check passed; `1` means the server was unreachable or a check failed.
+
 ## Prerequisites
 
 1. **Ollama server running** (default: `http://localhost:11434`)

@@ -103,6 +103,7 @@ Style/Documentation:
   Exclude:
     - "examples/**/*"
     - "exe/**/*"
+    - "script/**/*"
 
 Style/WordArray:
   Exclude:
@@ -115,6 +116,7 @@ Style/StringConcatenation:
 Lint/ScriptPermission:
   Exclude:
     - "examples/**/*"
+    - "script/**/*"
 
 Lint/AmbiguousOperatorPrecedence:
   Exclude:
@@ -123,6 +125,11 @@ Lint/AmbiguousOperatorPrecedence:
 Layout/TrailingEmptyLines:
   Exclude:
     - "examples/**/*"
+
+Naming/FileName:
+  Exclude:
+    # Hyphenated path matches gem name for `require "ollama-client"`.
+    - "lib/ollama-client.rb"
 
 Naming/PredicateMethod:
   AllowedMethods:

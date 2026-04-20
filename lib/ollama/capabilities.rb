@@ -25,8 +25,8 @@ module Ollama
         }
       end
 
-      TOOLS_FAMILIES = %w[llama qwen2 qwen3 qwen3vl command-r mistral gemma2].freeze
-      THINKING_MODELS = [/deepseek-r1/i, /-r1/i, /qwq/i, /qwen3/i].freeze
+      TOOLS_FAMILIES = %w[llama qwen2 qwen3 qwen3vl command-r mistral gemma2 gemma4].freeze
+      THINKING_MODELS = [/deepseek-r1/i, /-r1/i, /qwq/i, /qwen3/i, /gemma[_-]?4/i].freeze
       VISION_FAMILIES = %w[llava clip qwen3vl mllama].freeze
       VISION_MODELS = [/vision/i, /vl/i].freeze
       EMBEDDING_FAMILIES = %w[nomic-bert bert mxbai-embed-large].freeze

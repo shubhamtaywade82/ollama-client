@@ -10,6 +10,7 @@ module Ollama
   class StreamError < Error; end
   class ThinkingFormatError < Error; end
   class UnsupportedThinkingModel < Error; end
+  class UnsupportedCapabilityError < Error; end
 
   # HTTP error with retry logic
   class HTTPError < Error

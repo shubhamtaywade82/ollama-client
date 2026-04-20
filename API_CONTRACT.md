@@ -1,7 +1,7 @@
-# API Contract — v1.0.0
+# API Contract — v1.3.0
 
-This document defines the **public API surface** of `ollama-client` v1.0.
-Everything listed here is guaranteed stable until `v2.0.0`.
+This document defines the **public API surface** of `ollama-client` v1.3.0.
+Everything listed here is guaranteed stable until `v2.0.0` (unless explicitly marked as *may evolve* in minor releases).
 
 ## Public Methods
 
@@ -11,11 +11,18 @@ Everything listed here is guaranteed stable until `v2.0.0`.
 client = Ollama::Client.new(config: Ollama::Config.new)
 ```
 
+#### Client — model profiles (v1.3+)
+
+| Method | Signature | Returns |
+|---|---|---|
+| `profile` | `(model_name)` | `Ollama::ModelProfile` |
+| `history_sanitizer` | `(model_name_or_profile, trace_store: nil)` | `Ollama::HistorySanitizer` |
+
 #### Chat
 
 | Method | Signature | Returns |
 |---|---|---|
-| `chat` | `(messages:, model: nil, format: nil, tools: nil, stream: nil, think: nil, keep_alive: nil, options: nil, logprobs: nil, top_logprobs: nil, hooks: {})` | `Ollama::Response` |
+| `chat` | `(messages:, model: nil, format: nil, tools: nil, stream: nil, think: nil, keep_alive: nil, options: nil, logprobs: nil, top_logprobs: nil, hooks: {}, profile: :auto, inputs: nil)` | `Ollama::Response` |
 
 #### Generate
 
@@ -81,6 +88,22 @@ Returned by `chat`. Wraps the API response with accessor methods:
 | `tool_calls` | `Array<ToolCall>` | Function calls |
 | `images` | `Array<String>` | Base64 images |
 
+### `Ollama::GenerateStreamHandler` (v1.3+)
+
+Used internally by `generate` when streaming; stable for advanced callers who process raw `Net::HTTPResponse` bodies.
+
+| Method | Signature | Returns |
+|---|---|---|
+| `.call` | `(response, hooks, accumulator)` | `nil` — mutates `accumulator` (`String`) with decoded `response` tokens; invokes `hooks` |
+
+### `Ollama::JsonFragmentExtractor` (v1.3+)
+
+| Method | Signature | Returns |
+|---|---|---|
+| `.call` | `(text)` | `String` — a balanced JSON object or array substring (parse with `JSON.parse` if you need Ruby values) |
+
+Raises `Ollama::InvalidJSONError` when `text` is blank or no balanced JSON fragment can be extracted.
+
 ### `Ollama::Options`
 
 Type-safe runtime options passed via `options:` parameter:
@@ -122,6 +145,9 @@ All errors inherit from `Ollama::Error < StandardError`.
 | `Ollama::HTTPError` | Non-200 HTTP response | Depends on status code |
 | `Ollama::NotFoundError` | HTTP 404 (model not found) | **Auto-handled** — triggers pull |
 | `Ollama::StreamError` | `{"error": "..."}` in NDJSON stream | **No** — immediate |
+| `Ollama::UnsupportedThinkingModel` | `think:` requested for a model that does not support reasoning | **No** |
+| `Ollama::UnsupportedCapabilityError` | Multimodal or other capability used outside model profile | **No** |
+| `Ollama::ThinkingFormatError` | Reasoning tags in model output could not be parsed | **No** |
 
 ## Recovery Behaviors (Guaranteed)
 
@@ -141,13 +167,15 @@ Passed via `hooks:` parameter on `generate` and `chat`:
 
 ```ruby
 hooks: {
-  on_token:    ->(token) { ... },  # Called per token chunk
-  on_error:    ->(error) { ... },  # Called on stream error
-  on_complete: -> { ... }          # Called when stream finishes
+  on_token:     ->(token) { ... },           # generate: token string; chat: token string
+  on_thought:   ->(event) { ... },            # chat only: Ollama::StreamEvent (reasoning)
+  on_tool_call: ->(tool_call_hash) { ... },   # chat only: tool call payload from final chunk
+  on_error:     ->(error) { ... },
+  on_complete:  -> { ... }
 }
 ```
 
-Hooks are **observer-only** — they cannot modify the response. Streaming is auto-enabled when any hook is present.
+Hooks are **observer-only** — they cannot modify the response. For `chat`, streaming is auto-enabled when any hook is present (including `on_thought` or `on_tool_call`). For `generate`, streaming follows the same hook-driven rule as before.
 
 ## What Will NOT Change Before v2.0
 
