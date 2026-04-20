@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require_relative "../generate_stream_handler"
+require_relative "../json_fragment_extractor"
+
 module Ollama
   class Client
     # Generate completion endpoint with auto-pull, retries, and structured output
@@ -156,7 +159,7 @@ module Ollama
         req = Net::HTTP::Post.new(generate_uri)
         req["Content-Type"] = "application/json"
 
-        stream_enabled = !(hooks[:on_token] || hooks[:on_error] || hooks[:on_complete]).nil?
+        stream_enabled = streaming_requested?(hooks)
 
         body = {
           model: model || @config.model,
@@ -189,7 +192,7 @@ module Ollama
               handle_http_error(res, requested_model: model || @config.model) unless res.is_a?(Net::HTTPSuccess)
 
               if stream_enabled
-                handle_generate_stream(res, hooks, full_response)
+                GenerateStreamHandler.call(res, hooks, full_response)
               else
                 response_body = JSON.parse(res.body)
                 full_response = response_body["response"]
@@ -212,37 +215,6 @@ module Ollama
         raise InvalidJSONError, "Failed to parse API response: #{e.message}"
       end
       # rubocop:enable Metrics/MethodLength, Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/ParameterLists
-
-      def handle_generate_stream(res, hooks, full_response)
-        buffer = +""
-        res.read_body do |chunk|
-          buffer << chunk
-          while (newline_idx = buffer.index("\n"))
-            line = buffer.slice!(0, newline_idx + 1).strip
-            next if line.empty?
-
-            begin
-              obj = JSON.parse(line)
-
-              if obj["error"]
-                error = StreamError.new(obj["error"])
-                hooks[:on_error]&.call(error)
-                raise error
-              end
-
-              token = obj["response"]
-              if token
-                full_response << token
-                hooks[:on_token]&.call(token)
-              end
-
-              hooks[:on_complete]&.call if obj["done"]
-            rescue JSON::ParserError
-              # Ignore malformed stream chunks silently
-            end
-          end
-        end
-      end
 
       def parse_and_validate_schema_response(raw, schema)
         parsed = parse_json_response(raw)
@@ -286,64 +258,15 @@ module Ollama
       end
 
       def parse_json_response(raw)
-        json_text = extract_json_fragment(raw)
+        json_text = JsonFragmentExtractor.call(raw)
         JSON.parse(json_text)
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse extracted JSON: #{e.message}. Extracted: #{json_text&.slice(0, 200)}..."
       end
 
-      # rubocop:disable Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
-      def extract_json_fragment(text)
-        raise InvalidJSONError, "Empty response body" if text.nil? || text.empty?
-
-        stripped = text.lstrip
-        if stripped.start_with?("{", "[", "\"", "-", "t", "f", "n") || stripped.match?(/\A\d/)
-          begin
-            JSON.parse(stripped)
-            return stripped
-          rescue JSON::ParserError
-            # Fall back to extraction below
-          end
-        end
-
-        start_idx = text.index(/[{\[]/)
-        raise InvalidJSONError, "No JSON found in response. Response: #{text[0..200]}..." unless start_idx
-
-        stack = []
-        in_string = false
-        escape = false
-
-        i = start_idx
-        while i < text.length
-          ch = text.getbyte(i)
-
-          if in_string
-            if escape
-              escape = false
-            elsif ch == 92 # backslash
-              escape = true
-            elsif ch == 34 # double-quote
-              in_string = false
-            end
-          else
-            case ch
-            when 34 then in_string = true # double-quote
-            when 123 then stack << 125 # { -> }
-            when 91 then stack << 93 # [ -> ]
-            when 125, 93 # }, ]
-              expected = stack.pop
-              raise InvalidJSONError, "Malformed JSON. Response: #{text[start_idx, 200]}..." if expected != ch
-
-              return text[start_idx..i] if stack.empty?
-            end
-          end
-
-          i += 1
-        end
-
-        raise InvalidJSONError, "Incomplete JSON in response. Response: #{text[start_idx, 200]}..."
+      def streaming_requested?(hooks)
+        !(hooks[:on_token] || hooks[:on_error] || hooks[:on_complete]).nil?
       end
-      # rubocop:enable Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
 
       def enhance_not_found_error(error)
         return error if error.requested_model.nil?
