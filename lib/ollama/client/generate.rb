@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "../generate_stream_handler"
 require_relative "../json_fragment_extractor"
 
 module Ollama
@@ -191,7 +192,7 @@ module Ollama
               handle_http_error(res, requested_model: model || @config.model) unless res.is_a?(Net::HTTPSuccess)
 
               if stream_enabled
-                handle_generate_stream(res, hooks, full_response)
+                GenerateStreamHandler.call(res, hooks, full_response)
               else
                 response_body = JSON.parse(res.body)
                 full_response = response_body["response"]
@@ -214,37 +215,6 @@ module Ollama
         raise InvalidJSONError, "Failed to parse API response: #{e.message}"
       end
       # rubocop:enable Metrics/MethodLength, Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/ParameterLists
-
-      def handle_generate_stream(res, hooks, full_response)
-        buffer = +""
-        res.read_body do |chunk|
-          buffer << chunk
-          while (newline_idx = buffer.index("\n"))
-            line = buffer.slice!(0, newline_idx + 1).strip
-            next if line.empty?
-
-            begin
-              obj = JSON.parse(line)
-
-              if obj["error"]
-                error = StreamError.new(obj["error"])
-                hooks[:on_error]&.call(error)
-                raise error
-              end
-
-              token = obj["response"]
-              if token
-                full_response << token
-                hooks[:on_token]&.call(token)
-              end
-
-              hooks[:on_complete]&.call if obj["done"]
-            rescue JSON::ParserError
-              # Ignore malformed stream chunks silently
-            end
-          end
-        end
-      end
 
       def parse_and_validate_schema_response(raw, schema)
         parsed = parse_json_response(raw)
