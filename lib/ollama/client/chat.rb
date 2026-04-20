@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "chat_stream_processor"
+
 module Ollama
   class Client
     # Chat completion endpoint — the primary method for multi-turn conversations
@@ -36,7 +38,7 @@ module Ollama
         # Apply multimodal inputs: build typed message and append to history
         messages = apply_inputs(messages, inputs, active_profile) if inputs
 
-        # Apply prompt adapter (e.g. Gemma 4 injects <|think|> into system prompt)
+        # Apply prompt adapter (e.g. Gemma 4 injects  <|think|> into system prompt)
         adapted_messages = adapter ? adapter.adapt_messages(messages, think: !think.nil?) : messages
 
         # Resolve think flag: adapter may handle it via prompt tag instead of API flag
@@ -67,7 +69,11 @@ module Ollama
             h.request(req) do |res|
               handle_http_error(res, requested_model: target_model) unless res.is_a?(Net::HTTPSuccess)
 
-              response_data = stream_enabled ? handle_chat_stream(res, hooks) : JSON.parse(res.body)
+              response_data = if stream_enabled
+                                ChatStreamProcessor.new(hooks).call(res)
+                              else
+                                JSON.parse(res.body)
+                              end
             end
           end
         rescue Net::ReadTimeout, Net::OpenTimeout => e
@@ -110,97 +116,6 @@ module Ollama
 
         think
       end
-
-      # Handle NDJSON streaming for chat endpoint
-      def handle_chat_stream(res, hooks)
-        full_content  = +""
-        full_thinking = +""
-        full_logprobs = []
-        last_data = nil
-        thinking_started = false
-
-        buffer = +""
-        res.read_body do |chunk|
-          buffer << chunk
-          while (newline_idx = buffer.index("\n"))
-            line = buffer.slice!(0, newline_idx + 1).strip
-            next if line.empty?
-
-            begin
-              obj = JSON.parse(line)
-              thinking_started, last_data = process_chat_stream_chunk(
-                obj, hooks, full_content, full_thinking, full_logprobs, last_data, thinking_started
-              )
-            rescue JSON::ParserError
-              # Ignore malformed stream chunks
-            end
-          end
-        end
-
-        result = last_data || {}
-        result["message"] ||= {}
-        result["message"]["content"] = full_content
-        result["message"]["thinking"] = full_thinking unless full_thinking.empty?
-        result["message"]["role"] ||= "assistant"
-        result["logprobs"] = full_logprobs unless full_logprobs.empty?
-        result
-      end
-
-      # rubocop:disable Metrics/MethodLength, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/AbcSize, Metrics/ParameterLists
-      def process_chat_stream_chunk(obj, hooks, full_content, full_thinking, full_logprobs, last_data, thinking_started)
-        if obj["error"]
-          error = StreamError.new(obj["error"])
-          hooks[:on_error]&.call(error)
-          raise error
-        end
-
-        if obj["message"]
-          content = obj["message"]["content"]
-          thinking = obj["message"]["thinking"]
-
-          # Emit thinking events when reasoning content arrives
-          if thinking && !thinking.empty?
-            unless thinking_started
-              hooks[:on_thought]&.call(StreamEvent.new(type: :thought_start, data: nil))
-              thinking_started = true
-            end
-            full_thinking << thinking
-            hooks[:on_thought]&.call(StreamEvent.new(type: :thought_delta, data: thinking))
-          end
-
-          # Emit answer tokens
-          if content && !content.empty?
-            if thinking_started && !full_thinking.empty?
-              hooks[:on_thought]&.call(StreamEvent.new(type: :thought_end, data: nil))
-              thinking_started = false
-            end
-            full_content << content
-            if hooks[:on_token]&.arity == 2
-              hooks[:on_token].call(content, obj["logprobs"])
-            else
-              hooks[:on_token]&.call(content)
-            end
-          end
-
-          full_logprobs.concat(obj["logprobs"]) if obj["logprobs"]
-        end
-
-        if obj["done"]
-          # Emit tool call events from the final chunk
-          tool_calls = obj.dig("message", "tool_calls")
-          if tool_calls && !tool_calls.empty?
-            tool_calls.each do |tc|
-              hooks[:on_tool_call]&.call(tc)
-            end
-          end
-
-          hooks[:on_complete]&.call
-          return [thinking_started, obj]
-        end
-
-        [thinking_started, last_data]
-      end
-      # rubocop:enable Metrics/MethodLength, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/AbcSize, Metrics/ParameterLists
     end
   end
 end

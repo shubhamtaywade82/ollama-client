@@ -16,13 +16,6 @@ module Ollama
   #   :complete        — stream finished (data = Ollama::Response)
   #   :error           — stream error (data = exception)
   StreamEvent = Struct.new(:type, :data, :model, keyword_init: true) do
-    TYPES = %i[
-      thought_start thought_delta thought_end
-      answer_delta
-      tool_call_start tool_call_delta
-      complete error
-    ].freeze
-
     def thought?   = %i[thought_start thought_delta thought_end].include?(type)
     def answer?    = type == :answer_delta
     def tool_call? = %i[tool_call_start tool_call_delta].include?(type)

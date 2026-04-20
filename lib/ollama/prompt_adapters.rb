@@ -7,6 +7,7 @@ require_relative "prompt_adapters/deepseek"
 require_relative "prompt_adapters/generic"
 
 module Ollama
+  # Registry and factory for model-family prompt adapters (Gemma, Qwen, etc.).
   module PromptAdapters
     # Return the appropriate adapter for a model profile.
     # @param profile [Ollama::ModelProfile]

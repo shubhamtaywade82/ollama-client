@@ -89,7 +89,8 @@ RSpec.describe Ollama::Client do
 
       expect(WebMock).to(have_requested(:post, "#{base_url}/api/chat").with do |req|
         body = JSON.parse(req.body)
-        body["options"]["temperature"] == 1.0
+        temp = body["options"]["temperature"].to_f
+        (temp - 1.0).abs < 1e-9
       end)
     end
 
@@ -102,7 +103,8 @@ RSpec.describe Ollama::Client do
 
       expect(WebMock).to(have_requested(:post, "#{base_url}/api/chat").with do |req|
         body = JSON.parse(req.body)
-        body["options"]["temperature"] == 0.5
+        temp = body["options"]["temperature"].to_f
+        (temp - 0.5).abs < 1e-9
       end)
     end
   end
@@ -113,12 +115,13 @@ RSpec.describe Ollama::Client do
 
     # Each NDJSON chunk must end with \n for the buffer parser
     let(:stream_chunks) do
-      [
+      lines = [
         { model: model, message: { role: "assistant", content: "", thinking: "Hmm" }, done: false }.to_json,
         { model: model, message: { role: "assistant", content: "42", thinking: "" }, done: false }.to_json,
         { model: model, message: { role: "assistant", content: "", thinking: "" }, done: true,
           done_reason: "stop", total_duration: 1_000_000_000 }.to_json
-      ].join("\n") + "\n"
+      ]
+      "#{lines.join("\n")}\n"
     end
 
     before do
@@ -157,14 +160,15 @@ RSpec.describe Ollama::Client do
 
     it "emits on_tool_call for tool call chunks" do
       tool_call_data = nil
-      chunk_with_tools = {
+      tool_payload = {
         model: model,
         message: {
           role: "assistant", content: "", thinking: "",
           tool_calls: [{ function: { name: "get_weather", arguments: { city: "NYC" } } }]
         },
         done: true, done_reason: "stop", total_duration: 500_000_000
-      }.to_json + "\n"
+      }
+      chunk_with_tools = "#{tool_payload.to_json}\n"
 
       stub_request(:post, "#{base_url}/api/chat")
         .to_return(status: 200, body: chunk_with_tools,
