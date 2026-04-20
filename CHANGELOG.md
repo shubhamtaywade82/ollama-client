@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Ollama::JsonFragmentExtractor` — extracts a balanced JSON object or array from text that may include leading or trailing prose.
 - `require "ollama-client"` loads the same stack as `require "ollama_client"` (hyphenated gem entrypoint).
 - `dotenv` (~> 2.8) as a runtime dependency; `ollama_client` continues to call `Dotenv.overload` when loaded.
+- `script/live_branch_smoke.rb` — optional live Ollama smoke runner for profiles, chat extensions, generate streaming, embeddings, etc. (see script header for env vars).
 
 ### Changed
 - `Client::Generate` delegates streaming body handling to `GenerateStreamHandler` (behavior and hooks contract unchanged).

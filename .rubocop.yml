@@ -103,6 +103,7 @@ Style/Documentation:
   Exclude:
     - "examples/**/*"
     - "exe/**/*"
+    - "script/**/*"
 
 Style/WordArray:
   Exclude:
@@ -115,6 +116,7 @@ Style/StringConcatenation:
 Lint/ScriptPermission:
   Exclude:
     - "examples/**/*"
+    - "script/**/*"
 
 Lint/AmbiguousOperatorPrecedence:
   Exclude:

@@ -100,7 +100,7 @@ Used internally by `generate` when streaming; stable for advanced callers who pr
 
 | Method | Signature | Returns |
 |---|---|---|
-| `.call` | `(text)` | `Hash`, `Array`, or other JSON-serializable value parsed from `text` |
+| `.call` | `(text)` | `String` — a balanced JSON object or array substring (parse with `JSON.parse` if you need Ruby values) |
 
 Raises `Ollama::InvalidJSONError` when `text` is blank or no balanced JSON fragment can be extracted.
 
