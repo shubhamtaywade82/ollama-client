@@ -65,10 +65,10 @@ RSpec.describe Ollama::Client do
       expect(response).to be_a(Ollama::Response)
       expect(response.content).to eq("The answer is 42.")
 
-      expect(WebMock).to have_requested(:post, "#{base_url}/api/chat").with { |req|
+      expect(WebMock).to(have_requested(:post, "#{base_url}/api/chat").with do |req|
         body = JSON.parse(req.body)
         body["messages"][0]["content"].start_with?("<|think|>")
-      }
+      end)
     end
 
     it "does not send think: true in body for gemma4 (uses system tag instead)" do
@@ -78,19 +78,19 @@ RSpec.describe Ollama::Client do
         messages: [{ role: "user", content: "hello" }]
       )
 
-      expect(WebMock).to have_requested(:post, "#{base_url}/api/chat").with { |req|
+      expect(WebMock).to(have_requested(:post, "#{base_url}/api/chat").with do |req|
         body = JSON.parse(req.body)
         body["think"].nil?
-      }
+      end)
     end
 
     it "applies gemma4 model-aware temperature by default" do
       client.chat(model: model, messages: [{ role: "user", content: "hi" }])
 
-      expect(WebMock).to have_requested(:post, "#{base_url}/api/chat").with { |req|
+      expect(WebMock).to(have_requested(:post, "#{base_url}/api/chat").with do |req|
         body = JSON.parse(req.body)
         body["options"]["temperature"] == 1.0
-      }
+      end)
     end
 
     it "user-supplied options override profile defaults" do
@@ -100,10 +100,10 @@ RSpec.describe Ollama::Client do
         messages: [{ role: "user", content: "hi" }]
       )
 
-      expect(WebMock).to have_requested(:post, "#{base_url}/api/chat").with { |req|
+      expect(WebMock).to(have_requested(:post, "#{base_url}/api/chat").with do |req|
         body = JSON.parse(req.body)
         body["options"]["temperature"] == 0.5
-      }
+      end)
     end
   end
 
@@ -135,7 +135,7 @@ RSpec.describe Ollama::Client do
         messages: [{ role: "user", content: "What is 6*7?" }],
         hooks: {
           on_thought: ->(evt) { thought_events << evt },
-          on_token:   ->(t)   { tokens << t }
+          on_token: ->(t) { tokens << t }
         }
       )
 
@@ -205,27 +205,27 @@ RSpec.describe Ollama::Client do
         ]
       )
 
-      expect(WebMock).to have_requested(:post, "#{base_url}/api/chat").with { |req|
+      expect(WebMock).to(have_requested(:post, "#{base_url}/api/chat").with do |req|
         body = JSON.parse(req.body)
         last_msg = body["messages"].last
         last_msg["images"] == ["base64imgdata"] && last_msg["content"] == "Describe this image."
-      }
+      end)
     end
   end
 
   describe "Response#usage and #latency_ms" do
+    subject(:response) { Ollama::Response.new(data) }
+
     let(:data) do
       {
-        "model"              => "gemma4:12b",
-        "message"            => { "role" => "assistant", "content" => "hi" },
-        "done"               => true,
-        "total_duration"     => 1_500_000_000,
-        "prompt_eval_count"  => 10,
-        "eval_count"         => 20
+        "model" => "gemma4:12b",
+        "message" => { "role" => "assistant", "content" => "hi" },
+        "done" => true,
+        "total_duration" => 1_500_000_000,
+        "prompt_eval_count" => 10,
+        "eval_count" => 20
       }
     end
-
-    subject(:response) { Ollama::Response.new(data) }
 
     it "returns usage hash" do
       expect(response.usage).to eq(

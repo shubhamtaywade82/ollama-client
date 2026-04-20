@@ -85,9 +85,9 @@ module Ollama
     # @return [Hash] { prompt_tokens:, completion_tokens:, total_tokens: }
     def usage
       {
-        prompt_tokens:     prompt_eval_count,
+        prompt_tokens: prompt_eval_count,
         completion_tokens: eval_count,
-        total_tokens:      (prompt_eval_count.to_i + eval_count.to_i).then { |v| v.zero? ? nil : v }
+        total_tokens: (prompt_eval_count.to_i + eval_count.to_i).then { |v| v.zero? ? nil : v }
       }.compact
     end
 

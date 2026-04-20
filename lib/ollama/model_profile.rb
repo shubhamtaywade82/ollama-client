@@ -108,7 +108,7 @@ module Ollama
       FAMILIES.each do |family, profile|
         next unless profile[:pattern]&.match?(name)
 
-        caps = profile.reject { |k, _| k == :pattern }
+        caps = profile.except(:pattern)
         return new(name, family, caps)
       end
       new(name, :generic, GENERIC_PROFILE)
@@ -138,8 +138,8 @@ module Ollama
     def default_options
       {
         temperature: @capabilities[:default_temperature],
-        top_p:       @capabilities[:default_top_p],
-        top_k:       @capabilities[:default_top_k]
+        top_p: @capabilities[:default_top_p],
+        top_k: @capabilities[:default_top_k]
       }.compact
     end
 

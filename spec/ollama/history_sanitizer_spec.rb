@@ -8,9 +8,9 @@ RSpec.describe Ollama::HistorySanitizer do
 
   def make_response(content:, thinking: nil, model: "gemma4:12b")
     data = {
-      "model"   => model,
+      "model" => model,
       "message" => { "role" => "assistant", "content" => content, "thinking" => thinking }.compact,
-      "done"    => true
+      "done" => true
     }
     Ollama::Response.new(data)
   end

@@ -3,8 +3,9 @@
 require "spec_helper"
 
 RSpec.describe Ollama::PromptAdapters::Gemma4 do
-  let(:profile) { Ollama::ModelProfile.for("gemma4:12b") }
   subject(:adapter) { described_class.new(profile) }
+
+  let(:profile) { Ollama::ModelProfile.for("gemma4:12b") }
 
   describe "#inject_think_flag?" do
     it { expect(adapter.inject_think_flag?).to be false }

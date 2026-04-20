@@ -102,7 +102,7 @@ module Ollama
     # Resolve a profile value into a ModelProfile instance.
     # :auto (default) → detect from model name string.
     def resolve_profile(model_name, profile_arg)
-      return nil if profile_arg == false || profile_arg == :none
+      return nil if [false, :none].include?(profile_arg)
       return profile_arg if profile_arg.is_a?(ModelProfile)
 
       ModelProfile.for(model_name.to_s)

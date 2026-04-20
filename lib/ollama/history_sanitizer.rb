@@ -40,10 +40,8 @@ module Ollama
       case @policy
       when :exclude_thoughts
         store_trace(response)
-        msg = { role: "assistant", content: response.content.to_s }
-      else
-        msg = { role: "assistant", content: response.content.to_s }
       end
+      msg = { role: "assistant", content: response.content.to_s }
       messages << msg
       msg
     end
@@ -55,9 +53,9 @@ module Ollama
       return if response.message&.thinking.to_s.empty?
 
       @trace_store << {
-        model:   response.model,
+        model: response.model,
         thinking: response.message.thinking,
-        final:   response.content
+        final: response.content
       }
     end
   end

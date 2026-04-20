@@ -37,7 +37,7 @@ module Ollama
         messages = apply_inputs(messages, inputs, active_profile) if inputs
 
         # Apply prompt adapter (e.g. Gemma 4 injects <|think|> into system prompt)
-        adapted_messages = adapter ? adapter.adapt_messages(messages, think: !!think) : messages
+        adapted_messages = adapter ? adapter.adapt_messages(messages, think: !think.nil?) : messages
 
         # Resolve think flag: adapter may handle it via prompt tag instead of API flag
         effective_think = resolve_think_flag(think, adapter)
@@ -55,7 +55,7 @@ module Ollama
         body[:keep_alive]  = keep_alive if keep_alive
         body[:logprobs]    = logprobs unless logprobs.nil?
         body[:top_logprobs] = top_logprobs if top_logprobs
-        body[:options]     = build_options_with_profile(options, active_profile)
+        body[:options] = build_options_with_profile(options, active_profile)
 
         req.body = body.to_json
         @config.apply_auth_to(req)
