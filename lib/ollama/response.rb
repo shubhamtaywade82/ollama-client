@@ -81,6 +81,25 @@ module Ollama
       @data["logprobs"] || @data[:logprobs]
     end
 
+    # Aggregated token usage for observability and cost tracking.
+    # @return [Hash] { prompt_tokens:, completion_tokens:, total_tokens: }
+    def usage
+      {
+        prompt_tokens:     prompt_eval_count,
+        completion_tokens: eval_count,
+        total_tokens:      (prompt_eval_count.to_i + eval_count.to_i).then { |v| v.zero? ? nil : v }
+      }.compact
+    end
+
+    # Total generation latency in milliseconds (converted from nanoseconds).
+    # Returns nil when timing data is unavailable.
+    # @return [Float, nil]
+    def latency_ms
+      return nil unless total_duration
+
+      (total_duration / 1_000_000.0).round(2)
+    end
+
     # Access raw data as hash
     def to_h
       @data

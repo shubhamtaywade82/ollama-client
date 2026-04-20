@@ -12,6 +12,11 @@ require_relative "client/chat"
 require_relative "client/generate"
 require_relative "client/model_management"
 require_relative "capabilities"
+require_relative "model_profile"
+require_relative "stream_event"
+require_relative "prompt_adapters"
+require_relative "multimodal_input"
+require_relative "history_sanitizer"
 
 module Ollama
   # Main client class for interacting with the Ollama API.
@@ -33,6 +38,26 @@ module Ollama
       @embeddings = Embeddings.new(@config)
     end
 
+    # Return the capability profile for a model name.
+    # Profiles drive prompt adaptation, streaming event routing, and defaults.
+    #
+    # @param model_name [String]
+    # @return [Ollama::ModelProfile]
+    def profile(model_name)
+      ModelProfile.for(model_name)
+    end
+
+    # Build a history sanitizer appropriate for a model profile.
+    # Convenience method for multi-turn agent loops.
+    #
+    # @param model_name_or_profile [String, ModelProfile]
+    # @param trace_store [Array, nil]
+    # @return [Ollama::HistorySanitizer]
+    def history_sanitizer(model_name_or_profile, trace_store: nil)
+      p = model_name_or_profile.is_a?(ModelProfile) ? model_name_or_profile : profile(model_name_or_profile)
+      HistorySanitizer.for(p, trace_store: trace_store)
+    end
+
     private
 
     # Build options hash from user-provided options merged with config defaults
@@ -50,6 +75,37 @@ module Ollama
       end
 
       opts.compact
+    end
+
+    # Like build_options but applies model-family defaults first so that
+    # profile-recommended settings (e.g. Gemma 4 temperature=1.0) take
+    # precedence over client config defaults, while explicit user options
+    # always win.
+    def build_options_with_profile(user_options, active_profile)
+      opts = {
+        temperature: @config.temperature,
+        top_p: @config.top_p,
+        num_ctx: @config.num_ctx
+      }
+
+      opts.merge!(active_profile.default_options) if active_profile
+
+      if user_options.is_a?(Hash)
+        opts.merge!(user_options.transform_keys(&:to_sym))
+      elsif user_options.respond_to?(:to_h)
+        opts.merge!(user_options.to_h.transform_keys(&:to_sym))
+      end
+
+      opts.compact
+    end
+
+    # Resolve a profile value into a ModelProfile instance.
+    # :auto (default) → detect from model name string.
+    def resolve_profile(model_name, profile_arg)
+      return nil if profile_arg == false || profile_arg == :none
+      return profile_arg if profile_arg.is_a?(ModelProfile)
+
+      ModelProfile.for(model_name.to_s)
     end
 
     def default_config

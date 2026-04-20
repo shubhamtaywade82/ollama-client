@@ -10,6 +10,11 @@ require_relative "ollama/errors"
 require_relative "ollama/schema_validator"
 require_relative "ollama/options"
 require_relative "ollama/response"
+require_relative "ollama/model_profile"
+require_relative "ollama/stream_event"
+require_relative "ollama/prompt_adapters"
+require_relative "ollama/multimodal_input"
+require_relative "ollama/history_sanitizer"
 require_relative "ollama/client"
 
 # Main entry point for OllamaClient gem
