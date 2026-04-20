@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-04-20
+
+### Added
+- Model capability layer: `Ollama::ModelProfile`, `Ollama::Capabilities`, `Ollama::PromptAdapters`, `Ollama::MultimodalInput`, `Ollama::HistorySanitizer`, and `Ollama::StreamEvent` for model-aware chat, multimodal ordering, and structured streaming events.
+- `Ollama::Client#profile` and `#history_sanitizer` for resolving profiles and building history sanitizers from a model name or `ModelProfile`.
+- Extended `Ollama::Client#chat` with optional `profile:`, `inputs:`, `logprobs:`, and `top_logprobs:`; chat streaming hooks may include `on_thought` and `on_tool_call` (see `API_CONTRACT.md`).
+- `Ollama::GenerateStreamHandler` — NDJSON streaming consumer for `/api/generate` responses.
+- `Ollama::JsonFragmentExtractor` — extracts a balanced JSON object or array from text that may include leading or trailing prose.
+- `require "ollama-client"` loads the same stack as `require "ollama_client"` (hyphenated gem entrypoint).
+- `dotenv` (~> 2.8) as a runtime dependency; `ollama_client` continues to call `Dotenv.overload` when loaded.
+
+### Changed
+- `Client::Generate` delegates streaming body handling to `GenerateStreamHandler` (behavior and hooks contract unchanged).
+
 ## [1.1.0] - 2026-03-17
 
 ### Added
