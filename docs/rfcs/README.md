@@ -7,6 +7,7 @@ Use RFCs for ecosystem-impacting runtime proposals before implementation.
 - `0001-stream-runtime.md`
 - `0002-schema-system.md`
 - `0003-observability-hooks.md`
+- `0004-async-runtime.md`
 
 ## Guideline
 
