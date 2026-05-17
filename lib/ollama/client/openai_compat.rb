@@ -42,10 +42,10 @@ module Ollama
         end
 
         def list
-          tags = @client.tags["models"] || []
+          models = @client.list_models || []
           {
             "object" => "list",
-            "data" => tags.map do |m|
+            "data" => models.map do |m|
               {
                 "id" => m["name"],
                 "object" => "model",

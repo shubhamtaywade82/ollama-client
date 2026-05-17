@@ -301,23 +301,23 @@ class LiveBranchSmoke
     raise "bad models list" unless res["object"] == "list" && res["data"].is_a?(Array)
 
     # 2. Chat completion
-    res = client.openai.chat.completions.create(
+    chat_res = client.openai.chat.completions.create(
       model: @model,
       messages: [{ role: "user", content: "Say OK" }]
     )
-    raise "bad chat response" unless res["object"] == "chat.completion"
+    raise "bad chat response" unless chat_res["object"] == "chat.completion"
 
-    content = res.dig("choices", 0, "message", "content")
+    content = chat_res.dig("choices", 0, "message", "content")
     raise "empty content" if content.to_s.strip.empty?
 
     # 3. Embedding
     embed_name = @embed_model || pick_embedding_model(client)
     if embed_name
-      res = client.openai.embeddings.create(model: embed_name, input: "test")
-      raise "bad embedding" unless res["object"] == "list" && res["data"][0]["embedding"].is_a?(Array)
+      emb_res = client.openai.embeddings.create(model: embed_name, input: "test")
+      raise "bad embedding" unless emb_res["object"] == "list" && emb_res["data"][0]["embedding"].is_a?(Array)
     end
 
-    print "chat_id=#{res["id"]} — "
+    print "chat_id=#{chat_res["id"]} — "
   rescue StandardError => e
     raise "OpenAI Compat failed: #{e.message}"
   end
