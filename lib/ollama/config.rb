@@ -99,8 +99,14 @@ module Ollama
     #   }
     def self.load_from_json(path)
       data = JSON.parse(File.read(path))
-      config = new
+      new.tap { |config| map_json_data(config, data) }
+    rescue JSON::ParserError => e
+      raise Error, "Failed to parse config JSON: #{e.message}"
+    rescue Errno::ENOENT
+      raise Error, "Config file not found: #{path}"
+    end
 
+    def self.map_json_data(config, data)
       config.base_url = data["base_url"] if data.key?("base_url")
       config.api_key = data["api_key"] if data.key?("api_key")
       config.model = data["model"] if data.key?("model")
@@ -112,12 +118,7 @@ module Ollama
       config.top_p = data["top_p"] if data.key?("top_p")
       config.num_ctx = data["num_ctx"] if data.key?("num_ctx")
       config.transport_adapter = data["transport_adapter"]&.to_sym if data.key?("transport_adapter")
-
-      config
-    rescue JSON::ParserError => e
-      raise Error, "Failed to parse config JSON: #{e.message}"
-    rescue Errno::ENOENT
-      raise Error, "Config file not found: #{path}"
     end
+    private_class_method :map_json_data
   end
 end

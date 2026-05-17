@@ -32,8 +32,8 @@ module Ollama
         params[:temperature] = options[:temperature] if options[:temperature]
         params[:top_p] = options[:top_p] if options[:top_p]
         params[:max_tokens] = options[:num_ctx] if options[:num_ctx]
-        
-        # Ollama 'format' can be 'json' or a schema. 
+
+        # Ollama 'format' can be 'json' or a schema.
         # OpenAI uses 'response_format'
         format = params.delete(:format)
         if format == "json"
@@ -60,7 +60,7 @@ module Ollama
         # Translate OpenAI format to Ollama format for Ollama::Response
         choice = response_data["choices"][0]
         message = choice["message"]
-        
+
         {
           "model" => response_data["model"],
           "message" => {

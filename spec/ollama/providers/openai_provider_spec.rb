@@ -16,7 +16,7 @@ RSpec.describe Ollama::Providers::OpenAI do
     it "returns the OpenAI chat completions endpoint" do
       expect(provider.chat_endpoint.to_s).to eq("http://localhost:8080/v1/chat/completions")
     end
-    
+
     it "handles trailing slash in base_url" do
       config.base_url = "http://localhost:8080/v1/"
       expect(provider.chat_endpoint.to_s).to eq("http://localhost:8080/v1/chat/completions")
@@ -31,9 +31,9 @@ RSpec.describe Ollama::Providers::OpenAI do
         format: "json",
         options: { temperature: 0.7, num_ctx: 4096 }
       }
-      
+
       formatted = provider.format_chat_request(params)
-      
+
       expect(formatted[:model]).to eq("test-model")
       expect(formatted[:temperature]).to eq(0.7)
       expect(formatted[:max_tokens]).to eq(4096)
@@ -48,7 +48,7 @@ RSpec.describe Ollama::Providers::OpenAI do
       openai_response = {
         "id" => "chatcmpl-123",
         "object" => "chat.completion",
-        "created" => 1677652288,
+        "created" => 1_677_652_288,
         "model" => "gpt-3.5-turbo",
         "choices" => [{
           "index" => 0,
@@ -64,9 +64,9 @@ RSpec.describe Ollama::Providers::OpenAI do
           "total_tokens" => 30
         }
       }
-      
+
       normalized = provider.normalize_chat_response(openai_response)
-      
+
       expect(normalized["model"]).to eq("gpt-3.5-turbo")
       expect(normalized["message"]["content"]).to eq("Hello world")
       expect(normalized["message"]["role"]).to eq("assistant")
@@ -101,10 +101,10 @@ RSpec.describe Ollama::Providers::OpenAI do
         .to_return(
           status: 200,
           body: [
-            "data: " + { "choices" => [{ "delta" => { "content" => "Hello" } }] }.to_json + "\n",
-            "data: " + { "choices" => [{ "delta" => { "content" => " world" }, "finish_reason" => "stop" }] }.to_json + "\n",
+            "data: #{{ "choices" => [{ "delta" => { "content" => "Hello" } }] }.to_json}\n",
+            "data: #{{ "choices" => [{ "delta" => { "content" => " world" }, "finish_reason" => "stop" }] }.to_json}\n",
             "data: [DONE]\n"
-          ].join(""),
+          ].join,
           headers: { "Content-Type" => "text/event-stream" }
         )
 

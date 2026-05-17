@@ -120,7 +120,7 @@ module Ollama
       # @param digest [String] The digest of the blob (required)
       # @param content [String] The raw content of the blob
       # @return [true]
-      def create_blob(digest:, content:)
+      def create_blob(digest:, content:) # rubocop:disable Naming/PredicateMethod
         blob_uri = URI("#{@config.base_url}/api/blobs/#{digest}")
         req = Net::HTTP::Post.new(blob_uri)
         req.body = content
@@ -189,7 +189,7 @@ module Ollama
       # @param model [String] Model name (required)
       # @param keep_alive [String, Integer] Keep-alive duration (default "5m")
       # @return [true]
-      def load_model(model:, keep_alive: "5m")
+      def load_model(model:, keep_alive: "5m") # rubocop:disable Naming/PredicateMethod
         generate_uri = URI("#{@config.base_url}/api/generate")
         req = Net::HTTP::Post.new(generate_uri)
         req["Content-Type"] = "application/json"

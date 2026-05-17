@@ -57,7 +57,7 @@ module Ollama
       def handle_line(line)
         # OpenAI SSE uses "data: " prefix and ends with "data: [DONE]"
         return if line == "data: [DONE]"
-        
+
         json_text = line.start_with?("data: ") ? line.sub(/^data: /, "") : line
         handle_event(JSON.parse(json_text))
       rescue JSON::ParserError => e
@@ -78,33 +78,41 @@ module Ollama
         # Normalize event if it's from OpenAI
         obj = normalize_openai_delta(obj) if @provider.is_a?(Providers::OpenAI)
 
-        if obj["error"]
-          error = StreamError.new(obj["error"])
-          @hooks[:on_error]&.call(error)
-          raise error
-        end
+        handle_error_event(obj) if obj["error"]
+        process_message_field(obj) if obj["message"]
+        finalize_stream_if_done(obj) if obj["done"]
+      end
 
-        if obj["message"]
-          content = obj["message"]["content"]
-          thinking = obj["message"]["thinking"]
+      def handle_error_event(obj)
+        error = StreamError.new(obj["error"])
+        @hooks[:on_error]&.call(error)
+        raise error
+      end
 
-          if thinking && !thinking.empty?
-            start_thought_block unless @thinking_started
-            @full_thinking << thinking
-            @hooks[:on_thought]&.call(StreamEvent.new(type: :thought_delta, data: thinking))
-          end
+      def process_message_field(obj)
+        msg = obj["message"]
+        content = msg["content"]
+        thinking = msg["thinking"]
 
-          if content && !content.empty?
-            end_thought_block_if_needed
-            @full_content << content
-            emit_token(content, obj["logprobs"])
-          end
+        process_thinking(thinking) if thinking && !thinking.empty?
+        process_content(content, obj["logprobs"]) if content && !content.empty?
 
-          @full_logprobs.concat(obj["logprobs"]) if obj["logprobs"]
-        end
+        @full_logprobs.concat(obj["logprobs"]) if obj["logprobs"]
+      end
 
-        return unless obj["done"]
+      def process_thinking(thinking)
+        start_thought_block unless @thinking_started
+        @full_thinking << thinking
+        @hooks[:on_thought]&.call(StreamEvent.new(type: :thought_delta, data: thinking))
+      end
 
+      def process_content(content, logprobs)
+        end_thought_block_if_needed
+        @full_content << content
+        emit_token(content, logprobs)
+      end
+
+      def finalize_stream_if_done(obj)
         Array(obj.dig("message", "tool_calls")).each { |tc| @hooks[:on_tool_call]&.call(tc) }
 
         @hooks[:on_complete]&.call
@@ -116,7 +124,7 @@ module Ollama
 
         choice = obj["choices"][0]
         delta = choice["delta"] || {}
-        
+
         {
           "model" => obj["model"],
           "message" => {
@@ -124,7 +132,7 @@ module Ollama
             "content" => delta["content"],
             "tool_calls" => translate_openai_tool_calls(delta["tool_calls"])
           },
-          "done" => choice["finish_reason"] != nil,
+          "done" => !choice["finish_reason"].nil?,
           "done_reason" => choice["finish_reason"]
         }
       end

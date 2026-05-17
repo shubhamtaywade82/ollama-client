@@ -38,7 +38,7 @@ module Ollama
     def handle_line(line)
       # OpenAI SSE uses "data: " prefix and ends with "data: [DONE]"
       return if line == "data: [DONE]"
-      
+
       json_text = line.start_with?("data: ") ? line.sub(/^data: /, "") : line
       handle_event(JSON.parse(json_text))
     rescue JSON::ParserError
@@ -62,7 +62,7 @@ module Ollama
       {
         "model" => obj["model"],
         "response" => choice["text"],
-        "done" => choice["finish_reason"] != nil
+        "done" => !choice["finish_reason"].nil?
       }
     end
 

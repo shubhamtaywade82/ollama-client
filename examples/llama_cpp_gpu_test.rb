@@ -3,7 +3,7 @@
 require_relative "../lib/ollama-client"
 require "json"
 
-# This script tests the connection between ollama-client gem 
+# This script tests the connection between ollama-client gem
 # and the llama.cpp GPU server running via Docker.
 
 puts "🚀 Initializing Llama.cpp GPU Test..."
