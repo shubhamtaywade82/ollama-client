@@ -68,13 +68,33 @@ module Ollama
           "model" => response_data["model"],
           "message" => {
             "role" => message["role"],
-            "content" => message["content"]
+            "content" => message["content"],
+            "tool_calls" => translate_tool_calls(message["tool_calls"])
           },
-          "done" => choice["finish_reason"] == "stop",
+          "done" => !choice["finish_reason"].nil?,
           "done_reason" => choice["finish_reason"],
           "usage" => response_data["usage"]
         }
       end
+
+      private
+
+      def translate_tool_calls(openai_tool_calls)
+        return nil unless openai_tool_calls
+
+        openai_tool_calls.map do |tc|
+          {
+            "id" => tc["id"] || tc[:id] || "call_#{tc.dig('function', 'name')}_#{object_id}",
+            "type" => tc["type"] || tc[:type] || "function",
+            "function" => {
+              "name" => tc.dig("function", "name"),
+              "arguments" => tc.dig("function", "arguments")
+            }
+          }
+        end
+      end
+
+
 
       def normalize_generate_response(response_data)
         return response_data unless response_data.is_a?(Hash) && response_data.key?("content")

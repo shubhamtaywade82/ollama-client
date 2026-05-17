@@ -36,7 +36,7 @@ module Ollama
     include Raw
     include OpenAICompat
 
-    attr_reader :embeddings, :provider
+    attr_reader :embeddings, :provider, :config
 
     def initialize(config: nil)
       @config = config || default_config
