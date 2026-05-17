@@ -13,6 +13,7 @@ require_relative "client/chat"
 require_relative "client/generate"
 require_relative "client/model_management"
 require_relative "client/raw"
+require_relative "client/openai_compat"
 require_relative "capabilities"
 require_relative "model_profile"
 require_relative "stream_event"
@@ -32,6 +33,7 @@ module Ollama
     include Generate
     include ModelManagement
     include Raw
+    include OpenAICompat
 
     attr_reader :embeddings
 

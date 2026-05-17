@@ -44,29 +44,41 @@ class LiveBranchSmoke
     client = build_client
     return abort_no_server(client) unless server_up?(client)
 
-    run_safe("list_models") { exercise_list_models(client) }
-    run_safe("version") { exercise_version(client) }
-    run_safe("model_profile") { exercise_model_profile }
-    run_safe("client.profile") { exercise_client_profile(client) }
-    run_safe("capabilities.for") { exercise_capabilities(client) }
-    run_safe("json_fragment_extractor") { exercise_json_fragment_extractor }
-    run_safe("generate_plain") { exercise_generate_plain(client) }
-    run_safe("generate_schema") { exercise_generate_schema(client) }
-    run_safe("generate_stream_hooks") { exercise_generate_stream(client) }
-    run_safe("chat_plain") { exercise_chat_plain(client) }
-    run_safe("chat_profile_auto") { exercise_chat_profile_auto(client) }
-    run_safe("chat_stream_hooks") { exercise_chat_stream_hooks(client) }
-    run_safe("multimodal_input_text_only") { exercise_multimodal_text_only }
-    run_safe("history_sanitizer") { exercise_history_sanitizer(client) }
-    run_safe("stream_event") { exercise_stream_event }
-    run_safe("embeddings") { exercise_embeddings(client) }
-    run_safe("gemma_profile") { exercise_gemma_optional(client) }
+    exercise_methods.each do |label, method_name|
+      run_safe(label) do
+        method_obj = method(method_name)
+        method_obj.arity.zero? ? method_obj.call : method_obj.call(client)
+      end
+    end
 
     summary
     @failed.zero? ? 0 : 1
   end
 
   private
+
+  def exercise_methods
+    [
+      ["list_models", :exercise_list_models],
+      ["version", :exercise_version],
+      ["model_profile", :exercise_model_profile],
+      ["client.profile", :exercise_client_profile],
+      ["capabilities.for", :exercise_capabilities],
+      ["json_fragment_extractor", :exercise_json_fragment_extractor],
+      ["generate_plain", :exercise_generate_plain],
+      ["generate_schema", :exercise_generate_schema],
+      ["generate_stream_hooks", :exercise_generate_stream],
+      ["chat_plain", :exercise_chat_plain],
+      ["chat_profile_auto", :exercise_chat_profile_auto],
+      ["chat_stream_hooks", :exercise_chat_stream_hooks],
+      ["multimodal_input_text_only", :exercise_multimodal_text_only],
+      ["history_sanitizer", :exercise_history_sanitizer],
+      ["stream_event", :exercise_stream_event],
+      ["embeddings", :exercise_embeddings],
+      ["openai_compat", :exercise_openai_compat],
+      ["gemma_profile", :exercise_gemma_optional]
+    ]
+  end
 
   def banner(title)
     width = 60
@@ -281,6 +293,33 @@ class LiveBranchSmoke
     raise "not vector" unless vec.is_a?(Array) && vec.first.is_a?(Numeric)
 
     print "model=#{embed_name} dim=#{vec.size} — "
+  end
+
+  def exercise_openai_compat(client)
+    # 1. Models list
+    res = client.openai.models.list
+    raise "bad models list" unless res["object"] == "list" && res["data"].is_a?(Array)
+
+    # 2. Chat completion
+    res = client.openai.chat.completions.create(
+      model: @model,
+      messages: [{ role: "user", content: "Say OK" }]
+    )
+    raise "bad chat response" unless res["object"] == "chat.completion"
+
+    content = res.dig("choices", 0, "message", "content")
+    raise "empty content" if content.to_s.strip.empty?
+
+    # 3. Embedding
+    embed_name = @embed_model || pick_embedding_model(client)
+    if embed_name
+      res = client.openai.embeddings.create(model: embed_name, input: "test")
+      raise "bad embedding" unless res["object"] == "list" && res["data"][0]["embedding"].is_a?(Array)
+    end
+
+    print "chat_id=#{res["id"]} — "
+  rescue StandardError => e
+    raise "OpenAI Compat failed: #{e.message}"
   end
 
   def exercise_gemma_optional(client)
