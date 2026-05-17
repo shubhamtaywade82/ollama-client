@@ -5,10 +5,21 @@ module Ollama
     # Consumes an NDJSON /api/chat stream, aggregates message fields, and dispatches hooks.
     # Line buffering matches Ollama::GenerateStreamHandler so both NDJSON parsers stay parallel.
     class ChatStreamProcessor
+      # Convenience class method to process a stream.
+      # @param res [Net::HTTPResponse]
+      # @param hooks [Hash]
+      # @return [Hash] the aggregated result
+      def self.call(res, hooks)
+        new(hooks).call(res)
+      end
+
+      # @param hooks [Hash]
       def initialize(hooks)
         @hooks = hooks
       end
 
+      # @param res [Net::HTTPResponse]
+      # @return [Hash] the aggregated result
       def call(res)
         reset_accumulators!
 
@@ -42,8 +53,8 @@ module Ollama
 
       def handle_line(line)
         handle_event(JSON.parse(line))
-      rescue JSON::ParserError
-        nil
+      rescue JSON::ParserError => e
+        @hooks[:on_error]&.call(MalformedStreamError.new("Failed to parse JSON line: #{e.message}"))
       end
 
       def build_result

@@ -70,7 +70,7 @@ module Ollama
               handle_http_error(res, requested_model: target_model) unless res.is_a?(Net::HTTPSuccess)
 
               response_data = if stream_enabled
-                                ChatStreamProcessor.new(hooks).call(res)
+                                ChatStreamProcessor.call(res, hooks)
                               else
                                 JSON.parse(res.body)
                               end
