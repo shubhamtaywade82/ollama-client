@@ -15,6 +15,7 @@ module Ollama
     def initialize(config, transport: nil)
       @config = config
       @transport = transport || Transport.build(config)
+      @provider = Providers.build(config, @transport)
     end
 
     # Generate embeddings for text input(s)
@@ -27,27 +28,27 @@ module Ollama
     # @param options [Hash, nil] Runtime options (temperature, etc.)
     # @return [Array<Float>, Array<Array<Float>>] Embedding vector(s)
     def embed(model:, input:, truncate: nil, dimensions: nil, keep_alive: nil, options: nil)
-      # Use /api/embed (not /api/embeddings) - the working endpoint
-      uri = URI("#{@config.base_url}/api/embed")
+      # Use provider-specific endpoint
+      uri = @provider.embeddings_endpoint
       req = Net::HTTP::Post.new(uri)
       req["Content-Type"] = "application/json"
 
-      body = {
+      params = {
         model: model,
         input: input
       }
-      body[:truncate] = truncate unless truncate.nil?
-      body[:dimensions] = dimensions if dimensions
-      body[:keep_alive] = keep_alive if keep_alive
-      body[:options] = options if options
+      params[:truncate] = truncate unless truncate.nil?
+      params[:dimensions] = dimensions if dimensions
+      params[:keep_alive] = keep_alive if keep_alive
+      params[:options] = options if options
 
-      req.body = body.to_json
+      req.body = @provider.format_embeddings_request(params).to_json
       @config.apply_auth_to(req)
       res = @transport.request(uri: uri, request: req, read_timeout: @config.timeout)
 
       handle_http_error(res, requested_model: model) unless res.is_a?(Net::HTTPSuccess)
 
-      response_body = JSON.parse(res.body)
+      response_body = @provider.normalize_embeddings_response(JSON.parse(res.body))
       # /api/embed returns "embeddings" (plural) as array of arrays
       embeddings = response_body["embeddings"] || response_body["embedding"]
 

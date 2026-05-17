@@ -7,6 +7,7 @@ require_relative "errors"
 require_relative "schema_validator"
 require_relative "config"
 require_relative "transport"
+require_relative "providers"
 require_relative "embeddings"
 require_relative "response"
 require_relative "client/chat"
@@ -35,12 +36,13 @@ module Ollama
     include Raw
     include OpenAICompat
 
-    attr_reader :embeddings
+    attr_reader :embeddings, :provider
 
     def initialize(config: nil)
       @config = config || default_config
       @base_uri = URI(@config.base_url)
       @transport = Transport.build(@config)
+      @provider = Providers.build(@config, @transport)
       @embeddings = Embeddings.new(@config, transport: @transport)
     end
 

@@ -17,12 +17,16 @@ module Ollama
       num_predict stop tfs_z mirostat mirostat_tau mirostat_eta
       num_gpu num_thread num_keep typical_p
       presence_penalty frequency_penalty
+      min_p penalize_newline repeat_last_n numa num_batch
+      main_gpu low_vram vocab_only use_mmap use_mlock
     ].freeze
 
     attr_reader :temperature, :top_p, :top_k, :num_ctx, :repeat_penalty, :seed,
                 :num_predict, :stop, :tfs_z, :mirostat, :mirostat_tau, :mirostat_eta,
                 :num_gpu, :num_thread, :num_keep, :typical_p,
-                :presence_penalty, :frequency_penalty
+                :presence_penalty, :frequency_penalty,
+                :min_p, :penalize_newline, :repeat_last_n, :numa, :num_batch,
+                :main_gpu, :low_vram, :vocab_only, :use_mmap, :use_mlock
 
     def initialize(**options)
       unknown_keys = options.keys - VALID_KEYS
@@ -125,6 +129,56 @@ module Ollama
       @frequency_penalty = value
     end
 
+    def min_p=(value)
+      validate_numeric_range(value, 0.0, 1.0, "min_p")
+      @min_p = value
+    end
+
+    def penalize_newline=(value)
+      validate_boolean(value, "penalize_newline")
+      @penalize_newline = value
+    end
+
+    def repeat_last_n=(value)
+      validate_integer(value, "repeat_last_n")
+      @repeat_last_n = value
+    end
+
+    def numa=(value)
+      validate_boolean(value, "numa")
+      @numa = value
+    end
+
+    def num_batch=(value)
+      validate_integer_min(value, 1, "num_batch")
+      @num_batch = value
+    end
+
+    def main_gpu=(value)
+      validate_integer(value, "main_gpu")
+      @main_gpu = value
+    end
+
+    def low_vram=(value)
+      validate_boolean(value, "low_vram")
+      @low_vram = value
+    end
+
+    def vocab_only=(value)
+      validate_boolean(value, "vocab_only")
+      @vocab_only = value
+    end
+
+    def use_mmap=(value)
+      validate_boolean(value, "use_mmap")
+      @use_mmap = value
+    end
+
+    def use_mlock=(value)
+      validate_boolean(value, "use_mlock")
+      @use_mlock = value
+    end
+
     # Convert to hash for API calls
     def to_h
       hash = {}
@@ -179,6 +233,14 @@ module Ollama
       return if value.is_a?(Integer)
 
       raise ArgumentError, "#{name} must be an integer, got #{value.class}"
+    end
+
+    def validate_boolean(value, name)
+      return if value.nil?
+
+      return if [true, false].include?(value)
+
+      raise ArgumentError, "#{name} must be a boolean, got #{value.class}"
     end
   end
 end

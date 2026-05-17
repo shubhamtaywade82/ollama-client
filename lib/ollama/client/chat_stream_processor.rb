@@ -8,14 +8,17 @@ module Ollama
       # Convenience class method to process a stream.
       # @param res [Net::HTTPResponse]
       # @param hooks [Hash]
+      # @param provider [Ollama::Providers::Base]
       # @return [Hash] the aggregated result
-      def self.call(res, hooks)
-        new(hooks).call(res)
+      def self.call(res, hooks, provider: nil)
+        new(hooks, provider: provider).call(res)
       end
 
       # @param hooks [Hash]
-      def initialize(hooks)
+      # @param provider [Ollama::Providers::Base]
+      def initialize(hooks, provider: nil)
         @hooks = hooks
+        @provider = provider
       end
 
       # @param res [Net::HTTPResponse]
@@ -52,7 +55,11 @@ module Ollama
       end
 
       def handle_line(line)
-        handle_event(JSON.parse(line))
+        # OpenAI SSE uses "data: " prefix and ends with "data: [DONE]"
+        return if line == "data: [DONE]"
+        
+        json_text = line.start_with?("data: ") ? line.sub(/^data: /, "") : line
+        handle_event(JSON.parse(json_text))
       rescue JSON::ParserError => e
         @hooks[:on_error]&.call(MalformedStreamError.new("Failed to parse JSON line: #{e.message}"))
       end
@@ -68,6 +75,9 @@ module Ollama
       end
 
       def handle_event(obj)
+        # Normalize event if it's from OpenAI
+        obj = normalize_openai_delta(obj) if @provider.is_a?(Providers::OpenAI)
+
         if obj["error"]
           error = StreamError.new(obj["error"])
           @hooks[:on_error]&.call(error)
@@ -99,6 +109,37 @@ module Ollama
 
         @hooks[:on_complete]&.call
         @last_data = obj
+      end
+
+      def normalize_openai_delta(obj)
+        return obj unless obj.key?("choices")
+
+        choice = obj["choices"][0]
+        delta = choice["delta"] || {}
+        
+        {
+          "model" => obj["model"],
+          "message" => {
+            "role" => delta["role"],
+            "content" => delta["content"],
+            "tool_calls" => translate_openai_tool_calls(delta["tool_calls"])
+          },
+          "done" => choice["finish_reason"] != nil,
+          "done_reason" => choice["finish_reason"]
+        }
+      end
+
+      def translate_openai_tool_calls(openai_tool_calls)
+        return nil unless openai_tool_calls
+
+        openai_tool_calls.map do |tc|
+          {
+            "function" => {
+              "name" => tc.dig("function", "name"),
+              "arguments" => tc.dig("function", "arguments")
+            }
+          }
+        end
       end
 
       def start_thought_block

@@ -19,7 +19,7 @@ module Ollama
   class Config
     attr_accessor :base_url, :model, :timeout, :retries, :temperature,
                   :top_p, :num_ctx, :on_response, :strict_json, :api_key,
-                  :transport_adapter
+                  :transport_adapter, :provider
 
     def initialize
       @base_url = "http://localhost:11434"
@@ -33,6 +33,7 @@ module Ollama
       @on_response = nil
       @api_key = nil
       @transport_adapter = :net_http
+      @provider = :ollama
     end
 
     # Set Authorization header on a request when api_key is configured (e.g. for Ollama Cloud).
@@ -62,6 +63,7 @@ module Ollama
       attributes = {
         base_url: base_url.inspect,
         model: model.inspect,
+        provider: provider.inspect,
         timeout: timeout,
         retries: retries,
         strict_json: strict_json,
@@ -88,6 +90,7 @@ module Ollama
     #     "base_url": "http://localhost:11434",
     #     "api_key": "optional-for-ollama-cloud",
     #     "model": "llama3.2:3b",
+    #     "provider": "ollama",
     #     "timeout": 30,
     #     "retries": 3,
     #     "temperature": 0.2,
@@ -101,6 +104,7 @@ module Ollama
       config.base_url = data["base_url"] if data.key?("base_url")
       config.api_key = data["api_key"] if data.key?("api_key")
       config.model = data["model"] if data.key?("model")
+      config.provider = data["provider"]&.to_sym if data.key?("provider")
       config.timeout = data["timeout"] if data.key?("timeout")
       config.retries = data["retries"] if data.key?("retries")
       config.strict_json = data["strict_json"] if data.key?("strict_json")
