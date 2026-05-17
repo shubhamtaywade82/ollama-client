@@ -4,6 +4,7 @@ require "net/http"
 require "uri"
 require "json"
 require_relative "errors"
+require_relative "transport"
 
 module Ollama
   # Embeddings API helper for semantic search and RAG in agents
@@ -11,8 +12,9 @@ module Ollama
   # This is a helper module used internally by Client.
   # Use client.embeddings.embed() instead of instantiating this directly.
   class Embeddings
-    def initialize(config)
+    def initialize(config, transport: nil)
       @config = config
+      @transport = transport || Transport.build(config)
     end
 
     # Generate embeddings for text input(s)
@@ -41,11 +43,7 @@ module Ollama
 
       req.body = body.to_json
       @config.apply_auth_to(req)
-      res = Net::HTTP.start(
-        uri.hostname,
-        uri.port,
-        **@config.http_connection_options(uri)
-      ) { |http| http.request(req) }
+      res = @transport.request(uri: uri, request: req, read_timeout: @config.timeout)
 
       handle_http_error(res, requested_model: model) unless res.is_a?(Net::HTTPSuccess)
 

@@ -17,7 +17,9 @@ module Ollama
   # Each client instance with its own config is thread-safe.
   #
   class Config
-    attr_accessor :base_url, :model, :timeout, :retries, :temperature, :top_p, :num_ctx, :on_response, :strict_json, :api_key
+    attr_accessor :base_url, :model, :timeout, :retries, :temperature,
+                  :top_p, :num_ctx, :on_response, :strict_json, :api_key,
+                  :transport_adapter
 
     def initialize
       @base_url = "http://localhost:11434"
@@ -30,6 +32,7 @@ module Ollama
       @num_ctx = 8192
       @on_response = nil
       @api_key = nil
+      @transport_adapter = :net_http
     end
 
     # Set Authorization header on a request when api_key is configured (e.g. for Ollama Cloud).
@@ -65,7 +68,8 @@ module Ollama
         temperature: temperature,
         top_p: top_p,
         num_ctx: num_ctx,
-        api_key: "(redacted)"
+        api_key: "(redacted)",
+        transport_adapter: transport_adapter.inspect
       }
 
       "#<#{self.class.name} #{attributes.map { |k, v| "#{k}=#{v}" }.join(" ")}>"
@@ -103,6 +107,7 @@ module Ollama
       config.temperature = data["temperature"] if data.key?("temperature")
       config.top_p = data["top_p"] if data.key?("top_p")
       config.num_ctx = data["num_ctx"] if data.key?("num_ctx")
+      config.transport_adapter = data["transport_adapter"]&.to_sym if data.key?("transport_adapter")
 
       config
     rescue JSON::ParserError => e
