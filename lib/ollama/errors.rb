@@ -17,9 +17,6 @@ module Ollama
   class ConnectionFailedError < Error; end
   class MalformedResponseError < Error; end
   class MalformedStreamError < Error; end
-  class UnauthorizedError < HTTPError; end
-  class ModelUnavailableError < HTTPError; end
-
   module Errors
     def self.from_response(response, requested_model: nil)
       status = response.code.to_i
@@ -64,6 +61,9 @@ module Ollama
       false
     end
   end
+
+  class UnauthorizedError < HTTPError; end
+  class ModelUnavailableError < HTTPError; end
 
   # Specific error for 404 Not Found responses
   class NotFoundError < HTTPError
