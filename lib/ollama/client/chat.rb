@@ -39,7 +39,7 @@ module Ollama
         messages = apply_inputs(messages, inputs, active_profile) if inputs
 
         # Apply prompt adapter (e.g. Gemma 4 prepends the family think tag to the system prompt)
-        adapted_messages = adapter ? adapter.adapt_messages(messages, think: !think.nil?) : messages
+        adapted_messages = adapter ? adapter.adapt_messages(messages, think: !think.nil?, tools: tools) : messages
 
         # Resolve think flag: adapter may handle it via prompt tag instead of API flag
         effective_think = resolve_think_flag(think, adapter)

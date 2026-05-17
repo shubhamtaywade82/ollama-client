@@ -14,10 +14,11 @@ module Ollama
 
       # Transform messages for this model family.
       # @param messages [Array<Hash>]
-      # @param think [Boolean, String, nil] forwarded from chat; unused in this pass-through adapter
+      # @param think [Boolean, String, nil] forwarded from chat
+      # @param tools [Array<Hash>, nil] forwarded from chat
       # @return [Array<Hash>]
       # rubocop:disable Lint/UnusedMethodArgument -- keyword kept for subclass / duck-typed API
-      def adapt_messages(messages, think: false)
+      def adapt_messages(messages, think: false, tools: nil)
         messages
       end
       # rubocop:enable Lint/UnusedMethodArgument
