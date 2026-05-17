@@ -123,4 +123,24 @@ RSpec.describe Ollama::Error do
       end
     end
   end
+
+
+  describe "typed HTTP subclasses" do
+    it "loads UnauthorizedError and ModelUnavailableError as HTTPError subclasses" do
+      expect(Ollama::UnauthorizedError.ancestors).to include(Ollama::HTTPError)
+      expect(Ollama::ModelUnavailableError.ancestors).to include(Ollama::HTTPError)
+    end
+
+    it "maps 401 and 503 through Errors.from_response" do
+      unauthorized_response = double("response", code: "401", body: '{"error":"unauthorized"}', message: "Unauthorized")
+      unavailable_response = double("response", code: "503", body: '{"error":"model loading"}', message: "Service Unavailable")
+
+      unauthorized_error = Ollama::Errors.from_response(unauthorized_response)
+      unavailable_error = Ollama::Errors.from_response(unavailable_response)
+
+      expect(unauthorized_error).to be_a(Ollama::UnauthorizedError)
+      expect(unavailable_error).to be_a(Ollama::ModelUnavailableError)
+    end
+  end
+
 end
