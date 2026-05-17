@@ -17,3 +17,12 @@
 - Small deterministic core
 - Optional integrations
 - No abstraction soup
+
+
+## See also
+
+- `docs/ecosystem/EXISTING_REPOS.md`
+- `docs/runtime/TRANSPORT_CONTRACT.md`
+- `docs/runtime/STREAM_CONTRACT.md`
+- `docs/runtime/ERROR_CONTRACT.md`
+- `docs/rfcs/README.md`
