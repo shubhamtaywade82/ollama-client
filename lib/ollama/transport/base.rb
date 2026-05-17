@@ -2,6 +2,7 @@
 
 module Ollama
   module Transport
+    # Base transport adapter contract.
     class Base
       def initialize(config)
         @config = config

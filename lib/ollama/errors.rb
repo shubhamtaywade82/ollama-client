@@ -17,6 +17,8 @@ module Ollama
   class ConnectionFailedError < Error; end
   class MalformedResponseError < Error; end
   class MalformedStreamError < Error; end
+
+  # Maps HTTP-style responses into typed runtime errors.
   module Errors
     def self.from_response(response, requested_model: nil)
       status = response.code.to_i

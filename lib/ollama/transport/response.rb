@@ -2,6 +2,7 @@
 
 module Ollama
   module Transport
+    # Normalized transport response contract.
     class Response
       attr_reader :status, :headers, :body, :raw, :duration_ms
 

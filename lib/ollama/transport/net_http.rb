@@ -2,6 +2,7 @@
 
 module Ollama
   module Transport
+    # Net::HTTP-backed transport adapter.
     class NetHTTP < Base
       def request(uri:, request:, read_timeout:)
         started = Process.clock_gettime(Process::CLOCK_MONOTONIC)

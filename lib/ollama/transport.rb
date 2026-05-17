@@ -7,6 +7,7 @@ require_relative "transport/response"
 require_relative "transport/mock"
 
 module Ollama
+  # Transport adapter namespace and factory.
   module Transport
     def self.build(config)
       adapter = config.respond_to?(:transport_adapter) ? config.transport_adapter : :net_http

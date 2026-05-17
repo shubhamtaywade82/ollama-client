@@ -2,6 +2,7 @@
 
 module Ollama
   module Transport
+    # In-memory transport for deterministic tests.
     class Mock < Base
       def initialize(config)
         super
@@ -24,7 +25,7 @@ module Ollama
       end
 
       def capabilities
-        [:request, :mock]
+        %i[request mock]
       end
     end
   end

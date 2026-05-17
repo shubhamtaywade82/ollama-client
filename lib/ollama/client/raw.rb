@@ -8,6 +8,7 @@ module Ollama
         @raw ||= RawAdapter.new(self)
       end
 
+      # Adapter exposing direct HTTP endpoint calls for unsupported APIs.
       class RawAdapter
         def initialize(client)
           @client = client

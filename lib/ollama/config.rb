@@ -17,7 +17,9 @@ module Ollama
   # Each client instance with its own config is thread-safe.
   #
   class Config
-    attr_accessor :base_url, :model, :timeout, :retries, :temperature, :top_p, :num_ctx, :on_response, :strict_json, :api_key, :transport_adapter
+    attr_accessor :base_url, :model, :timeout, :retries, :temperature,
+                  :top_p, :num_ctx, :on_response, :strict_json, :api_key,
+                  :transport_adapter
 
     def initialize
       @base_url = "http://localhost:11434"

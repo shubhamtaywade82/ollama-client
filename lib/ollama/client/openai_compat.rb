@@ -1,14 +1,16 @@
-require "securerandom"
-
 # frozen_string_literal: true
+
+require "securerandom"
 
 module Ollama
   class Client
+    # Optional OpenAI-style compatibility facade.
     module OpenAICompat
       def openai
         @openai ||= OpenAIAdapter.new(self)
       end
 
+      # Entry point object for OpenAI-compatible sub-APIs.
       class OpenAIAdapter
         def initialize(client)
           @client = client
@@ -32,6 +34,7 @@ module Ollama
         end
       end
 
+      # Adapter for OpenAI-like models listing.
       class ModelsAdapter
         def initialize(client, config)
           @client = client
@@ -54,6 +57,7 @@ module Ollama
         end
       end
 
+      # Adapter for OpenAI-like embeddings create API.
       class EmbeddingsAdapter
         def initialize(client)
           @client = client
@@ -72,6 +76,7 @@ module Ollama
         end
       end
 
+      # Adapter for OpenAI-like chat/completions API.
       class ChatAdapter
         def initialize(client)
           @client = client
@@ -79,6 +84,18 @@ module Ollama
 
         def completions
           self
+        end
+
+        def openai_tool_calls(response)
+          response.message.tool_calls&.map do |tc|
+            {
+              "type" => "function",
+              "function" => {
+                "name" => tc.name,
+                "arguments" => tc.arguments.to_json
+              }
+            }
+          end
         end
 
         def create(model:, messages:, tools: nil, temperature: nil, top_p: nil, **)
@@ -100,7 +117,7 @@ module Ollama
                 "message" => {
                   "role" => "assistant",
                   "content" => response.message.content,
-                  "tool_calls" => response.message.tool_calls&.map { |tc| { "type" => "function", "function" => { "name" => tc.name, "arguments" => tc.arguments.to_json } } }
+                  "tool_calls" => openai_tool_calls(response)
                 },
                 "finish_reason" => response.done_reason || "stop"
               }
@@ -109,6 +126,7 @@ module Ollama
         end
       end
 
+      # Adapter for OpenAI-like text completions API.
       class CompletionsAdapter
         def initialize(client)
           @client = client
