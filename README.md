@@ -373,3 +373,72 @@ OLLAMA_INTEGRATION=1 bundle exec rspec spec/integration/
 ## License
 
 MIT. See [LICENSE.txt](LICENSE.txt).
+
+## OpenAI-Compatible Facade (Optional Extension)
+
+OpenAI compatibility is intentionally isolated from the core runtime.
+Load it explicitly when needed:
+
+```ruby
+require "ollama_client"
+require "ollama/openai"
+
+client = Ollama::Client.new
+
+client.openai.models.list
+client.openai.chat.completions.create(
+  model: "qwen2.5-coder:7b",
+  messages: [{ role: "user", content: "hello" }]
+)
+client.openai.completions.create(model: "llama3.2:3b", prompt: "Write one line")
+client.openai.embeddings.create(model: "nomic-embed-text", input: "ruby")
+```
+
+## Raw Endpoint Escape Hatch (New)
+
+Access unsupported and future endpoints without waiting for wrapper updates:
+
+```ruby
+client = Ollama::Client.new
+
+client.raw.post("/api/chat", payload: {
+  model: "llama3.2:3b",
+  messages: [{ role: "user", content: "hello" }],
+  stream: false
+})
+```
+
+## Transport Adapter (Foundation)
+
+The client now resolves HTTP through a transport adapter boundary.
+Default remains Net::HTTP, and the API is forward-compatible with future adapters.
+
+```ruby
+config = Ollama::Config.new
+config.transport_adapter = :net_http
+client = Ollama::Client.new(config: config)
+```
+
+Transport internals now normalize responses through a transport response object
+(`status`, `headers`, `body`, `duration_ms`) to support future adapters and observability.
+A stream transport contract (`transport.stream`) is also defined as the next expansion point.
+
+### Mock transport (testing)
+
+For deterministic tests without a live Ollama server:
+
+```ruby
+config = Ollama::Config.new
+config.transport_adapter = :mock
+client = Ollama::Client.new(config: config)
+
+transport = client.instance_variable_get(:@transport)
+transport.enqueue(status: 200, body: '{"version":"0.0.0-test"}')
+client.version # => "0.0.0-test"
+```
+
+### Error taxonomy foundation
+
+Runtime now includes explicit typed transport/runtime errors such as:
+`UnauthorizedError`, `ModelUnavailableError`, `ConnectionFailedError`, and
+`MalformedResponseError` for safer retry and policy layering.

@@ -6,11 +6,13 @@ require "json"
 require_relative "errors"
 require_relative "schema_validator"
 require_relative "config"
+require_relative "transport"
 require_relative "embeddings"
 require_relative "response"
 require_relative "client/chat"
 require_relative "client/generate"
 require_relative "client/model_management"
+require_relative "client/raw"
 require_relative "capabilities"
 require_relative "model_profile"
 require_relative "stream_event"
@@ -29,13 +31,15 @@ module Ollama
     include Chat
     include Generate
     include ModelManagement
+    include Raw
 
     attr_reader :embeddings
 
     def initialize(config: nil)
       @config = config || default_config
       @base_uri = URI(@config.base_url)
-      @embeddings = Embeddings.new(@config)
+      @transport = Transport.build(@config)
+      @embeddings = Embeddings.new(@config, transport: @transport)
     end
 
     # Return the capability profile for a model name.
@@ -119,11 +123,7 @@ module Ollama
     # Shared HTTP request helper for simple (non-streaming) requests
     def http_request(uri, req, read_timeout: @config.timeout)
       @config.apply_auth_to(req)
-      Net::HTTP.start(
-        uri.hostname,
-        uri.port,
-        **@config.http_connection_options(uri, read_timeout: read_timeout)
-      ) { |http| http.request(req) }
+      @transport.request(uri: uri, request: req, read_timeout: read_timeout)
     rescue Net::ReadTimeout, Net::OpenTimeout
       raise TimeoutError, "Request timed out after #{@config.timeout}s"
     rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
@@ -131,14 +131,8 @@ module Ollama
     end
 
     def handle_http_error(res, requested_model: nil)
-      status_code = res.code.to_i
       requested_model ||= @config.model
-
-      error_message = extract_error_message(res) || res.message
-
-      raise NotFoundError.new(error_message, requested_model: requested_model) if status_code == 404
-
-      raise HTTPError.new("HTTP #{res.code}: #{error_message}", status_code)
+      raise Errors.from_response(res, requested_model: requested_model)
     end
 
     def emit_response_hook(raw, meta)
