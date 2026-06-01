@@ -5,10 +5,24 @@ module Ollama
     # Consumes an NDJSON /api/chat stream, aggregates message fields, and dispatches hooks.
     # Line buffering matches Ollama::GenerateStreamHandler so both NDJSON parsers stay parallel.
     class ChatStreamProcessor
-      def initialize(hooks)
-        @hooks = hooks
+      # Convenience class method to process a stream.
+      # @param res [Net::HTTPResponse]
+      # @param hooks [Hash]
+      # @param provider [Ollama::Providers::Base]
+      # @return [Hash] the aggregated result
+      def self.call(res, hooks, provider: nil)
+        new(hooks, provider: provider).call(res)
       end
 
+      # @param hooks [Hash]
+      # @param provider [Ollama::Providers::Base]
+      def initialize(hooks, provider: nil)
+        @hooks = hooks
+        @provider = provider
+      end
+
+      # @param res [Net::HTTPResponse]
+      # @return [Hash] the aggregated result
       def call(res)
         reset_accumulators!
 
@@ -41,9 +55,13 @@ module Ollama
       end
 
       def handle_line(line)
-        handle_event(JSON.parse(line))
-      rescue JSON::ParserError
-        nil
+        # OpenAI SSE uses "data: " prefix and ends with "data: [DONE]"
+        return if line == "data: [DONE]"
+
+        json_text = line.start_with?("data: ") ? line.sub(/^data: /, "") : line
+        handle_event(JSON.parse(json_text))
+      rescue JSON::ParserError => e
+        @hooks[:on_error]&.call(MalformedStreamError.new("Failed to parse JSON line: #{e.message}"))
       end
 
       def build_result
@@ -57,37 +75,79 @@ module Ollama
       end
 
       def handle_event(obj)
-        if obj["error"]
-          error = StreamError.new(obj["error"])
-          @hooks[:on_error]&.call(error)
-          raise error
-        end
+        # Normalize event if it's from OpenAI
+        obj = normalize_openai_delta(obj) if @provider.is_a?(Providers::OpenAI)
 
-        if obj["message"]
-          content = obj["message"]["content"]
-          thinking = obj["message"]["thinking"]
+        handle_error_event(obj) if obj["error"]
+        process_message_field(obj) if obj["message"]
+        finalize_stream_if_done(obj) if obj["done"]
+      end
 
-          if thinking && !thinking.empty?
-            start_thought_block unless @thinking_started
-            @full_thinking << thinking
-            @hooks[:on_thought]&.call(StreamEvent.new(type: :thought_delta, data: thinking))
-          end
+      def handle_error_event(obj)
+        error = StreamError.new(obj["error"])
+        @hooks[:on_error]&.call(error)
+        raise error
+      end
 
-          if content && !content.empty?
-            end_thought_block_if_needed
-            @full_content << content
-            emit_token(content, obj["logprobs"])
-          end
+      def process_message_field(obj)
+        msg = obj["message"]
+        content = msg["content"]
+        thinking = msg["thinking"]
 
-          @full_logprobs.concat(obj["logprobs"]) if obj["logprobs"]
-        end
+        process_thinking(thinking) if thinking && !thinking.empty?
+        process_content(content, obj["logprobs"]) if content && !content.empty?
 
-        return unless obj["done"]
+        @full_logprobs.concat(obj["logprobs"]) if obj["logprobs"]
+      end
 
+      def process_thinking(thinking)
+        start_thought_block unless @thinking_started
+        @full_thinking << thinking
+        @hooks[:on_thought]&.call(StreamEvent.new(type: :thought_delta, data: thinking))
+      end
+
+      def process_content(content, logprobs)
+        end_thought_block_if_needed
+        @full_content << content
+        emit_token(content, logprobs)
+      end
+
+      def finalize_stream_if_done(obj)
         Array(obj.dig("message", "tool_calls")).each { |tc| @hooks[:on_tool_call]&.call(tc) }
 
         @hooks[:on_complete]&.call
         @last_data = obj
+      end
+
+      def normalize_openai_delta(obj)
+        return obj unless obj.key?("choices")
+
+        choice = obj["choices"][0]
+        delta = choice["delta"] || {}
+
+        {
+          "model" => obj["model"],
+          "message" => {
+            "role" => delta["role"],
+            "content" => delta["content"],
+            "tool_calls" => translate_openai_tool_calls(delta["tool_calls"])
+          },
+          "done" => !choice["finish_reason"].nil?,
+          "done_reason" => choice["finish_reason"]
+        }
+      end
+
+      def translate_openai_tool_calls(openai_tool_calls)
+        return nil unless openai_tool_calls
+
+        openai_tool_calls.map do |tc|
+          {
+            "function" => {
+              "name" => tc.dig("function", "name"),
+              "arguments" => tc.dig("function", "arguments")
+            }
+          }
+        end
       end
 
       def start_thought_block

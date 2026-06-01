@@ -8,6 +8,7 @@ module Ollama
     # Generate completion endpoint with auto-pull, retries, and structured output
     module Generate # rubocop:disable Metrics/ModuleLength
       # @param prompt [String] Text for the model to generate a response from (required)
+      # @param context [Array<Integer>, nil] Context from a previous generate call for conversational memory
       # @param schema [Hash, nil] JSON Schema for structured output; also sets format
       # @param model [String, nil] Model name override
       # @param strict [Boolean] Enable strict JSON validation + repair retries
@@ -22,7 +23,7 @@ module Ollama
       # @param options [Hash, nil] Runtime options (temperature, top_p, num_ctx, etc.)
       # @param hooks [Hash] Streaming callbacks (:on_token, :on_error, :on_complete)
       # rubocop:disable Metrics/MethodLength, Metrics/ParameterLists
-      def generate(prompt:, schema: nil, model: nil, strict: nil, return_meta: false,
+      def generate(prompt:, context: nil, schema: nil, model: nil, strict: nil, return_meta: false,
                    system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil,
                    options: nil, hooks: {})
         raise ArgumentError, "prompt is required" if prompt.nil?
@@ -38,8 +39,8 @@ module Ollama
 
         begin
           attempts += 1
-          raw_response = call_generate_api(
-            prompt: current_prompt, schema: schema, model: model, hooks: hooks,
+          raw_response, final_context = call_generate_api(
+            prompt: current_prompt, context: context, schema: schema, model: model, hooks: hooks,
             system: system, images: images, think: think, keep_alive: keep_alive,
             suffix: suffix, raw: raw, options: options
           )
@@ -48,7 +49,7 @@ module Ollama
                              endpoint: "/api/generate", model: model || @config.model, attempt: attempts)
 
           response_data = process_generate_response(raw_response, schema, think, return_reasoning)
-          format_response(response_data, return_meta, model, attempts, started_at)
+          format_response(response_data, final_context, return_meta, model, attempts, started_at)
         rescue NotFoundError => e
           target_model = model || @config.model
           raise enhance_not_found_error(e) if pulled_models.include?(target_model) || attempts > @config.retries
@@ -113,13 +114,14 @@ module Ollama
         end
       end
 
-      def format_response(response_data, return_meta, model, attempts, started_at)
+      def format_response(response_data, context, return_meta, model, attempts, started_at)
         return response_data unless return_meta
 
         {
           "data" => response_data,
+          "context" => context,
           "meta" => {
-            "endpoint" => "/api/generate",
+            "endpoint" => @provider.generate_endpoint.path,
             "model" => model || @config.model,
             "attempts" => attempts,
             "latency_ms" => elapsed_ms(started_at)
@@ -153,37 +155,39 @@ module Ollama
       end
 
       # rubocop:disable Metrics/MethodLength, Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/ParameterLists
-      def call_generate_api(prompt:, schema:, model:, hooks:, system: nil, images: nil,
+      def call_generate_api(prompt:, context:, schema:, model:, hooks:, system: nil, images: nil,
                             think: nil, keep_alive: nil, suffix: nil, raw: nil, options: nil)
-        generate_uri = URI("#{@config.base_url}/api/generate")
+        generate_uri = @provider.generate_endpoint
         req = Net::HTTP::Post.new(generate_uri)
         req["Content-Type"] = "application/json"
 
         stream_enabled = streaming_requested?(hooks)
 
-        body = {
+        params = {
           model: model || @config.model,
           prompt: prompt,
           stream: stream_enabled,
           options: build_options(options)
         }
 
-        body[:system] = system if system
-        body[:images] = images if images
-        body[:think] = think unless think.nil?
-        body[:keep_alive] = keep_alive if keep_alive
-        body[:suffix] = suffix if suffix
-        body[:raw] = raw unless raw.nil?
+        params[:context] = context if context
+        params[:system] = system if system
+        params[:images] = images if images
+        params[:think] = think unless think.nil?
+        params[:keep_alive] = keep_alive if keep_alive
+        params[:suffix] = suffix if suffix
+        params[:raw] = raw unless raw.nil?
 
         if schema
-          body[:format] = schema
-          body[:prompt] = enhance_prompt_for_json(prompt, schema)
+          params[:format] = schema
+          params[:prompt] = enhance_prompt_for_json(prompt, schema)
         end
 
-        req.body = body.to_json
+        req.body = @provider.format_generate_request(params).to_json
         @config.apply_auth_to(req)
 
         full_response = +""
+        final_context = nil
 
         begin
           Net::HTTP.start(generate_uri.hostname, generate_uri.port,
@@ -192,10 +196,11 @@ module Ollama
               handle_http_error(res, requested_model: model || @config.model) unless res.is_a?(Net::HTTPSuccess)
 
               if stream_enabled
-                GenerateStreamHandler.call(res, hooks, full_response)
+                GenerateStreamHandler.call(res, hooks, full_response, provider: @provider)
               else
-                response_body = JSON.parse(res.body)
+                response_body = @provider.normalize_generate_response(JSON.parse(res.body))
                 full_response = response_body["response"]
+                final_context = response_body["context"]
               end
             end
           end
@@ -210,7 +215,7 @@ module Ollama
           raise e
         end
 
-        full_response
+        [full_response, final_context]
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse API response: #{e.message}"
       end

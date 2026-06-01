@@ -17,7 +17,9 @@ module Ollama
   # Each client instance with its own config is thread-safe.
   #
   class Config
-    attr_accessor :base_url, :model, :timeout, :retries, :temperature, :top_p, :num_ctx, :on_response, :strict_json, :api_key
+    attr_accessor :base_url, :model, :timeout, :retries, :temperature,
+                  :top_p, :num_ctx, :on_response, :strict_json, :api_key,
+                  :transport_adapter, :provider
 
     def initialize
       @base_url = "http://localhost:11434"
@@ -30,6 +32,8 @@ module Ollama
       @num_ctx = 8192
       @on_response = nil
       @api_key = nil
+      @transport_adapter = :net_http
+      @provider = :ollama
     end
 
     # Set Authorization header on a request when api_key is configured (e.g. for Ollama Cloud).
@@ -59,13 +63,15 @@ module Ollama
       attributes = {
         base_url: base_url.inspect,
         model: model.inspect,
+        provider: provider.inspect,
         timeout: timeout,
         retries: retries,
         strict_json: strict_json,
         temperature: temperature,
         top_p: top_p,
         num_ctx: num_ctx,
-        api_key: "(redacted)"
+        api_key: "(redacted)",
+        transport_adapter: transport_adapter.inspect
       }
 
       "#<#{self.class.name} #{attributes.map { |k, v| "#{k}=#{v}" }.join(" ")}>"
@@ -84,6 +90,7 @@ module Ollama
     #     "base_url": "http://localhost:11434",
     #     "api_key": "optional-for-ollama-cloud",
     #     "model": "llama3.2:3b",
+    #     "provider": "ollama",
     #     "timeout": 30,
     #     "retries": 3,
     #     "temperature": 0.2,
@@ -92,23 +99,26 @@ module Ollama
     #   }
     def self.load_from_json(path)
       data = JSON.parse(File.read(path))
-      config = new
+      new.tap { |config| map_json_data(config, data) }
+    rescue JSON::ParserError => e
+      raise Error, "Failed to parse config JSON: #{e.message}"
+    rescue Errno::ENOENT
+      raise Error, "Config file not found: #{path}"
+    end
 
+    def self.map_json_data(config, data)
       config.base_url = data["base_url"] if data.key?("base_url")
       config.api_key = data["api_key"] if data.key?("api_key")
       config.model = data["model"] if data.key?("model")
+      config.provider = data["provider"]&.to_sym if data.key?("provider")
       config.timeout = data["timeout"] if data.key?("timeout")
       config.retries = data["retries"] if data.key?("retries")
       config.strict_json = data["strict_json"] if data.key?("strict_json")
       config.temperature = data["temperature"] if data.key?("temperature")
       config.top_p = data["top_p"] if data.key?("top_p")
       config.num_ctx = data["num_ctx"] if data.key?("num_ctx")
-
-      config
-    rescue JSON::ParserError => e
-      raise Error, "Failed to parse config JSON: #{e.message}"
-    rescue Errno::ENOENT
-      raise Error, "Config file not found: #{path}"
+      config.transport_adapter = data["transport_adapter"]&.to_sym if data.key?("transport_adapter")
     end
+    private_class_method :map_json_data
   end
 end

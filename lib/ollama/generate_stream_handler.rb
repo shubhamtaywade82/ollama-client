@@ -5,14 +5,15 @@ require_relative "errors"
 module Ollama
   # Consumes NDJSON lines from an Ollama /api/generate streaming HTTP body.
   class GenerateStreamHandler
-    def self.call(response, hooks, accumulator)
-      new(response, hooks, accumulator).call
+    def self.call(response, hooks, accumulator, provider: nil)
+      new(response, hooks, accumulator, provider: provider).call
     end
 
-    def initialize(response, hooks, accumulator)
+    def initialize(response, hooks, accumulator, provider: nil)
       @response = response
       @hooks = hooks
       @accumulator = accumulator
+      @provider = provider
     end
 
     def call
@@ -35,16 +36,34 @@ module Ollama
     end
 
     def handle_line(line)
-      handle_event(JSON.parse(line))
+      # OpenAI SSE uses "data: " prefix and ends with "data: [DONE]"
+      return if line == "data: [DONE]"
+
+      json_text = line.start_with?("data: ") ? line.sub(/^data: /, "") : line
+      handle_event(JSON.parse(json_text))
     rescue JSON::ParserError
       nil
     end
 
     def handle_event(obj)
+      # Normalize event if it's from OpenAI
+      obj = normalize_openai_delta(obj) if @provider.is_a?(Providers::OpenAI)
+
       return emit_stream_error(obj["error"]) if obj["error"]
 
       append_token(obj["response"]) if obj["response"]
       @hooks[:on_complete]&.call if obj["done"]
+    end
+
+    def normalize_openai_delta(obj)
+      return obj unless obj.key?("choices")
+
+      choice = obj["choices"][0]
+      {
+        "model" => obj["model"],
+        "response" => choice["text"],
+        "done" => !choice["finish_reason"].nil?
+      }
     end
 
     def emit_stream_error(message)

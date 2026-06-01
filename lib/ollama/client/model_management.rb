@@ -58,10 +58,12 @@ module Ollama
         true
       end
 
-      # Create a model from an existing model
+      # Create a model from an existing model, a Modelfile, or a path
       #
       # @param model [String] Name for the model to create (required)
-      # @param from [String] Existing model to create from (required)
+      # @param from [String, nil] Existing model to create from
+      # @param modelfile [String, nil] Raw content of a Modelfile
+      # @param path [String, nil] Path to a Modelfile on the server
       # @param system [String, nil] System prompt to embed
       # @param template [String, nil] Prompt template
       # @param license [String, Array<String>, nil] License string(s)
@@ -71,13 +73,18 @@ module Ollama
       # @param stream [Boolean] Stream status updates
       # @return [Hash] Final status response
       # rubocop:disable Metrics/ParameterLists
-      def create_model(model:, from:, system: nil, template: nil, license: nil,
+      def create_model(model:, from: nil, modelfile: nil, path: nil, system: nil, template: nil, license: nil,
                        parameters: nil, messages: nil, quantize: nil, stream: false)
+        raise ArgumentError, "One of from:, modelfile:, or path: is required" if from.nil? && modelfile.nil? && path.nil?
+
         create_uri = URI("#{@config.base_url}/api/create")
         req = Net::HTTP::Post.new(create_uri)
         req["Content-Type"] = "application/json"
 
-        body = { model: model, from: from, stream: stream }
+        body = { model: model, stream: stream }
+        body[:from] = from if from
+        body[:modelfile] = modelfile if modelfile
+        body[:path] = path if path
         body[:system] = system if system
         body[:template] = template if template
         body[:license] = license if license
@@ -94,13 +101,43 @@ module Ollama
       end
       # rubocop:enable Metrics/ParameterLists
 
+      # Check if a blob exists on the server
+      #
+      # @param digest [String] The digest of the blob (required)
+      # @return [Boolean] True if exists, false otherwise
+      def blob_exists?(digest:)
+        blob_uri = URI("#{@config.base_url}/api/blobs/#{digest}")
+        req = Net::HTTP::Head.new(blob_uri)
+
+        res = http_request(blob_uri, req)
+        res.is_a?(Net::HTTPSuccess)
+      rescue NotFoundError
+        false
+      end
+
+      # Create a blob by uploading content
+      #
+      # @param digest [String] The digest of the blob (required)
+      # @param content [String] The raw content of the blob
+      # @return [true]
+      def create_blob(digest:, content:) # rubocop:disable Naming/PredicateMethod
+        blob_uri = URI("#{@config.base_url}/api/blobs/#{digest}")
+        req = Net::HTTP::Post.new(blob_uri)
+        req.body = content
+
+        res = http_request(blob_uri, req)
+        handle_http_error(res) unless res.is_a?(Net::HTTPSuccess)
+        true
+      end
+
       # Push a model to the registry
       #
       # @param model [String] Model name to push (required)
       # @param insecure [Boolean] Allow insecure connections
       # @param stream [Boolean] Stream progress updates
-      # @return [Hash] Final status response
-      def push_model(model:, insecure: false, stream: false)
+      # @param hooks [Hash] Callbacks for streaming progress (:on_progress)
+      # @return [Hash, true] Final status or true if not streaming
+      def push_model(model:, insecure: false, stream: false, hooks: {})
         push_uri = URI("#{@config.base_url}/api/push")
         req = Net::HTTP::Post.new(push_uri)
         req["Content-Type"] = "application/json"
@@ -109,49 +146,79 @@ module Ollama
         body[:insecure] = true if insecure
         req.body = body.to_json
 
-        res = http_request(push_uri, req, read_timeout: @config.timeout * 10)
-        handle_http_error(res) unless res.is_a?(Net::HTTPSuccess)
-        JSON.parse(res.body)
+        if stream
+          handle_ndjson_stream(push_uri, req, hooks)
+        else
+          res = http_request(push_uri, req, read_timeout: @config.timeout * 10)
+          handle_http_error(res) unless res.is_a?(Net::HTTPSuccess)
+          JSON.parse(res.body)
+        end
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse push response: #{e.message}"
       end
 
-      # Pull a model explicitly
+      # Pull a model from the registry
       #
       # @param model_name [String] Model name to download
-      # @return [true]
-      def pull(model_name)
+      # @param insecure [Boolean] Allow insecure connections
+      # @param stream [Boolean] Stream progress updates
+      # @param hooks [Hash] Callbacks for streaming progress (:on_progress)
+      # @return [Hash, true] Final status or true if not streaming
+      def pull(model_name, insecure: false, stream: false, hooks: {})
         pull_uri = URI("#{@config.base_url}/api/pull")
         req = Net::HTTP::Post.new(pull_uri)
         req["Content-Type"] = "application/json"
-        req.body = { model: model_name, stream: false }.to_json
+        body = { model: model_name, stream: stream }
+        body[:insecure] = true if insecure
+        req.body = body.to_json
         @config.apply_auth_to(req)
 
-        res = Net::HTTP.start(
-          pull_uri.hostname,
-          pull_uri.port,
-          **@config.http_connection_options(pull_uri, read_timeout: @config.timeout * 10)
-        ) { |http| http.request(req) }
+        if stream
+          handle_ndjson_stream(pull_uri, req, hooks)
+        else
+          res = http_request(pull_uri, req, read_timeout: @config.timeout * 10)
+          handle_http_error(res, requested_model: model_name) unless res.is_a?(Net::HTTPSuccess)
+          JSON.parse(res.body)
+        end
+      rescue JSON::ParserError => e
+        raise InvalidJSONError, "Failed to parse pull response: #{e.message}"
+      end
 
-        handle_http_error(res, requested_model: model_name) unless res.is_a?(Net::HTTPSuccess)
+      # Explicitly load a model into memory
+      #
+      # @param model [String] Model name (required)
+      # @param keep_alive [String, Integer] Keep-alive duration (default "5m")
+      # @return [true]
+      def load_model(model:, keep_alive: "5m") # rubocop:disable Naming/PredicateMethod
+        generate_uri = URI("#{@config.base_url}/api/generate")
+        req = Net::HTTP::Post.new(generate_uri)
+        req["Content-Type"] = "application/json"
+        req.body = { model: model, prompt: "", keep_alive: keep_alive, stream: false }.to_json
+
+        res = http_request(generate_uri, req)
+        handle_http_error(res, requested_model: model) unless res.is_a?(Net::HTTPSuccess)
         true
-      rescue Net::ReadTimeout, Net::OpenTimeout
-        raise TimeoutError, "Pull request timed out"
-      rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
-        raise Error, "Connection failed during pull: #{e.message}"
+      end
+
+      # Unload a model from memory
+      #
+      # @param model [String] Model name (required)
+      # @return [true]
+      def unload_model(model:)
+        load_model(model: model, keep_alive: 0)
       end
 
       # List available models with full details
       #
       # @return [Array<Hash>] Array of model hashes with name, model, size, details, etc.
       def list_models
-        tags_uri = URI("#{@config.base_url}/api/tags")
+        tags_uri = @provider.models_endpoint
         req = Net::HTTP::Get.new(tags_uri)
 
         res = http_request(tags_uri, req)
         raise Error, "Failed to fetch models: HTTP #{res.code}" unless res.is_a?(Net::HTTPSuccess)
 
-        body = JSON.parse(res.body)
+        body = @provider.normalize_models_response(JSON.parse(res.body))
         models = body["models"] || []
         models.each { |m| m["capabilities"] = Capabilities.for(m) }
         models
@@ -190,6 +257,8 @@ module Ollama
       #
       # @return [String] Version string (e.g. "0.12.6")
       def version
+        return nil if @provider.is_a?(Providers::OpenAI)
+
         version_uri = URI("#{@config.base_url}/api/version")
         req = Net::HTTP::Get.new(version_uri)
 
@@ -200,6 +269,27 @@ module Ollama
         body["version"]
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse version response: #{e.message}"
+      end
+
+      private
+
+      def handle_ndjson_stream(uri, req, hooks)
+        last_status = nil
+        Net::HTTP.start(uri.hostname, uri.port, **@config.http_connection_options(uri, read_timeout: @config.timeout * 20)) do |http|
+          http.request(req) do |res|
+            handle_http_error(res) unless res.is_a?(Net::HTTPSuccess)
+            res.read_body do |chunk|
+              chunk.split("\n").each do |line|
+                next if line.strip.empty?
+
+                status = JSON.parse(line)
+                hooks[:on_progress]&.call(status)
+                last_status = status
+              end
+            end
+          end
+        end
+        last_status
       end
     end
   end

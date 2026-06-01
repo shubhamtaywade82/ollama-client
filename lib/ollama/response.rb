@@ -58,7 +58,8 @@ module Ollama
 
     # Number of tokens in the prompt
     def prompt_eval_count
-      @data["prompt_eval_count"] || @data[:prompt_eval_count]
+      @data["prompt_eval_count"] || @data[:prompt_eval_count] || @data.dig("usage",
+                                                                           "prompt_tokens") || @data.dig(:usage, :prompt_tokens)
     end
 
     # Time spent evaluating the prompt in nanoseconds
@@ -68,7 +69,7 @@ module Ollama
 
     # Number of tokens generated in the response
     def eval_count
-      @data["eval_count"] || @data[:eval_count]
+      @data["eval_count"] || @data[:eval_count] || @data.dig("usage", "completion_tokens") || @data.dig(:usage, :completion_tokens)
     end
 
     # Time spent generating tokens in nanoseconds

@@ -39,27 +39,27 @@ module Ollama
         messages = apply_inputs(messages, inputs, active_profile) if inputs
 
         # Apply prompt adapter (e.g. Gemma 4 prepends the family think tag to the system prompt)
-        adapted_messages = adapter ? adapter.adapt_messages(messages, think: !think.nil?) : messages
+        adapted_messages = adapter ? adapter.adapt_messages(messages, think: !think.nil?, tools: tools) : messages
 
         # Resolve think flag: adapter may handle it via prompt tag instead of API flag
         effective_think = resolve_think_flag(think, adapter)
 
-        chat_uri = URI("#{@config.base_url}/api/chat")
+        chat_uri = @provider.chat_endpoint
         req = Net::HTTP::Post.new(chat_uri)
         req["Content-Type"] = "application/json"
 
         stream_enabled = stream.nil? ? hooks_present?(hooks) : stream
 
-        body = { model: target_model, messages: adapted_messages, stream: stream_enabled }
-        body[:format]      = format if format
-        body[:tools]       = tools if tools
-        body[:think]       = effective_think unless effective_think.nil?
-        body[:keep_alive]  = keep_alive if keep_alive
-        body[:logprobs]    = logprobs unless logprobs.nil?
-        body[:top_logprobs] = top_logprobs if top_logprobs
-        body[:options] = build_options_with_profile(options, active_profile)
+        params = { model: target_model, messages: adapted_messages, stream: stream_enabled }
+        params[:format]      = format if format
+        params[:tools]       = tools if tools
+        params[:think]       = effective_think unless effective_think.nil?
+        params[:keep_alive]  = keep_alive if keep_alive
+        params[:logprobs]    = logprobs unless logprobs.nil?
+        params[:top_logprobs] = top_logprobs if top_logprobs
+        params[:options] = build_options_with_profile(options, active_profile)
 
-        req.body = body.to_json
+        req.body = @provider.format_chat_request(params).to_json
         @config.apply_auth_to(req)
         response_data = nil
 
@@ -70,9 +70,9 @@ module Ollama
               handle_http_error(res, requested_model: target_model) unless res.is_a?(Net::HTTPSuccess)
 
               response_data = if stream_enabled
-                                ChatStreamProcessor.new(hooks).call(res)
+                                ChatStreamProcessor.call(res, hooks, provider: @provider)
                               else
-                                JSON.parse(res.body)
+                                @provider.normalize_chat_response(JSON.parse(res.body))
                               end
             end
           end
@@ -88,7 +88,7 @@ module Ollama
         end
 
         emit_response_hook(response_data.is_a?(Hash) ? response_data.to_json : response_data,
-                           endpoint: "/api/chat", model: target_model)
+                           endpoint: chat_uri.path, model: target_model)
 
         Response.new(response_data)
       rescue JSON::ParserError => e

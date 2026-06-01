@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "json"
+
 module Ollama
   class Error < StandardError; end
   class TimeoutError < Error; end
@@ -11,6 +13,34 @@ module Ollama
   class ThinkingFormatError < Error; end
   class UnsupportedThinkingModel < Error; end
   class UnsupportedCapabilityError < Error; end
+
+  class ConnectionFailedError < Error; end
+  class MalformedResponseError < Error; end
+  class MalformedStreamError < Error; end
+
+  # Maps HTTP-style responses into typed runtime errors.
+  module Errors
+    def self.from_response(response, requested_model: nil)
+      status = response.code.to_i
+      message = begin
+        parsed = JSON.parse(response.body.to_s)
+        parsed.is_a?(Hash) ? (parsed["error"] || parsed["message"] || response.message) : response.message
+      rescue JSON::ParserError
+        response.message
+      end
+
+      case status
+      when 401
+        UnauthorizedError.new("HTTP 401: #{message}", 401)
+      when 404
+        NotFoundError.new(message, requested_model: requested_model)
+      when 503
+        ModelUnavailableError.new("HTTP 503: #{message}", 503)
+      else
+        HTTPError.new("HTTP #{status}: #{message}", status)
+      end
+    end
+  end
 
   # HTTP error with retry logic
   class HTTPError < Error
@@ -33,6 +63,9 @@ module Ollama
       false
     end
   end
+
+  class UnauthorizedError < HTTPError; end
+  class ModelUnavailableError < HTTPError; end
 
   # Specific error for 404 Not Found responses
   class NotFoundError < HTTPError
