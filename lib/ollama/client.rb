@@ -66,6 +66,26 @@ module Ollama
       HistorySanitizer.for(p, trace_store: trace_store)
     end
 
+    # Return the capability profile for a model name.
+    # Profiles drive prompt adaptation, streaming event routing, and defaults.
+    #
+    # @param model_name [String]
+    # @return [Ollama::ModelProfile]
+    def profile(model_name)
+      ModelProfile.for(model_name)
+    end
+
+    # Build a history sanitizer appropriate for a model profile.
+    # Convenience method for multi-turn agent loops.
+    #
+    # @param model_name_or_profile [String, ModelProfile]
+    # @param trace_store [Array, nil]
+    # @return [Ollama::HistorySanitizer]
+    def history_sanitizer(model_name_or_profile, trace_store: nil)
+      p = model_name_or_profile.is_a?(ModelProfile) ? model_name_or_profile : profile(model_name_or_profile)
+      HistorySanitizer.for(p, trace_store: trace_store)
+    end
+
     private
 
     # Build options hash from user-provided options merged with config defaults
