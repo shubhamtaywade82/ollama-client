@@ -27,3 +27,22 @@ Rules:
 ## Guardrails
 - Keep API surface stable and backward compatible.
 - Update specs when behavior changes.
+
+## Ollama Cloud Model Accessibility
+
+Ollama Cloud does not expose a `free` flag per model. The only reliable way to determine whether a model is accessible to your account is to attempt a tiny inference and observe the HTTP response.
+
+The project includes a standalone example script that automates this:
+
+```bash
+export OLLAMA_API_KEY="your-ollama-cloud-api-key"
+bundle exec ruby examples/cloud_models.rb
+```
+
+The script:
+1. Fetches the public cloud model catalog from `https://ollama.com/api/tags`
+2. Probes each model concurrently (10 threads) with a minimal chat request
+3. Classifies the response into accessibility statuses (`accessible`, `unauthorized`, `plan_restricted`, `usage_limit`, `unavailable`, `rate_limited`, `timeout`, etc.)
+4. Prints sorted JSON to stdout
+
+See [`examples/cloud_models.rb`](../examples/cloud_models.rb) for the full implementation and [`examples/README.md`](../examples/README.md) for usage details.
