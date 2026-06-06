@@ -486,7 +486,11 @@ class DhanHQDataTools
       underlying_seg, found_instrument = find_underlying_instrument(exchange_segment, instrument_symbol)
 
       # Get security_id from instrument if not provided
-      resolved_security_id = resolve_security_id_for_option_chain(security_id, found_instrument)
+      resolved_security_id = if security_id
+                               security_id.to_i
+                             elsif found_instrument
+                               safe_instrument_attr(found_instrument, :security_id)&.to_i
+                             end
 
       unless resolved_security_id
         return option_chain_error(
@@ -534,12 +538,6 @@ class DhanHQDataTools
       return ["IDX_I", fallback_instrument] if fallback_instrument
 
       [exchange_segment, nil]
-    end
-
-    def resolve_security_id_for_option_chain(security_id, found_instrument)
-      return security_id.to_i if security_id
-
-      safe_instrument_attr(found_instrument, :security_id)&.to_i
     end
 
     def option_chain_for_expiry(params)
