@@ -20,6 +20,8 @@ bundle exec ruby examples/<script>.rb
 | [`timeout_retry.rb`](timeout_retry.rb) | How timeout and exponential backoff work in production |
 | [`failure_modes/invalid_json_repair.rb`](failure_modes/invalid_json_repair.rb) | Automatic JSON repair when the model returns markdown-wrapped JSON |
 | [`production/rails_agent.rb`](production/rails_agent.rb) | Resilient background job pattern for Rails (e.g. Sidekiq) |
+| [`dhanhq_agent.rb`](dhanhq_agent.rb) | DhanHQ trading agent runner |
+| [`dhanhq/`](dhanhq/) | Modular DhanHQ technical analysis and trading agent system |
 
 ## Cloud Model Accessibility Probe
 
