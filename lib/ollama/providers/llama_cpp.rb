@@ -84,7 +84,7 @@ module Ollama
 
         openai_tool_calls.map do |tc|
           {
-            "id" => tc["id"] || tc[:id] || "call_#{tc.dig('function', 'name')}_#{object_id}",
+            "id" => tc["id"] || tc[:id] || "call_#{tc.dig("function", "name")}_#{object_id}",
             "type" => tc["type"] || tc[:type] || "function",
             "function" => {
               "name" => tc.dig("function", "name"),
@@ -93,8 +93,6 @@ module Ollama
           }
         end
       end
-
-
 
       def normalize_generate_response(response_data)
         return response_data unless response_data.is_a?(Hash) && response_data.key?("content")

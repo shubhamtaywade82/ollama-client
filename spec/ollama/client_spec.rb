@@ -100,6 +100,17 @@ RSpec.describe Ollama::Client do
       expect { client.generate(prompt: "test", options: { temperature: 0.8 }) }.not_to raise_error
     end
 
+    it "allows per-call model override" do
+      request_body = nil
+      stub_request(:post, "http://localhost:11434/api/generate")
+        .with { |req| request_body = JSON.parse(req.body) }
+        .to_return(status: 200, body: { response: "ok" }.to_json)
+
+      client.generate(prompt: "test", model: "custom-model")
+
+      expect(request_body["model"]).to eq("custom-model")
+    end
+
     context "when Ollama server is not available (ECONNREFUSED)" do
       it "raises an error immediately without retrying because it is not retryable by default" do
         unavailable_client = described_class.new(config: Ollama::Config.new.tap do |c|
@@ -177,7 +188,7 @@ RSpec.describe Ollama::Client do
         # For streaming, we verify the StreamError class exists and is raised correctly
         error = Ollama::StreamError.new("model crashed")
         expect(error).to be_a(Ollama::Error)
-        expect(error.message).to match(/model crashed/)
+        expect(error.message).to include("model crashed")
       end
     end
   end
@@ -354,7 +365,7 @@ RSpec.describe Ollama::Client do
         # the error class and that chat properly raises on HTTP errors
         error = Ollama::StreamError.new("an error was encountered while running the model")
         expect(error).to be_a(Ollama::Error)
-        expect(error.message).to match(/error was encountered/)
+        expect(error.message).to include("error was encountered")
 
         # Verify chat raises on HTTP error responses
         stub_request(:post, "http://localhost:11434/api/chat")

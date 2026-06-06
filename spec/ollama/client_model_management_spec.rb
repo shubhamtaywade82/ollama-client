@@ -177,7 +177,7 @@ RSpec.describe Ollama::Client do
         # For streaming, we verify the StreamError class exists and is raised correctly
         error = Ollama::StreamError.new("model crashed")
         expect(error).to be_a(Ollama::Error)
-        expect(error.message).to match(/model crashed/)
+        expect(error.message).to include("model crashed")
       end
     end
   end
@@ -354,7 +354,7 @@ RSpec.describe Ollama::Client do
         # the error class and that chat properly raises on HTTP errors
         error = Ollama::StreamError.new("an error was encountered while running the model")
         expect(error).to be_a(Ollama::Error)
-        expect(error.message).to match(/error was encountered/)
+        expect(error.message).to include("error was encountered")
 
         # Verify chat raises on HTTP error responses
         stub_request(:post, "http://localhost:11434/api/chat")

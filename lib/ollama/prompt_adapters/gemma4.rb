@@ -12,13 +12,14 @@ module Ollama
     # is handled by MultimodalInput before messages are built.
     class Gemma4 < Base
       THINK_TAG = "<|think|>"
-      TOOL_INSTRUCTION = "\n\nYou have access to tools. If a tool can help answer the user question, call it using the provided function schema."
+      TOOL_INSTRUCTION = "\n\nYou have access to tools. If a tool can help answer the user question, " \
+                         "call it using the provided function schema."
 
       # Inject <|think|> into the system message when think is enabled.
       # Also inject tool usage instructions if tools are present.
       def adapt_messages(messages, think: false, tools: nil)
         system_idx = messages.index { |m| role_of(m) == "system" }
-        
+
         if system_idx
           messages = messages.dup
           msg = messages[system_idx].dup
@@ -26,7 +27,7 @@ module Ollama
 
           # Add thinking tag if requested
           content = "#{THINK_TAG}#{content}" if think && !content.start_with?(THINK_TAG)
-          
+
           # Add tool instruction if tools present
           content = "#{content}#{TOOL_INSTRUCTION}" if tools&.any? && !content.include?(TOOL_INSTRUCTION)
 
