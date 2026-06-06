@@ -17,7 +17,7 @@ end
 # whether the current authenticated account can run inference against it.
 # ---------------------------------------------------------------------------
 
-api_key = ENV["OLLAMA_API_KEY"]
+api_key = ENV.fetch("OLLAMA_API_KEY", nil)
 if api_key.nil? || api_key.empty?
   warn <<~USAGE
     Usage: OLLAMA_API_KEY=<your-key> bundle exec ruby examples/cloud_models.rb
