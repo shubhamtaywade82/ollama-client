@@ -1,7 +1,6 @@
-#!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require "bundler/setup"
+require_relative "../lib/ollama_client"
 require "ollama_client"
 require "json"
 
@@ -40,7 +39,7 @@ client = Ollama::Client.new(config: config)
 # Fetch the public model catalog from Ollama Cloud.
 begin
   catalog = client.raw.get("/api/tags")
-rescue Ollama::HTTPError => e
+rescue Ollama::Error => e
   warn "Failed to fetch model catalog: #{e.message}"
   exit 1
 end
@@ -85,6 +84,8 @@ names.each do |name|
                else "http_error"
                end
       results << { name: name, accessible: false, reason: reason }
+    rescue Ollama::TimeoutError
+      results << { name: name, accessible: false, reason: "timeout" }
     rescue StandardError => e
       results << { name: name, accessible: false, reason: "error: #{e.class}: #{e.message}" }
     end
