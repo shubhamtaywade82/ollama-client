@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative "../lib/ollama_client"
-require "ollama_client"
 require "json"
 
 begin
