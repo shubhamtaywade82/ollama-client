@@ -6,6 +6,7 @@ require "json"
 require_relative "errors"
 require_relative "schema_validator"
 require_relative "config"
+require_relative "rate_limit_handler"
 require_relative "transport"
 require_relative "providers"
 require_relative "embeddings"
@@ -35,6 +36,7 @@ module Ollama
     include ModelManagement
     include Raw
     include OpenAICompat
+    include RateLimitHandler
 
     attr_reader :embeddings, :provider, :config
 
@@ -126,8 +128,13 @@ module Ollama
 
     # Shared HTTP request helper for simple (non-streaming) requests
     def http_request(uri, req, read_timeout: @config.timeout)
-      @config.apply_auth_to(req)
-      @transport.request(uri: uri, request: req, read_timeout: read_timeout)
+      with_rate_limit_key_rotation do |api_key|
+        @config.apply_auth_to(req, api_key: api_key)
+        res = @transport.request(uri: uri, request: req, read_timeout: read_timeout)
+        raise Errors.from_response(res) if res.code.to_i == 429
+
+        res
+      end
     rescue Net::ReadTimeout, Net::OpenTimeout
       raise TimeoutError, "Request timed out after #{@config.timeout}s"
     rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e

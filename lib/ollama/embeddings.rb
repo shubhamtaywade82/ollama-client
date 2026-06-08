@@ -4,6 +4,7 @@ require "net/http"
 require "uri"
 require "json"
 require_relative "errors"
+require_relative "rate_limit_handler"
 require_relative "transport"
 
 module Ollama
@@ -12,6 +13,8 @@ module Ollama
   # This is a helper module used internally by Client.
   # Use client.embeddings.embed() instead of instantiating this directly.
   class Embeddings
+    include RateLimitHandler
+
     def initialize(config, transport: nil)
       @config = config
       @transport = transport || Transport.build(config)
@@ -43,8 +46,13 @@ module Ollama
       params[:options] = options if options
 
       req.body = @provider.format_embeddings_request(params).to_json
-      @config.apply_auth_to(req)
-      res = @transport.request(uri: uri, request: req, read_timeout: @config.timeout)
+      res = with_rate_limit_key_rotation do |api_key|
+        @config.apply_auth_to(req, api_key: api_key)
+        response = @transport.request(uri: uri, request: req, read_timeout: @config.timeout)
+        handle_http_error(response, requested_model: model) if response.code.to_i == 429
+
+        response
+      end
 
       handle_http_error(res, requested_model: model) unless res.is_a?(Net::HTTPSuccess)
 

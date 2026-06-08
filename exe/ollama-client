@@ -163,7 +163,9 @@ module OllamaCLI
   def self.build_client(model = nil)
     config = Ollama::Config.new
     config.base_url = ENV["OLLAMA_BASE_URL"] if ENV["OLLAMA_BASE_URL"]
-    config.api_key = ENV["OLLAMA_API_KEY"] if ENV["OLLAMA_API_KEY"]
+    config.api_keys = ENV.fetch("OLLAMA_API_KEYS", nil) if ENV.fetch("OLLAMA_API_KEYS", nil)
+    config.api_key = ENV.fetch("OLLAMA_API_KEY", nil) if config.api_keys.empty? && ENV.fetch("OLLAMA_API_KEY", nil)
+    config.enable_multi_key_concurrency = Ollama::Config.truthy_env?(ENV.fetch("ENABLE_MULTI_KEY_CONCURRENCY", nil))
     config.model = model if model
     Ollama::Client.new(config: config)
   end
@@ -201,6 +203,8 @@ module OllamaCLI
       Environment:
         OLLAMA_BASE_URL  Override base URL (default: http://localhost:11434)
         OLLAMA_API_KEY   Optional Bearer token for Ollama Cloud (https://ollama.com)
+        OLLAMA_API_KEYS  Optional comma-separated Bearer token pool for 429 failover
+        ENABLE_MULTI_KEY_CONCURRENCY  Set true/1 to distribute initial keys across threads
     USAGE
   end
 end

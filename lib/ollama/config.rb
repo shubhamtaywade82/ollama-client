@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require_relative "api_key_pool"
 
 module Ollama
   # Configuration class with safe defaults for agent-grade usage
@@ -18,8 +19,9 @@ module Ollama
   #
   class Config
     attr_accessor :base_url, :model, :timeout, :retries, :temperature,
-                  :top_p, :num_ctx, :on_response, :strict_json, :api_key,
+                  :top_p, :num_ctx, :on_response, :strict_json,
                   :transport_adapter, :provider
+    attr_reader :api_key, :api_keys, :enable_multi_key_concurrency, :api_key_pool
 
     def initialize
       @base_url = "http://localhost:11434"
@@ -31,7 +33,11 @@ module Ollama
       @top_p = 0.9
       @num_ctx = 8192
       @on_response = nil
+      @enable_multi_key_concurrency = self.class.truthy_env?(ENV.fetch("ENABLE_MULTI_KEY_CONCURRENCY", nil))
       @api_key = nil
+      @api_keys = []
+      @api_key_pool = ApiKeyPool.new([], concurrency_enabled: @enable_multi_key_concurrency)
+      self.api_keys = self.class.env_api_keys
       @transport_adapter = :net_http
       @provider = :ollama
     end
@@ -40,10 +46,37 @@ module Ollama
     # No-op when api_key is nil or empty.
     #
     # @param req [Net::HTTP::Request]
-    def apply_auth_to(req)
-      return if api_key.to_s.strip.empty?
+    def apply_auth_to(req, api_key: self.api_key)
+      if api_key.to_s.strip.empty?
+        req.delete("Authorization")
+      else
+        req["Authorization"] = "Bearer #{api_key}"
+      end
+    end
 
-      req["Authorization"] = "Bearer #{api_key}"
+    # Set a single API key and rebuild the immutable key pool.
+    #
+    # @param value [String, nil]
+    def api_key=(value)
+      @api_key = value
+      rebuild_api_key_pool([value])
+    end
+
+    # Set multiple API keys and rebuild the immutable key pool.
+    #
+    # @param values [Array<String>, String, nil]
+    def api_keys=(values)
+      keys = self.class.parse_api_keys(values)
+      @api_key = keys.first
+      rebuild_api_key_pool(keys)
+    end
+
+    # Enable or disable thread-safe round-robin key distribution for new requests.
+    #
+    # @param value [Boolean]
+    def enable_multi_key_concurrency=(value)
+      @enable_multi_key_concurrency = value ? true : false
+      rebuild_api_key_pool(@api_keys)
     end
 
     # Net::HTTP connection options built from current config and target URI.
@@ -71,6 +104,8 @@ module Ollama
         top_p: top_p,
         num_ctx: num_ctx,
         api_key: "(redacted)",
+        api_keys: "(#{api_keys.size} configured)",
+        enable_multi_key_concurrency: enable_multi_key_concurrency,
         transport_adapter: transport_adapter.inspect
       }
 
@@ -106,9 +141,12 @@ module Ollama
       raise Error, "Config file not found: #{path}"
     end
 
+    # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def self.map_json_data(config, data)
       config.base_url = data["base_url"] if data.key?("base_url")
+      config.api_keys = data["api_keys"] if data.key?("api_keys")
       config.api_key = data["api_key"] if data.key?("api_key")
+      config.enable_multi_key_concurrency = data["enable_multi_key_concurrency"] if data.key?("enable_multi_key_concurrency")
       config.model = data["model"] if data.key?("model")
       config.provider = data["provider"]&.to_sym if data.key?("provider")
       config.timeout = data["timeout"] if data.key?("timeout")
@@ -119,6 +157,49 @@ module Ollama
       config.num_ctx = data["num_ctx"] if data.key?("num_ctx")
       config.transport_adapter = data["transport_adapter"]&.to_sym if data.key?("transport_adapter")
     end
+    # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     private_class_method :map_json_data
+
+    # Parse a comma-separated String or Array of API keys into a frozen key list.
+    #
+    # @param value [String, Array<String>, nil]
+    # @return [Array<String>] frozen key list
+    def self.parse_api_keys(value)
+      Array(value).flat_map { |item| item.to_s.split(",") }
+                  .map(&:strip)
+                  .reject(&:empty?)
+                  .freeze
+    end
+
+    # Resolve API keys from OLLAMA_API_KEYS with OLLAMA_API_KEY fallback.
+    #
+    # @return [Array<String>] frozen key list
+    def self.env_api_keys
+      keys = parse_api_keys(ENV.fetch("OLLAMA_API_KEYS", nil))
+      return keys unless keys.empty?
+
+      parse_api_keys(ENV.fetch("OLLAMA_API_KEY", nil))
+    end
+
+    # @param value [String, nil]
+    # @return [Boolean]
+    def self.truthy_env?(value)
+      %w[1 true yes y on].include?(value.to_s.strip.downcase)
+    end
+
+    def initialize_copy(source)
+      super
+      @api_keys = source.api_keys.dup.freeze
+      @api_key = @api_keys.first
+      rebuild_api_key_pool(@api_keys)
+    end
+
+    private
+
+    def rebuild_api_key_pool(keys)
+      @api_keys = self.class.parse_api_keys(keys)
+      @api_key = @api_keys.first
+      @api_key_pool = ApiKeyPool.new(@api_keys, concurrency_enabled: @enable_multi_key_concurrency)
+    end
   end
 end
