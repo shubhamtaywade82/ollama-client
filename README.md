@@ -41,6 +41,29 @@ client = Ollama::Client.new
 # model: "llama3.2:3b", timeout: 30, retries: 2, strict_json: true
 ```
 
+
+### Ollama Cloud Multi-Key Failover
+
+For hosted models on `https://ollama.com`, configure either one API key or a comma-separated key pool. `OLLAMA_API_KEYS` takes precedence over `OLLAMA_API_KEY`; when a cloud request receives HTTP 429, `ollama-client` transparently retries the same request with the next configured key. If every key is rate-limited, the client waits with exponential backoff (`2 ** attempt`) and retries the pool until `config.retries` is exhausted, then raises `Ollama::RateLimitExhaustedError`.
+
+```bash
+OLLAMA_BASE_URL=https://ollama.com
+OLLAMA_API_KEYS=key_abc123,key_xyz789
+ENABLE_MULTI_KEY_CONCURRENCY=false # set true to round-robin initial keys across concurrent threads
+```
+
+```ruby
+config = Ollama::Config.new
+config.base_url = "https://ollama.com"
+config.api_keys = ENV["OLLAMA_API_KEYS"] # accepts comma-separated strings or arrays
+config.enable_multi_key_concurrency = true
+
+client = Ollama::Client.new(config: config)
+client.chat(messages: [{ role: "user", content: "Hello" }], model: "gpt-oss:120b-cloud")
+```
+
+For Sidekiq or other highly concurrent agent loops, keep configuration immutable after boot and instantiate clients with per-client `Ollama::Config` objects rather than mutating `OllamaClient.configure` at runtime.
+
 ### Chat (Multi-turn Conversations)
 
 The primary endpoint for agentic usage:

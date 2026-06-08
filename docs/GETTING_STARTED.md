@@ -82,14 +82,16 @@ To use [Ollama Cloud](https://docs.ollama.com/cloud) models (hosted at ollama.co
 ```ruby
 config = Ollama::Config.new
 config.base_url = "https://ollama.com"
-config.api_key = ENV["OLLAMA_API_KEY"]  # or your API key
+config.api_keys = ENV["OLLAMA_API_KEYS"] # optional comma-separated key pool
+config.api_key = ENV["OLLAMA_API_KEY"] if config.api_keys.empty? # single-key fallback
+config.enable_multi_key_concurrency = Ollama::Config.truthy_env?(ENV["ENABLE_MULTI_KEY_CONCURRENCY"])
 client = Ollama::Client.new(config: config)
 
 # Use a cloud model (e.g. gpt-oss:120b-cloud)
 client.chat(messages: [{ role: "user", content: "Why is the sky blue?" }], model: "gpt-oss:120b-cloud")
 ```
 
-All requests will send `Authorization: Bearer <api_key>` and use HTTPS. The same client works for chat, generate, embeddings, and model listing.
+All requests will send `Authorization: Bearer <api_key>` and use HTTPS. When multiple keys are configured, HTTP 429 responses rotate to the next key; if the full pool remains rate-limited through all retry cycles, the client raises `Ollama::RateLimitExhaustedError`. The same client works for chat, generate, embeddings, and model listing.
 
 ### Option D: Client from Environment Variables
 
@@ -98,7 +100,9 @@ The gem automatically loads `.env` file. You can set these environment variables
 ```bash
 # In your .env file or shell environment
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_API_KEY=your_key_for_ollama_cloud   # optional, for https://ollama.com
+OLLAMA_API_KEY=your_key_for_ollama_cloud   # optional single-key fallback, for https://ollama.com
+OLLAMA_API_KEYS=key_abc123,key_xyz789      # optional multi-key pool, takes precedence
+ENABLE_MULTI_KEY_CONCURRENCY=false        # optional; true/1 round-robins initial keys across threads
 OLLAMA_MODEL=qwen2.5:14b
 OLLAMA_TEMPERATURE=0.1
 ```
@@ -111,7 +115,9 @@ require "ollama_client"
 # Create config and read from environment
 config = Ollama::Config.new
 config.base_url = ENV["OLLAMA_BASE_URL"] if ENV["OLLAMA_BASE_URL"]
-config.api_key = ENV["OLLAMA_API_KEY"] if ENV["OLLAMA_API_KEY"]
+config.api_keys = ENV["OLLAMA_API_KEYS"] if ENV["OLLAMA_API_KEYS"]
+config.api_key = ENV["OLLAMA_API_KEY"] if config.api_keys.empty? && ENV["OLLAMA_API_KEY"]
+config.enable_multi_key_concurrency = Ollama::Config.truthy_env?(ENV["ENABLE_MULTI_KEY_CONCURRENCY"])
 config.model = ENV["OLLAMA_MODEL"] if ENV["OLLAMA_MODEL"]
 config.temperature = ENV["OLLAMA_TEMPERATURE"].to_f if ENV["OLLAMA_TEMPERATURE"]
 

@@ -60,20 +60,24 @@ module Ollama
         params[:options] = build_options_with_profile(options, active_profile)
 
         req.body = @provider.format_chat_request(params).to_json
-        @config.apply_auth_to(req)
         response_data = nil
 
         begin
-          Net::HTTP.start(chat_uri.hostname, chat_uri.port,
-                          **@config.http_connection_options(chat_uri)) do |h|
-            h.request(req) do |res|
-              handle_http_error(res, requested_model: target_model) unless res.is_a?(Net::HTTPSuccess)
+          with_rate_limit_key_rotation do |api_key|
+            response_data = nil
+            @config.apply_auth_to(req, api_key: api_key)
 
-              response_data = if stream_enabled
-                                ChatStreamProcessor.call(res, hooks, provider: @provider)
-                              else
-                                @provider.normalize_chat_response(JSON.parse(res.body))
-                              end
+            Net::HTTP.start(chat_uri.hostname, chat_uri.port,
+                            **@config.http_connection_options(chat_uri)) do |h|
+              h.request(req) do |res|
+                handle_http_error(res, requested_model: target_model) unless res.is_a?(Net::HTTPSuccess)
+
+                response_data = if stream_enabled
+                                  ChatStreamProcessor.call(res, hooks, provider: @provider)
+                                else
+                                  @provider.normalize_chat_response(JSON.parse(res.body))
+                                end
+              end
             end
           end
         rescue Net::ReadTimeout, Net::OpenTimeout => e

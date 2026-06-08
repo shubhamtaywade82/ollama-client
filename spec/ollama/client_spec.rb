@@ -558,6 +558,55 @@ RSpec.describe Ollama::Client do
       expect(WebMock).to have_requested(:post, "http://localhost:11434/api/generate")
         .with(headers: { "Authorization" => "Bearer cloud-key" })
     end
+
+    it "rotates to the next API key after a 429 and returns the successful response" do
+      config = Ollama::Config.new
+      config.base_url = "http://localhost:11434"
+      config.api_keys = %w[primary-key backup-key]
+      config.retries = 0
+      client = described_class.new(config: config)
+
+      stub_request(:post, "http://localhost:11434/api/generate")
+        .with(headers: { "Authorization" => "Bearer primary-key" })
+        .to_return(status: 429, body: { error: "rate limited" }.to_json)
+
+      stub_request(:post, "http://localhost:11434/api/generate")
+        .with(headers: { "Authorization" => "Bearer backup-key" })
+        .to_return(status: 200, body: { response: "Recovered", done: true }.to_json)
+
+      expect(client.generate(prompt: "Hello", model: "llama3.2:3b")).to eq("Recovered")
+      expect(WebMock).to have_requested(:post, "http://localhost:11434/api/generate")
+        .with(headers: { "Authorization" => "Bearer primary-key" }).once
+      expect(WebMock).to have_requested(:post, "http://localhost:11434/api/generate")
+        .with(headers: { "Authorization" => "Bearer backup-key" }).once
+    end
+
+    it "raises RateLimitExhaustedError after every key remains rate limited across retries" do
+      config = Ollama::Config.new
+      config.base_url = "http://localhost:11434"
+      config.api_keys = %w[primary-key backup-key]
+      config.retries = 1
+      client = described_class.new(config: config)
+      allow(client).to receive(:sleep)
+
+      stub_request(:post, "http://localhost:11434/api/generate")
+        .with(headers: { "Authorization" => "Bearer primary-key" })
+        .to_return(status: 429, body: { error: "rate limited" }.to_json)
+
+      stub_request(:post, "http://localhost:11434/api/generate")
+        .with(headers: { "Authorization" => "Bearer backup-key" })
+        .to_return(status: 429, body: { error: "rate limited" }.to_json)
+
+      expect do
+        client.generate(prompt: "Hello", model: "llama3.2:3b")
+      end.to raise_error(Ollama::RateLimitExhaustedError, /exhausted 2 API key/)
+
+      expect(client).to have_received(:sleep).with(2)
+      expect(WebMock).to have_requested(:post, "http://localhost:11434/api/generate")
+        .with(headers: { "Authorization" => "Bearer primary-key" }).twice
+      expect(WebMock).to have_requested(:post, "http://localhost:11434/api/generate")
+        .with(headers: { "Authorization" => "Bearer backup-key" }).twice
+    end
   end
 end
 
@@ -574,6 +623,47 @@ RSpec.describe Ollama::Config do
       expect(config.top_p).to eq(0.9)
       expect(config.num_ctx).to eq(8192)
       expect(config.api_key).to be_nil
+      expect(config.api_keys).to eq([])
+      expect(config.enable_multi_key_concurrency).to be(false)
+    end
+
+    it "loads comma-separated OLLAMA_API_KEYS before falling back to OLLAMA_API_KEY" do
+      original_api_keys = ENV.fetch("OLLAMA_API_KEYS", nil)
+      original_api_key = ENV.fetch("OLLAMA_API_KEY", nil)
+      ENV["OLLAMA_API_KEYS"] = "key-a, key-b"
+      ENV["OLLAMA_API_KEY"] = "fallback-key"
+
+      config = described_class.new
+
+      expect(config.api_keys).to eq(%w[key-a key-b])
+      expect(config.api_key).to eq("key-a")
+    ensure
+      ENV["OLLAMA_API_KEYS"] = original_api_keys
+      ENV["OLLAMA_API_KEY"] = original_api_key
+    end
+
+    it "falls back to OLLAMA_API_KEY when OLLAMA_API_KEYS is blank" do
+      original_api_keys = ENV.fetch("OLLAMA_API_KEYS", nil)
+      original_api_key = ENV.fetch("OLLAMA_API_KEY", nil)
+      ENV["OLLAMA_API_KEYS"] = "  "
+      ENV["OLLAMA_API_KEY"] = "fallback-key"
+
+      config = described_class.new
+
+      expect(config.api_keys).to eq(["fallback-key"])
+      expect(config.api_key).to eq("fallback-key")
+    ensure
+      ENV["OLLAMA_API_KEYS"] = original_api_keys
+      ENV["OLLAMA_API_KEY"] = original_api_key
+    end
+
+    it "reads ENABLE_MULTI_KEY_CONCURRENCY from the environment" do
+      original_value = ENV.fetch("ENABLE_MULTI_KEY_CONCURRENCY", nil)
+      ENV["ENABLE_MULTI_KEY_CONCURRENCY"] = "true"
+
+      expect(described_class.new.enable_multi_key_concurrency).to be(true)
+    ensure
+      ENV["ENABLE_MULTI_KEY_CONCURRENCY"] = original_value
     end
   end
 

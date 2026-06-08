@@ -34,6 +34,8 @@ module Ollama
         UnauthorizedError.new("HTTP 401: #{message}", 401)
       when 404
         NotFoundError.new(message, requested_model: requested_model)
+      when 429
+        RateLimitError.new("HTTP 429: #{message}", 429)
       when 503
         ModelUnavailableError.new("HTTP 503: #{message}", 503)
       else
@@ -65,6 +67,15 @@ module Ollama
   end
 
   class UnauthorizedError < HTTPError; end
+  class RateLimitError < HTTPError; end
+
+  # Raised after every configured API key remains rate-limited through all retry cycles.
+  class RateLimitExhaustedError < RateLimitError
+    def retryable?
+      false
+    end
+  end
+
   class ModelUnavailableError < HTTPError; end
 
   # Specific error for 404 Not Found responses

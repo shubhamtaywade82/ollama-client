@@ -275,20 +275,27 @@ module Ollama
 
       def handle_ndjson_stream(uri, req, hooks)
         last_status = nil
-        Net::HTTP.start(uri.hostname, uri.port, **@config.http_connection_options(uri, read_timeout: @config.timeout * 20)) do |http|
-          http.request(req) do |res|
-            handle_http_error(res) unless res.is_a?(Net::HTTPSuccess)
-            res.read_body do |chunk|
-              chunk.split("\n").each do |line|
-                next if line.strip.empty?
 
-                status = JSON.parse(line)
-                hooks[:on_progress]&.call(status)
-                last_status = status
+        with_rate_limit_key_rotation do |api_key|
+          last_status = nil
+          @config.apply_auth_to(req, api_key: api_key)
+
+          Net::HTTP.start(uri.hostname, uri.port, **@config.http_connection_options(uri, read_timeout: @config.timeout * 20)) do |http|
+            http.request(req) do |res|
+              handle_http_error(res) unless res.is_a?(Net::HTTPSuccess)
+              res.read_body do |chunk|
+                chunk.split("\n").each do |line|
+                  next if line.strip.empty?
+
+                  status = JSON.parse(line)
+                  hooks[:on_progress]&.call(status)
+                  last_status = status
+                end
               end
             end
           end
         end
+
         last_status
       end
     end
