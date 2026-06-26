@@ -24,14 +24,14 @@ module Ollama
       # @param hooks [Hash] Streaming callbacks (:on_token, :on_error, :on_complete)
       # rubocop:disable Metrics/MethodLength, Metrics/ParameterLists
       # rubocop:disable Metrics/AbcSize
-      def generate(prompt:, context: nil, schema: nil, model: nil, strict: nil, return_meta: false,
-                   system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil,
-                   options: nil, hooks: {}, tools: nil)
+def generate(prompt:, context: nil, schema: nil, model: nil, strict: nil, return_meta: false,
+                    system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil,
+                    options: nil, hooks: {}, tools: nil)
         params = Params::Generate.new(
           prompt: prompt, context: context, schema: schema, model: model, strict: strict,
           return_meta: return_meta, system: system, images: images, think: think,
           return_reasoning: return_reasoning, keep_alive: keep_alive, suffix: suffix,
-          raw: raw, options: options, hooks: hooks
+          raw: raw, options: options, hooks: hooks, tools: tools
         )
         generate_with_params(params)
       end

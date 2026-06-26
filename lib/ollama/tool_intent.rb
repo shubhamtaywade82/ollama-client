@@ -11,5 +11,8 @@ module Ollama
       @action = action
       @input = input.is_a?(Hash) ? input : {}
     end
+    def finish?
+      @action == "finish"
+    end
   end
 end

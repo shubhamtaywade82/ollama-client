@@ -17,7 +17,7 @@ module Ollama
       def generate_tool_intent(prompt:, tools:, model: nil, schema: nil)
         intent_schema = schema || {
           "type" => "object",
-          "required" => %w[action input],
+          "required" => %w[action],
           "properties" => {
             "action" => { "type" => "string" },
             "input" => { "type" => "object" }
@@ -37,7 +37,7 @@ module Ollama
 
         input = parsed["input"].is_a?(Hash) ? parsed["input"] : {}
         Ollama::ToolIntent.new(parsed["action"].to_s, input)
-      rescue InvalidJSONError, RetryExhaustedError
+      rescue SchemaViolationError, InvalidJSONError, RetryExhaustedError
         nil
       end
     end
