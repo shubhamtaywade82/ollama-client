@@ -586,6 +586,18 @@ RSpec.describe Ollama::Config do
   end
 
   describe "#apply_auth_to" do
+    before do
+      @original_api_keys = ENV.fetch("OLLAMA_API_KEYS", nil)
+      @original_api_key = ENV.fetch("OLLAMA_API_KEY", nil)
+      ENV.delete("OLLAMA_API_KEYS")
+      ENV.delete("OLLAMA_API_KEY")
+    end
+
+    after do
+      ENV["OLLAMA_API_KEYS"] = @original_api_keys if @original_api_keys
+      ENV["OLLAMA_API_KEY"] = @original_api_key if @original_api_key
+    end
+
     it "sets Authorization Bearer header when api_key is set" do
       config = described_class.new
       config.api_key = "secret"
