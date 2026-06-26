@@ -160,11 +160,18 @@ def generate(prompt:, context: nil, schema: nil, model: nil, strict: nil, return
           reasoning = raw_text.match(%r{<think>(.*?)</think>}mi)[1].strip
           final_output = raw_text.sub(%r{<think>.*?</think>}mi, "").strip
         elsif raw_text.include?("\n")
-          # Fallback: split on first newline for generic thinking models
           parts = raw_text.split("\n", 2)
           reasoning = parts[0].strip
           final_output = parts[1].strip
         end
+
+        if user_schema
+        elsif raw_text.include?("\n")
+          parts = raw_text.split("\n", 2)
+          reasoning = parts[0].strip
+          final_output = parts[1].strip
+        end
+        $stderr.puts "DEBUG extract_reasoning reasoning=#{reasoning.inspect} final_output=#{final_output.inspect}"
 
         if user_schema
           parsed_final = parse_json_response(final_output)
