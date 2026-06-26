@@ -47,7 +47,11 @@ module Ollama
         adapter = PromptAdapters.for(active_profile) if active_profile
 
         # Apply multimodal inputs: build typed message and append to history
-        messages = apply_inputs(params.messages, params.inputs, active_profile) if params.inputs
+        messages = if params.inputs
+                     apply_inputs(params.messages, params.inputs, active_profile)
+                   else
+                     params.messages
+                   end
 
         # Apply prompt adapter (e.g. Gemma 4 prepends the family think tag to the system prompt)
         adapted_messages = adapter ? adapter.adapt_messages(messages, think: !params.think.nil?, tools: params.tools) : messages

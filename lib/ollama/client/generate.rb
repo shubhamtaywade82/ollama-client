@@ -43,6 +43,8 @@ module Ollama
 
         validate_thinking_capability!(params.model, params.think)
 
+        @summarize_schema_cache = {}
+
         attempts = 0
         started_at = monotonic_time
         current_prompt = build_prompt(params.prompt, params.think, params.return_reasoning)
@@ -232,8 +234,6 @@ module Ollama
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse API response: #{e.message}"
       end
-
-      @summarize_schema_cache = {}
 
       def enhance_prompt_for_json(prompt, schema)
         return prompt if prompt.match?(/json|JSON/i)
