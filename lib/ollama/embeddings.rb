@@ -47,10 +47,23 @@ module Ollama
       req = Net::HTTP::Post.new(uri)
       req["Content-Type"] = "application/json"
 
-      request_params = params.to_h
-      req.body = @provider.format_embeddings_request(request_params).to_json
-      @config.apply_auth_to(req)
-      res = @transport.request(uri: uri, request: req, read_timeout: @config.timeout)
+      params = {
+        model: model,
+        input: input
+      }
+      params[:truncate] = truncate unless truncate.nil?
+      params[:dimensions] = dimensions if dimensions
+      params[:keep_alive] = keep_alive if keep_alive
+      params[:options] = options if options
+
+      req.body = @provider.format_embeddings_request(params).to_json
+      res = with_rate_limit_key_rotation do |api_key|
+        @config.apply_auth_to(req, api_key: api_key)
+        response = @transport.request(uri: uri, request: req, read_timeout: @config.timeout)
+        handle_http_error(response, requested_model: model) if response.code.to_i == 429
+
+        response
+      end
 
       handle_http_error(res, requested_model: params.model) unless res.is_a?(Net::HTTPSuccess)
 

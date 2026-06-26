@@ -22,6 +22,8 @@ module Ollama
       # @param raw [Boolean, nil] When true, skip prompt templating
       # @param options [Hash, nil] Runtime options (temperature, top_p, num_ctx, etc.)
       # @param hooks [Hash] Streaming callbacks (:on_token, :on_error, :on_complete)
+      # rubocop:disable Metrics/MethodLength, Metrics/ParameterLists
+      # rubocop:disable Metrics/AbcSize
       def generate(prompt:, context: nil, schema: nil, model: nil, strict: nil, return_meta: false,
                    system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil,
                    options: nil, hooks: {})
@@ -61,8 +63,10 @@ module Ollama
           emit_response_hook(raw_response,
                              endpoint: "/api/generate", model: params.model || @config.model, attempt: attempts)
 
-          response_data = process_generate_response(raw_response, params.schema, params.think, params.return_reasoning)
-          format_response(response_data, final_context, params.return_meta, params.model, attempts, started_at)
+          response_data = process_generate_response(raw_response, schema, think, return_reasoning)
+          format_response(response_data, final_context, return_meta, model, attempts, started_at)
+        rescue RateLimitExhaustedError => e
+          raise e
         rescue NotFoundError => e
           target_model = params.model || @config.model
           raise enhance_not_found_error(e) if pulled_models.include?(target_model) || attempts > @config.retries
@@ -94,6 +98,8 @@ module Ollama
           retry
         end
       end
+      # rubocop:enable Metrics/AbcSize
+      # rubocop:enable Metrics/MethodLength, Metrics/ParameterLists
 
       private
 
@@ -192,8 +198,7 @@ module Ollama
           request_params[:prompt] = enhance_prompt_for_json(prompt, schema)
         end
 
-        req.body = @provider.format_generate_request(request_params).to_json
-        @config.apply_auth_to(req)
+        req.body = @provider.format_generate_request(params).to_json
 
         full_response = +""
         final_context = nil

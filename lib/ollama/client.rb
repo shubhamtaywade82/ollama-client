@@ -38,7 +38,7 @@ module Ollama
     include ModelManagement
     include Raw
     include OpenAICompat
-    include HttpErrorHandler
+    include RateLimitHandler
 
     attr_reader :embeddings, :provider, :config
 
