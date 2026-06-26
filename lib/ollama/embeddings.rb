@@ -5,6 +5,7 @@ require "uri"
 require "json"
 require_relative "errors"
 require_relative "transport"
+require_relative "params"
 
 module Ollama
   # Embeddings API helper for semantic search and RAG in agents
@@ -28,33 +29,35 @@ module Ollama
     # @param options [Hash, nil] Runtime options (temperature, etc.)
     # @return [Array<Float>, Array<Array<Float>>] Embedding vector(s)
     def embed(model:, input:, truncate: nil, dimensions: nil, keep_alive: nil, options: nil)
+      params = Params::Embeddings.new(
+        model: model, input: input, truncate: truncate,
+        dimensions: dimensions, keep_alive: keep_alive, options: options
+      )
+      embed_with_params(params)
+    end
+
+    # @param params [Ollama::Params::Embeddings] Embeddings parameters
+    # @return [Array<Float>, Array<Array<Float>>] Embedding vector(s)
+    def embed_with_params(params)
       # Use provider-specific endpoint
       uri = @provider.embeddings_endpoint
       req = Net::HTTP::Post.new(uri)
       req["Content-Type"] = "application/json"
 
-      params = {
-        model: model,
-        input: input
-      }
-      params[:truncate] = truncate unless truncate.nil?
-      params[:dimensions] = dimensions if dimensions
-      params[:keep_alive] = keep_alive if keep_alive
-      params[:options] = options if options
-
-      req.body = @provider.format_embeddings_request(params).to_json
+      request_params = params.to_h
+      req.body = @provider.format_embeddings_request(request_params).to_json
       @config.apply_auth_to(req)
       res = @transport.request(uri: uri, request: req, read_timeout: @config.timeout)
 
-      handle_http_error(res, requested_model: model) unless res.is_a?(Net::HTTPSuccess)
+      handle_http_error(res, requested_model: params.model) unless res.is_a?(Net::HTTPSuccess)
 
       response_body = @provider.normalize_embeddings_response(JSON.parse(res.body))
       # /api/embed returns "embeddings" (plural) as array of arrays
       embeddings = response_body["embeddings"] || response_body["embedding"]
 
-      validate_embedding_response!(embeddings, response_body, model)
+      validate_embedding_response!(embeddings, response_body, params.model)
 
-      format_embedding_result(embeddings, input)
+      format_embedding_result(embeddings, params.input)
     rescue JSON::ParserError => e
       raise InvalidJSONError, "Failed to parse embeddings response: #{e.message}"
     rescue Net::ReadTimeout, Net::OpenTimeout

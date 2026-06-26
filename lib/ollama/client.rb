@@ -10,6 +10,8 @@ require_relative "transport"
 require_relative "providers"
 require_relative "embeddings"
 require_relative "response"
+require_relative "params"
+require_relative "http_error_handler"
 require_relative "client/chat"
 require_relative "client/generate"
 require_relative "client/model_management"
@@ -35,6 +37,7 @@ module Ollama
     include ModelManagement
     include Raw
     include OpenAICompat
+    include HttpErrorHandler
 
     attr_reader :embeddings, :provider, :config
 
@@ -134,27 +137,12 @@ module Ollama
       raise Error, "Connection failed: #{e.message}"
     end
 
-    def handle_http_error(res, requested_model: nil)
-      requested_model ||= @config.model
-      raise Errors.from_response(res, requested_model: requested_model)
-    end
-
     def emit_response_hook(raw, meta)
       hook = @config.on_response
       return unless hook.respond_to?(:call)
 
       hook.call(raw, meta)
     rescue StandardError
-      nil
-    end
-
-    def extract_error_message(res)
-      body = res.body
-      return nil if body.nil? || body.empty?
-
-      parsed = JSON.parse(body)
-      parsed["error"] if parsed.is_a?(Hash)
-    rescue JSON::ParserError
       nil
     end
   end

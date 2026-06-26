@@ -6,7 +6,7 @@ require_relative "../json_fragment_extractor"
 module Ollama
   class Client
     # Generate completion endpoint with auto-pull, retries, and structured output
-    module Generate # rubocop:disable Metrics/ModuleLength
+    module Generate
       # @param prompt [String] Text for the model to generate a response from (required)
       # @param context [Array<Integer>, nil] Context from a previous generate call for conversational memory
       # @param schema [Hash, nil] JSON Schema for structured output; also sets format
@@ -22,36 +22,47 @@ module Ollama
       # @param raw [Boolean, nil] When true, skip prompt templating
       # @param options [Hash, nil] Runtime options (temperature, top_p, num_ctx, etc.)
       # @param hooks [Hash] Streaming callbacks (:on_token, :on_error, :on_complete)
-      # rubocop:disable Metrics/MethodLength, Metrics/ParameterLists
       def generate(prompt:, context: nil, schema: nil, model: nil, strict: nil, return_meta: false,
                    system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil,
                    options: nil, hooks: {})
-        raise ArgumentError, "prompt is required" if prompt.nil?
+        params = Params::Generate.new(
+          prompt: prompt, context: context, schema: schema, model: model, strict: strict,
+          return_meta: return_meta, system: system, images: images, think: think,
+          return_reasoning: return_reasoning, keep_alive: keep_alive, suffix: suffix,
+          raw: raw, options: options, hooks: hooks
+        )
+        generate_with_params(params)
+      end
 
-        strict = @config.strict_json if strict.nil?
+      # @param params [Ollama::Params::Generate] Generate parameters
+      # @return [String, Hash] Response data (String without schema, Hash with schema)
+      def generate_with_params(params)
+        raise ArgumentError, "prompt is required" if params.prompt.nil?
 
-        validate_thinking_capability!(model, think)
+        strict = params.strict.nil? ? @config.strict_json : params.strict
+
+        validate_thinking_capability!(params.model, params.think)
 
         attempts = 0
         started_at = monotonic_time
-        current_prompt = build_prompt(prompt, think, return_reasoning)
+        current_prompt = build_prompt(params.prompt, params.think, params.return_reasoning)
         pulled_models = []
 
         begin
           attempts += 1
           raw_response, final_context = call_generate_api(
-            prompt: current_prompt, context: context, schema: schema, model: model, hooks: hooks,
-            system: system, images: images, think: think, keep_alive: keep_alive,
-            suffix: suffix, raw: raw, options: options
+            prompt: current_prompt, context: params.context, schema: params.schema, model: params.model, hooks: params.hooks,
+            system: params.system, images: params.images, think: params.think, keep_alive: params.keep_alive,
+            suffix: params.suffix, raw: params.raw, options: params.options
           )
 
           emit_response_hook(raw_response,
-                             endpoint: "/api/generate", model: model || @config.model, attempt: attempts)
+                             endpoint: "/api/generate", model: params.model || @config.model, attempt: attempts)
 
-          response_data = process_generate_response(raw_response, schema, think, return_reasoning)
-          format_response(response_data, final_context, return_meta, model, attempts, started_at)
+          response_data = process_generate_response(raw_response, params.schema, params.think, params.return_reasoning)
+          format_response(response_data, final_context, params.return_meta, params.model, attempts, started_at)
         rescue NotFoundError => e
-          target_model = model || @config.model
+          target_model = params.model || @config.model
           raise enhance_not_found_error(e) if pulled_models.include?(target_model) || attempts > @config.retries
 
           pull(target_model)
@@ -81,7 +92,6 @@ module Ollama
           retry
         end
       end
-      # rubocop:enable Metrics/MethodLength, Metrics/ParameterLists
 
       private
 
@@ -92,14 +102,12 @@ module Ollama
         raise UnsupportedThinkingModel, "Model #{model || @config.model} is not marked as reasoning-capable"
       end
 
+      THINK_PROMPT = "Think step-by-step using 思考 tags.\n\n".freeze
+
       def build_prompt(prompt, thinking, _return_reasoning)
         return prompt unless thinking
 
-        <<~PROMPT
-          Think step-by-step using <think> tags.
-
-          #{prompt}
-        PROMPT
+        "#{THINK_PROMPT}#{prompt}"
       end
 
       def process_generate_response(raw_response, schema, think, return_reasoning)
@@ -133,12 +141,12 @@ module Ollama
         reasoning = ""
         final_output = raw_text
 
-        if raw_text.match?(%r{<think>(.*?)</think>}mi)
-          reasoning = raw_text.match(%r{<think>(.*?)</think>}mi)[1].strip
-          final_output = raw_text.sub(%r{<think>.*?</think>}mi, "").strip
-        elsif raw_text.include?("</think>")
-          parts = raw_text.split("</think>", 2)
-          reasoning = parts[0].sub("<think>", "").strip
+        if raw_text.match?(%r{思考(.*?)回答}mi)
+          reasoning = raw_text.match(%r{思考(.*?)回答}mi)[1].strip
+          final_output = raw_text.sub(%r{思考.*?回答}mi, "").strip
+        elsif raw_text.include?("回答")
+          parts = raw_text.split("回答", 2)
+          reasoning = parts[0].sub("思考", "").strip
           final_output = parts[1].strip
         end
 
@@ -154,7 +162,6 @@ module Ollama
         }
       end
 
-      # rubocop:disable Metrics/MethodLength, Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/ParameterLists
       def call_generate_api(prompt:, context:, schema:, model:, hooks:, system: nil, images: nil,
                             think: nil, keep_alive: nil, suffix: nil, raw: nil, options: nil)
         generate_uri = @provider.generate_endpoint
@@ -163,27 +170,27 @@ module Ollama
 
         stream_enabled = streaming_requested?(hooks)
 
-        params = {
+        request_params = {
           model: model || @config.model,
           prompt: prompt,
           stream: stream_enabled,
           options: build_options(options)
         }
 
-        params[:context] = context if context
-        params[:system] = system if system
-        params[:images] = images if images
-        params[:think] = think unless think.nil?
-        params[:keep_alive] = keep_alive if keep_alive
-        params[:suffix] = suffix if suffix
-        params[:raw] = raw unless raw.nil?
+        request_params[:context] = context if context
+        request_params[:system] = system if system
+        request_params[:images] = images if images
+        request_params[:think] = think unless think.nil?
+        request_params[:keep_alive] = keep_alive if keep_alive
+        request_params[:suffix] = suffix if suffix
+        request_params[:raw] = raw unless raw.nil?
 
         if schema
-          params[:format] = schema
-          params[:prompt] = enhance_prompt_for_json(prompt, schema)
+          request_params[:format] = schema
+          request_params[:prompt] = enhance_prompt_for_json(prompt, schema)
         end
 
-        req.body = @provider.format_generate_request(params).to_json
+        req.body = @provider.format_generate_request(request_params).to_json
         @config.apply_auth_to(req)
 
         full_response = +""
@@ -219,15 +226,8 @@ module Ollama
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse API response: #{e.message}"
       end
-      # rubocop:enable Metrics/MethodLength, Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/ParameterLists
 
-      def parse_and_validate_schema_response(raw, schema)
-        parsed = parse_json_response(raw)
-        raise SchemaViolationError, "Empty or nil response when schema is required" if parsed.nil? || parsed.empty?
-
-        SchemaValidator.validate!(parsed, schema)
-        parsed
-      end
+      @summarize_schema_cache = {}
 
       def enhance_prompt_for_json(prompt, schema)
         return prompt if prompt.match?(/json|JSON/i)
@@ -240,6 +240,9 @@ module Ollama
 
       def summarize_schema(schema)
         return "object" unless schema.is_a?(Hash)
+
+        cache_key = schema.hash
+        return @summarize_schema_cache[cache_key] if @summarize_schema_cache.key?(cache_key)
 
         required = schema["required"] || []
         properties = schema["properties"] || {}
@@ -259,7 +262,9 @@ module Ollama
 
         required_list = required.map { |k| "\"#{k}\"" }.join(", ")
         example_json = JSON.pretty_generate(example)
-        "Required fields: [#{required_list}]. Example structure:\n#{example_json}"
+        result = "Required fields: [#{required_list}]. Example structure:\n#{example_json}"
+        @summarize_schema_cache[cache_key] = result
+        result
       end
 
       def parse_json_response(raw)
