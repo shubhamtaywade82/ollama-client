@@ -54,7 +54,11 @@ module Ollama
                    end
 
         # Apply prompt adapter (e.g. Gemma 4 prepends the family think tag to the system prompt)
-        adapted_messages = adapter ? adapter.adapt_messages(messages, think: !params.think.nil?, tools: params.tools) : messages
+        adapted_messages = if adapter
+                             adapter.adapt_messages(messages, think: !params.think.nil?, tools: params.tools)
+                           else
+                             messages
+                           end
 
         # Resolve think flag: adapter may handle it via prompt tag instead of API flag
         effective_think = resolve_think_flag(params.think, adapter)
@@ -88,7 +92,7 @@ module Ollama
                 handle_http_error(res, requested_model: target_model) unless res.is_a?(Net::HTTPSuccess)
 
                 response_data = if stream_enabled
-                                  ChatStreamProcessor.call(res, hooks, provider: @provider)
+                                  ChatStreamProcessor.call(res, params.hooks, provider: @provider)
                                 else
                                   @provider.normalize_chat_response(JSON.parse(res.body))
                                 end

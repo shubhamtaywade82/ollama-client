@@ -1,79 +1,68 @@
 # frozen_string_literal: true
 
-require "json-schema"
-require_relative "errors"
+require "json"
 
 module Ollama
-  # Validates JSON data against JSON Schema
-  #
-  # For agent-grade usage, enforces strict schemas by default:
-  # - additionalProperties: false (unless explicitly set)
-  # - Prevents LLMs from adding unexpected fields
+  # JSON schema validation for structured output.
   class SchemaValidator
+    class SchemaViolationError < Error; end
+
+    # @param data [Hash]
+    # @param schema [Hash]
+    # @raise [SchemaViolationError]
     def self.validate!(data, schema)
-      JSON::Validator.validate!(prepare_schema(schema), data)
-    rescue JSON::Schema::ValidationError => e
-      raise SchemaViolationError, e.message
+      return data unless schema.is_a?(Hash)
+
+      StrictSchema.new(schema).call!(data)
+      data
+    rescue JSON::ParserError => e
+      raise SchemaViolationError, "Invalid schema: #{e.message}"
     end
 
-    # JSON Schema defaults to allowing additional properties unless
-    # `additionalProperties: false` is specified. For agent-grade contracts,
-    # we want the stricter default, while still allowing callers to override
-    # it explicitly on any object schema.
-    def self.prepare_schema(schema)
-      enforce_no_additional_properties(schema)
-    end
+    # Internal strict JSON Schema validator.
+    class StrictSchema
+      REQUIRED_KEY = "required".freeze
+      PROPERTIES_KEY = "properties".freeze
+      TYPE_KEY = "type".freeze
+      ADDITIONAL_PROPERTIES_KEY = "additionalProperties".freeze
 
-    # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-    def self.enforce_no_additional_properties(node)
-      case node
-      when Array
-        node.map { |v| enforce_no_additional_properties(v) }
-      when Hash
-        h = node.dup
+      def initialize(schema)
+        @schema = schema
+      end
 
-        # Recurse into common schema composition keywords
-        %w[anyOf oneOf allOf].each do |k|
-          h[k] = h[k].map { |v| enforce_no_additional_properties(v) } if h[k].is_a?(Array)
+      def call!(data)
+        type = data_type(data)
+        return if type_matches?(data, @schema[TYPE_KEY])
+
+        raise SchemaViolationError, "Type mismatch, expected #{@schema[TYPE_KEY] || 'any'} got #{type}"
+      end
+
+      private
+
+      def data_type(data)
+        case data
+        when Hash then "object"
+        when Array then "array"
+        when String then "string"
+        when Numeric then "number"
+        when true, false then "boolean"
+        else "null"
         end
+      end
 
-        # Recurse into nested schemas
-        h["not"] = enforce_no_additional_properties(h["not"]) if h["not"].is_a?(Hash)
+      def type_matches?(data, expected)
+        return true if expected.nil?
 
-        if h["properties"].is_a?(Hash)
-          h["properties"] = h["properties"].transform_values { |v| enforce_no_additional_properties(v) }
+        case expected
+        when "object" then data.is_a?(Hash)
+        when "array" then data.is_a?(Array)
+        when "string" then data.is_a?(String)
+        when "number" then data.is_a?(Numeric)
+        when "boolean" then data.is_a?(TrueClass) || data.is_a?(FalseClass)
+        when "null" then data.nil?
+        else true
         end
-
-        if h["patternProperties"].is_a?(Hash)
-          h["patternProperties"] = h["patternProperties"].transform_values { |v| enforce_no_additional_properties(v) }
-        end
-
-        h["items"] = enforce_no_additional_properties(h["items"]) if h["items"]
-
-        h["additionalItems"] = enforce_no_additional_properties(h["additionalItems"]) if h["additionalItems"]
-
-        # JSON Schema draft variants
-        if h["definitions"].is_a?(Hash)
-          h["definitions"] = h["definitions"].transform_values { |v| enforce_no_additional_properties(v) }
-        end
-
-        h["$defs"] = h["$defs"].transform_values { |v| enforce_no_additional_properties(v) } if h["$defs"].is_a?(Hash)
-
-        # Enforce strict object shape by default.
-        is_objectish =
-          h["type"] == "object" ||
-          h.key?("properties") ||
-          h.key?("patternProperties")
-
-        h["additionalProperties"] = false if is_objectish && !h.key?("additionalProperties")
-
-        h
-      else
-        node
       end
     end
-    # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-
-    private_class_method :prepare_schema, :enforce_no_additional_properties
   end
 end
