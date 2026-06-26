@@ -6,6 +6,7 @@ module Ollama
   class ChatResponse
     attr_reader :content, :thinking, :role, :tool_calls, :images, :done, :model
 
+    # rubocop:disable Metrics/ParameterLists
     def initialize(
       content: nil,
       thinking: nil,
@@ -15,6 +16,7 @@ module Ollama
       done: true,
       model: nil
     )
+      # rubocop:enable Metrics/ParameterLists
       @content = content
       @thinking = thinking
       @role = role

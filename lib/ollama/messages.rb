@@ -29,13 +29,16 @@ module Ollama
     end
 
     def role_for(message)
-      message.is_a?(Hash) ? (message[:role] || message["role"]).to_s : nil
+      case message
+      when Hash then (message[:role] || message["role"]).to_s
+      else nil
+      end
     end
 
     # Replace the first message with +role+ if present; otherwise append.
     def replace_or_append(role, content)
       existing = @messages.index { |m| role_for(m) == role }
-      message = { role: role, content: content.to_s }
+      message = { "role" => role, "content" => content.to_s }
       if existing
         @messages[existing] = message
       else
@@ -46,7 +49,7 @@ module Ollama
 
     # Append a message of the given role.
     def append(role, content)
-      @messages << { role: role, content: content.to_s }
+      @messages << { "role" => role, "content" => content.to_s }
       self
     end
 
@@ -57,10 +60,10 @@ module Ollama
 
     # Add a user message, optionally with an attachment.
     def user(content, attachment: nil)
-      message = { role: "user", content: content.to_s }
+      message = { "role" => "user", "content" => content.to_s }
       if attachment
         attachments = Array(attachment).map { |a| a.is_a?(Attachment) ? a.to_h : a }
-        message[:images] = attachments if attachments.any?
+        message["images"] = attachments if attachments.any?
       end
       @messages << message
       self
@@ -69,9 +72,9 @@ module Ollama
     # Add an image-only user message. +attachment+ may be an Attachment or a
     # path/IO/base64-string. Accepts +text+ as optional user content.
     def image(text = nil, attachment:)
-      message = { role: "user", content: text ? text.to_s : "" }
+      message = { "role" => "user", "content" => text ? text.to_s : "" }
       attachments = Array(attachment).map { |a| a.is_a?(Attachment) ? a.to_h : a }
-      message[:images] = attachments
+      message["images"] = attachments
       @messages << message
       self
     end
@@ -80,14 +83,16 @@ module Ollama
     # `to_h`.
     def add(message)
       normalized = message.is_a?(Hash) ? message.dup : message.to_h
-      normalized = { role: "user", content: normalized.to_s } unless normalized.key?(:role) || normalized.key?("role")
+      unless normalized.key?("role") || normalized.key?(:role)
+        normalized = { "role" => "user", "content" => normalized.to_s }
+      end
       @messages << normalized
       self
     end
 
     # Return the plain messages array accepted by `chat(messages:)`.
     def to_h
-      @messages.dup.freeze
+      @messages.dup
     end
 
     # Return number of messages stored.

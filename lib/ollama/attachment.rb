@@ -49,7 +49,7 @@ module Ollama
     end
 
     def to_h
-      { type: type, data: data }
+      { "type" => type, "data" => data }
     end
 
     private
@@ -61,10 +61,14 @@ module Ollama
       value.to_s
     end
 
-    def self.base64_from_file(path)
-      File.file?(path) && File.exist?(path) ? [File.binread(path)].pack("m") : path
-    rescue SystemCallError
-      path
+    class << self
+      private
+
+      def base64_from_file(path)
+        File.file?(path) && File.exist?(path) ? [File.binread(path)].pack("m") : path
+      rescue SystemCallError
+        path
+      end
     end
   end
 end
