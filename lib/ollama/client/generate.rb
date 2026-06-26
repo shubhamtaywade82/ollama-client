@@ -156,6 +156,14 @@ module Ollama
           parts = raw_text.split("回答", 2)
           reasoning = parts[0].sub("思考", "").strip
           final_output = parts[1].strip
+        elsif raw_text.match?(%r{<think>(.*?)</think>}mi)
+          reasoning = raw_text.match(%r{<think>(.*?)</think>}mi)[1].strip
+          final_output = raw_text.sub(%r{<think>.*?</think>}mi, "").strip
+        elsif raw_text.include?("\n")
+          # Fallback: split on first newline for generic thinking models
+          parts = raw_text.split("\n", 2)
+          reasoning = parts[0].strip
+          final_output = parts[1].strip
         end
 
         if user_schema

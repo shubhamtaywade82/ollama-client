@@ -5,8 +5,6 @@ require "json"
 module Ollama
   # JSON schema validation for structured output.
   class SchemaValidator
-    class SchemaViolationError < Error; end
-
     # @param data [Hash]
     # @param schema [Hash]
     # @raise [SchemaViolationError]
