@@ -13,7 +13,7 @@ module Ollama
       # @param tools [Array<Hash>] Available tool definitions.
       # @param model [String, nil] Optional model override.
       # @param schema [Hash, nil] Optional schema override.
-      # @return [ToolIntent, nil] Parsed intent or nil when absent.
+      # @return [Ollama::ToolIntent, nil] Parsed intent or nil when absent.
       def generate_tool_intent(prompt:, tools:, model: nil, schema: nil)
         intent_schema = schema || {
           "type" => "object",
@@ -36,8 +36,8 @@ module Ollama
         return nil unless parsed.is_a?(Hash)
 
         input = parsed["input"].is_a?(Hash) ? parsed["input"] : {}
-        ToolIntent.new(parsed["action"].to_s, input)
-      rescue SchemaViolationError, InvalidJSONError, RetryExhaustedError
+        Ollama::ToolIntent.new(parsed["action"].to_s, input)
+      rescue InvalidJSONError, RetryExhaustedError
         nil
       end
     end

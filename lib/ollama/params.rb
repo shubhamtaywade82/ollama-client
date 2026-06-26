@@ -48,12 +48,12 @@ module Ollama
     class Generate < Base
       attr_accessor :prompt, :context, :schema, :model, :strict, :return_meta,
                     :system, :images, :think, :return_reasoning, :keep_alive,
-                    :suffix, :raw, :options, :hooks
+                    :suffix, :raw, :options, :hooks, :tools
 
       def initialize(prompt:, context: nil, schema: nil, model: nil, strict: nil,
                      return_meta: false, system: nil, images: nil, think: nil,
                      return_reasoning: false, keep_alive: nil, suffix: nil,
-                     raw: nil, options: nil, hooks: {})
+                     raw: nil, options: nil, hooks: {}, tools: nil)
         @prompt = prompt
         @context = context
         @schema = schema
@@ -69,6 +69,7 @@ module Ollama
         @raw = raw
         @options = options
         @hooks = hooks
+        @tools = tools
       end
     end
 
