@@ -26,6 +26,12 @@ require_relative "prompt_adapters"
 require_relative "multimodal_input"
 require_relative "history_sanitizer"
 require_relative "tool_intent"
+require_relative "chat_response"
+require_relative "attachment"
+require_relative "messages"
+require_relative "prompt"
+require_relative "tool_dsl"
+require_relative "schema_dsl"
 
 module Ollama
   # Main client class for interacting with the Ollama API.

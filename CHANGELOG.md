@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Repositioned gem identity from "agent-first" to "Ruby AI SDK for Ollama" in gemspec and README. No API, behavior, or config changes.
+
 ### Added
 - Multi-API-key Ollama Cloud failover via `Ollama::Config#api_keys`, `OLLAMA_API_KEYS`, and automatic HTTP 429 rotation with `Ollama::RateLimitExhaustedError` when every key remains rate-limited.
 - `ENABLE_MULTI_KEY_CONCURRENCY` / `Ollama::Config#enable_multi_key_concurrency` for thread-safe round-robin initial key distribution across concurrent requests.
