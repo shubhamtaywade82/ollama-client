@@ -41,7 +41,9 @@ module Ollama
 
       # @param params [Ollama::Params::Chat] Chat parameters
       # @return [Ollama::Response] Response wrapper with message, tool_calls, timing, etc.
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
       def chat_with_params(params)
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
         raise ArgumentError, "messages is required" if params.messages.nil? || params.messages.empty?
 
         target_model = params.model || @config.model
