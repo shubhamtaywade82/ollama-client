@@ -63,8 +63,8 @@ module Ollama
           emit_response_hook(raw_response,
                              endpoint: "/api/generate", model: params.model || @config.model, attempt: attempts)
 
-          response_data = process_generate_response(raw_response, schema, think, return_reasoning)
-          format_response(response_data, final_context, return_meta, model, attempts, started_at)
+          response_data = process_generate_response(raw_response, params.schema, params.think, params.return_reasoning)
+          format_response(response_data, final_context, params.return_meta, params.model || @config.model, attempts, started_at)
         rescue RateLimitExhaustedError => e
           raise e
         rescue NotFoundError => e
@@ -198,7 +198,7 @@ module Ollama
           request_params[:prompt] = enhance_prompt_for_json(prompt, schema)
         end
 
-        req.body = @provider.format_generate_request(params).to_json
+        req.body = @provider.format_generate_request(request_params).to_json
 
         full_response = +""
         final_context = nil

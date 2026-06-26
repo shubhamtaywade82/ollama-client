@@ -74,7 +74,7 @@ module Ollama
         request_params[:top_logprobs] = params.top_logprobs if params.top_logprobs
         request_params[:options] = build_options_with_profile(params.options, active_profile)
 
-        req.body = @provider.format_chat_request(params).to_json
+        req.body = @provider.format_chat_request(request_params).to_json
         response_data = nil
 
         begin

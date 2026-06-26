@@ -47,25 +47,14 @@ module Ollama
       req = Net::HTTP::Post.new(uri)
       req["Content-Type"] = "application/json"
 
-      params = {
-        model: model,
-        input: input
-      }
-      params[:truncate] = truncate unless truncate.nil?
-      params[:dimensions] = dimensions if dimensions
-      params[:keep_alive] = keep_alive if keep_alive
-      params[:options] = options if options
-
-      req.body = @provider.format_embeddings_request(params).to_json
+      req.body = @provider.format_embeddings_request(params.to_h).to_json
       res = with_rate_limit_key_rotation do |api_key|
         @config.apply_auth_to(req, api_key: api_key)
         response = @transport.request(uri: uri, request: req, read_timeout: @config.timeout)
-        handle_http_error(response, requested_model: model) if response.code.to_i == 429
+        handle_http_error(response, requested_model: params.model) if response.code.to_i == 429
 
         response
       end
-
-      handle_http_error(res, requested_model: params.model) unless res.is_a?(Net::HTTPSuccess)
 
       response_body = @provider.normalize_embeddings_response(JSON.parse(res.body))
       # /api/embed returns "embeddings" (plural) as array of arrays
@@ -80,6 +69,10 @@ module Ollama
       raise TimeoutError, "Request timed out after #{@config.timeout}s"
     rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
       raise Error, "Connection failed: #{e.message}"
+    ensure
+      if defined?(res) && !res.nil? && !res.is_a?(Net::HTTPSuccess)
+        handle_http_error(res, requested_model: params.model)
+      end
     end
 
     private

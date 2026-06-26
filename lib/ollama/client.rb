@@ -18,12 +18,14 @@ require_relative "client/generate"
 require_relative "client/model_management"
 require_relative "client/raw"
 require_relative "client/openai_compat"
+require_relative "client/tool_intent"
 require_relative "capabilities"
 require_relative "model_profile"
 require_relative "stream_event"
 require_relative "prompt_adapters"
 require_relative "multimodal_input"
 require_relative "history_sanitizer"
+require_relative "tool_intent"
 
 module Ollama
   # Main client class for interacting with the Ollama API.
@@ -36,6 +38,7 @@ module Ollama
     include Chat
     include Generate
     include ModelManagement
+    include ToolIntent
     include Raw
     include OpenAICompat
     include RateLimitHandler
