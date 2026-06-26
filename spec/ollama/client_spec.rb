@@ -639,6 +639,22 @@ RSpec.describe Ollama::SchemaValidator do
         described_class.validate!(data, schema)
       end.to raise_error(Ollama::SchemaViolationError)
     end
+
+    it "rejects additional properties by default for object schemas" do
+      schema = {
+        "type" => "object",
+        "properties" => {
+          "name" => { "type" => "string" }
+        }
+        # NOTE: no additionalProperties provided
+      }
+
+      data = { "name" => "test", "extra" => "nope" }
+
+      expect do
+        described_class.validate!(data, schema)
+      end.to raise_error(Ollama::SchemaViolationError)
+    end
   end
 end
 
