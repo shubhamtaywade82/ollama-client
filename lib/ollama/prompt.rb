@@ -57,10 +57,14 @@ module Ollama
     private
 
     def resolve_input_values(*values)
-      if values.size == 1 && values.first.is_a?(Hash) && self.class.inputs.present?
-        values.first
-      elsif values.size == self.class.inputs&.size
-        self.class.inputs.zip(values).to_h
+      first = values.first
+      hash_like = first.respond_to?(:[]) && first.respond_to?(:keys)
+      inputs = self.class.inputs
+
+      if values.size == 1 && (first.is_a?(Hash) || hash_like) && inputs&.any?
+        first
+      elsif values.size == inputs&.size
+        inputs.zip(values).to_h
       end
     end
 
@@ -68,9 +72,15 @@ module Ollama
       @messages.system(self.class.system_content) if self.class.system_content
       return unless self.class.user_block
 
-      input_values = Array(@input_values).compact
-      content = instance_exec(*input_values, &self.class.user_block)
-      @messages.user(content.to_s) if content
+      input_values = if @input_values.is_a?(Hash) || (!@input_values.is_a?(Array) && @input_values.respond_to?(:keys))
+                       Array(self.class.inputs).compact.map { |key| @input_values[key] }
+                     else
+                       Array(@input_values).compact
+                     end
+
+      Array(instance_exec(*input_values, &self.class.user_block)).each do |content|
+        @messages.user(content.to_s) if content
+      end
     end
   end
 end
