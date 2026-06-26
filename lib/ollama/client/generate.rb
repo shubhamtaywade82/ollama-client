@@ -80,7 +80,8 @@ def generate(prompt:, context: nil, schema: nil, model: nil, strict: nil, return
           sleep(2**attempts)
           retry
         rescue InvalidJSONError, SchemaViolationError, ThinkingFormatError => e
-          raise RetryExhaustedError, "Failed after #{attempts} attempts: #{e.message}"
+          raise e if strict
+          raise RetryExhaustedError, "Failed after #{attempts} attempts: #{e.message}" if attempts > @config.retries
 
           repair_msg = "CRITICAL FIX: Your last response was invalid or violated the schema. " \
                        "Error: #{e.message}. Return ONLY valid JSON."
