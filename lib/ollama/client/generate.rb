@@ -26,7 +26,7 @@ module Ollama
       # rubocop:disable Metrics/AbcSize
       def generate(prompt:, context: nil, schema: nil, model: nil, strict: nil, return_meta: false,
                    system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil,
-                   options: nil, hooks: {})
+                   options: nil, hooks: {}, tools: nil)
         params = Params::Generate.new(
           prompt: prompt, context: context, schema: schema, model: model, strict: strict,
           return_meta: return_meta, system: system, images: images, think: think,
