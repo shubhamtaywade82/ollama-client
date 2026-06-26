@@ -126,6 +126,13 @@ module Ollama
             }
           end
         end
+
+        schema = { "type" => "object" }
+        schema["properties"] = properties unless properties.empty?
+        schema["required"] = required unless required.empty?
+        schema["additionalProperties"] = false if properties.any?
+
+        schema
       end
 
       def infer_parameters(callable)

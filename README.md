@@ -109,6 +109,8 @@ response.message.content   # => "The answer is 12."
 
 #### Chat Options
 
+**Simple approach (auto-inferred schemas):**
+
 ```ruby
 messages = [{ role: "user", content: "Hello" }]
 
