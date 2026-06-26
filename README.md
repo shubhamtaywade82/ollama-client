@@ -5,12 +5,14 @@
 [![Ruby](https://img.shields.io/badge/ruby-%3E%3D%203.0-ruby.svg)](https://www.ruby-lang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.txt)
 
-> **A production-safe Ollama client for Rails & agent systems.**
+> **The production-safe Ruby AI SDK for Ollama.**
 
 Not a chatbot UI. Not a 1:1 API wrapper.
 A failure-aware, contract-driven client that covers **all 12 Ollama API endpoints** with production guarantees.
 
 **Correctness. Determinism. Failure-aware design. Nothing else.**
+
+`ollama-client` is purpose-built for Rails AI features, background jobs, CLIs, agents, autonomous systems, workflow engines, RAG pipelines, structured-output consumers, MCP servers, and evaluation systems. If you use Ollama from Ruby, this is the foundation layer.
 
 ## Why This Gem Exists
 
