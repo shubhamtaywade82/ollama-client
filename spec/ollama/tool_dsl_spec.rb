@@ -23,8 +23,8 @@ RSpec.describe Ollama::ToolDSL do
     it "normalizes camelized names to snake_case" do
       klass = Class.new(described_class) do
         description "My tool"
-        input {}
-        call {}
+        input { string :dummy }
+        call { "result" }
       end
 
       expect(klass.to_tool_hash.dig("function", "name")).to eq("my_tool")

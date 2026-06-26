@@ -33,13 +33,19 @@ module Ollama
     end
 
     def number(name, minimum: nil, maximum: nil, optional: false, default: nil, description: nil)
-      add_property(name, "number", minimum: minimum, maximum: maximum, optional: optional, default: default,
-        description: description)
+      add_property(
+        name, "number",
+        minimum: minimum, maximum: maximum, optional: optional,
+        default: default, description: description
+      )
     end
 
     def integer(name, minimum: nil, maximum: nil, optional: false, default: nil, description: nil)
-      add_property(name, "integer", minimum: minimum, maximum: maximum, optional: optional, default: default,
-        description: description)
+      add_property(
+        name, "integer",
+        minimum: minimum, maximum: maximum, optional: optional,
+        default: default, description: description
+      )
     end
 
     def boolean(name, optional: false, default: nil, description: nil)
@@ -70,7 +76,9 @@ module Ollama
 
     private
 
+    # rubocop:disable Metrics/ParameterLists
     def add_property(name, type, enum: nil, optional: false, default: nil, description: nil, minimum: nil, maximum: nil)
+      # rubocop:enable Metrics/ParameterLists
       prop = { "type" => type }
       prop["enum"] = Array(enum) if enum
       prop["description"] = description if description

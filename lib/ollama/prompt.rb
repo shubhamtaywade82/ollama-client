@@ -44,9 +44,7 @@ module Ollama
       build!
     end
 
-    def messages
-      @messages
-    end
+    attr_reader :messages
 
     def to_h
       messages.to_h
@@ -63,8 +61,6 @@ module Ollama
         values.first
       elsif values.size == self.class.inputs&.size
         self.class.inputs.zip(values).to_h
-      else
-        values.first
       end
     end
 

@@ -20,7 +20,7 @@ module Ollama
   #  client.chat(messages: [...], tools: [WeatherTool.to_tool_hash])
   class ToolDSL
     class << self
-      attr_reader :tool_description, :input_schema, :output_schema, :user_block, :tool_name
+      attr_reader :tool_description, :input_schema, :output_schema, :user_block
 
       def description(text)
         @tool_description = text
@@ -46,7 +46,7 @@ module Ollama
 
       def to_tool_hash
         function = {
-          "name" => (tool_name || tool_method_name),
+          "name" => tool_name || tool_method_name,
           "description" => tool_description || "",
           "strict" => true
         }
@@ -74,7 +74,7 @@ module Ollama
         return if respond_to?(:constructor)
 
         singleton_class.define_method(:constructor) do
-          @constructor ||= instance_exec(&self.user_block)
+          @constructor ||= instance_exec(&user_block)
         end
       end
 

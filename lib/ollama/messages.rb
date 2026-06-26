@@ -29,10 +29,9 @@ module Ollama
     end
 
     def role_for(message)
-      case message
-      when Hash then (message[:role] || message["role"]).to_s
-      else nil
-      end
+      return unless message.is_a?(Hash)
+
+      (message[:role] || message["role"]).to_s
     end
 
     # Replace the first message with +role+ if present; otherwise append.
@@ -83,9 +82,7 @@ module Ollama
     # `to_h`.
     def add(message)
       normalized = message.is_a?(Hash) ? message.dup : message.to_h
-      unless normalized.key?("role") || normalized.key?(:role)
-        normalized = { "role" => "user", "content" => normalized.to_s }
-      end
+      normalized = { "role" => "user", "content" => normalized.to_s } unless normalized.key?("role") || normalized.key?(:role)
       @messages << normalized
       self
     end

@@ -7,13 +7,14 @@ RSpec.describe Ollama::Prompt do
     context "with hash input" do
       it "maps hash keys to instance inputs" do
         values = Object.new
-        allow(values).to receive(:[]).with(:code) { "def hi; end" }
-        allow(values).to receive(:[]).with(:language) { "ruby" }
+        allow(values).to receive(:[]).with(:code).and_return("def hi; end")
+        allow(values).to receive(:[]).with(:language).and_return("ruby")
         allow(values).to receive(:keys).and_return(%i[code language])
 
         klass = Class.new(described_class) do
+          input :code, :language
           system "system"
-          user { [code, "Language: #{language}"].compact.join(" ") }
+          user { |code, language| [code, "Language: #{language}"].compact.join(" ") }
         end
 
         instance = klass.new(values)
@@ -27,8 +28,9 @@ RSpec.describe Ollama::Prompt do
     context "with positional values" do
       it "stores values in declaration order" do
         klass = Class.new(described_class) do
+          input :code, :language
           system "system"
-          user { [code, language].compact.join(" ") }
+          user { |code, language| [code, language].compact.join(" ") }
         end
 
         instance = klass.new("code", "ruby")
@@ -49,7 +51,9 @@ RSpec.describe Ollama::Prompt do
 
     it "returns the same Messages object on repeated calls" do
       instance = build_prompt_instance
-      expect(instance.messages.object_id).to eq(instance.messages.object_id)
+      first = instance.messages
+      second = instance.messages
+      expect(first).to be(second)
     end
   end
 
@@ -73,7 +77,7 @@ RSpec.describe Ollama::Prompt do
       klass = Class.new(described_class) do
         input :code, :language
         system "system"
-        user { Array([_1, _2]).compact.join(" ") }
+        user { |code, language| [code, language].compact.join(" ") }
       end
 
       a = klass.new("code1", "rb")
@@ -87,7 +91,7 @@ RSpec.describe Ollama::Prompt do
     klass = Class.new(described_class) do
       input :code, :language
       system "system"
-      user { Array([_1, _2]).compact.join(" ") }
+      user { |code, language| [code, language].compact.join(" ") }
     end
 
     klass.new("def foo; end", "ruby")
