@@ -25,10 +25,11 @@ module Ollama
                     :keep_alive, :options, :logprobs, :top_logprobs, :hooks,
                     :profile, :inputs
 
+      # rubocop:disable Metrics/ParameterLists
       def initialize(messages:, model: nil, format: nil, tools: nil, stream: nil,
                      think: nil, keep_alive: nil, options: nil, logprobs: nil,
                      top_logprobs: nil, hooks: {}, profile: :auto, inputs: nil)
-        # rubocop:disable Metrics/ParameterLists
+        # rubocop:enable Metrics/ParameterLists
         super()
         @messages = messages
         @model = model
@@ -52,10 +53,12 @@ module Ollama
                     :system, :images, :think, :return_reasoning, :keep_alive,
                     :suffix, :raw, :options, :hooks, :tools
 
+      # rubocop:disable Metrics/ParameterLists
       def initialize(prompt:, context: nil, schema: nil, model: nil, strict: nil,
                      return_meta: false, system: nil, images: nil, think: nil,
                      return_reasoning: false, keep_alive: nil, suffix: nil,
                      raw: nil, options: nil, hooks: {}, tools: nil)
+        # rubocop:enable Metrics/ParameterLists
         super()
         @prompt = prompt
         @context = context
@@ -81,9 +84,11 @@ module Ollama
       attr_accessor :model, :from, :modelfile, :path, :system, :template,
                     :license, :parameters, :messages, :quantize, :stream
 
+      # rubocop:disable Metrics/ParameterLists
       def initialize(model:, from: nil, modelfile: nil, path: nil, system: nil,
                      template: nil, license: nil, parameters: nil, messages: nil,
                      quantize: nil, stream: false)
+        # rubocop:enable Metrics/ParameterLists
         super()
         @model = model
         @from = from

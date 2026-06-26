@@ -38,6 +38,7 @@ module Ollama
 
       # @param params [Ollama::Params::Generate] Generate parameters
       # @return [String, Hash] Response data (String without schema, Hash with schema)
+      # rubocop:disable Metrics/AbcSize
       def generate_with_params(params)
         raise ArgumentError, "prompt is required" if params.prompt.nil?
 
@@ -98,7 +99,7 @@ module Ollama
           retry
         end
       end
-      # rubocop:enable Metrics/MethodLength, Metrics/ParameterLists
+      # rubocop:enable Metrics/MethodLength, Metrics/ParameterLists, Metrics/AbcSize
 
       THINK_PROMPT = "Think step-by-step using 思考 tags.\n\n"
 
@@ -179,6 +180,9 @@ module Ollama
         }
       end
 
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
+      # rubocop:disable Metrics/MethodLength, Metrics/PerceivedComplexity
+      # rubocop:disable Metrics/ParameterLists
       def call_generate_api(prompt:, context:, schema:, model:, hooks:, system: nil, images: nil,
                             think: nil, keep_alive: nil, suffix: nil, raw: nil, options: nil)
         generate_uri = @provider.generate_endpoint
@@ -248,6 +252,9 @@ module Ollama
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse API response: #{e.message}"
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity
+      # rubocop:enable Metrics/MethodLength, Metrics/PerceivedComplexity
+      # rubocop:enable Metrics/ParameterLists
 
       def enhance_prompt_for_json(prompt, schema)
         return prompt if prompt.match?(/json|JSON/i)

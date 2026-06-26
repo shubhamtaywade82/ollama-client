@@ -72,8 +72,10 @@ module Ollama
       # @param quantize [String, nil] Quantization level (e.g. "q4_K_M", "q8_0")
       # @param stream [Boolean] Stream status updates
       # @return [Hash] Final status response
+      # rubocop:disable Metrics/ParameterLists
       def create_model(model:, from: nil, modelfile: nil, path: nil, system: nil, template: nil, license: nil,
                        parameters: nil, messages: nil, quantize: nil, stream: false)
+      # rubocop:enable Metrics/ParameterLists
         params = Params::CreateModel.new(
           model: model, from: from, modelfile: modelfile, path: path, system: system,
           template: template, license: license, parameters: parameters, messages: messages,
