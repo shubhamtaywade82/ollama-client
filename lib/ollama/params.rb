@@ -28,6 +28,7 @@ module Ollama
       def initialize(messages:, model: nil, format: nil, tools: nil, stream: nil,
                      think: nil, keep_alive: nil, options: nil, logprobs: nil,
                      top_logprobs: nil, hooks: {}, profile: :auto, inputs: nil)
+        # rubocop:disable Metrics/ParameterLists
         super()
         @messages = messages
         @model = model
@@ -55,6 +56,7 @@ module Ollama
                      return_meta: false, system: nil, images: nil, think: nil,
                      return_reasoning: false, keep_alive: nil, suffix: nil,
                      raw: nil, options: nil, hooks: {}, tools: nil)
+        # rubocop:disable Metrics/ParameterLists
         super()
         @prompt = prompt
         @context = context
@@ -83,6 +85,7 @@ module Ollama
       def initialize(model:, from: nil, modelfile: nil, path: nil, system: nil,
                      template: nil, license: nil, parameters: nil, messages: nil,
                      quantize: nil, stream: false)
+        super()
         @model = model
         @from = from
         @modelfile = modelfile
@@ -106,6 +109,7 @@ module Ollama
       attr_accessor :model, :input, :truncate, :dimensions, :keep_alive, :options
 
       def initialize(model:, input:, truncate: nil, dimensions: nil, keep_alive: nil, options: nil)
+        super()
         @model = model
         @input = input
         @truncate = truncate
@@ -120,6 +124,7 @@ module Ollama
       attr_accessor :model, :insecure, :stream, :hooks
 
       def initialize(model:, insecure: false, stream: false, hooks: {})
+        super()
         @model = model
         @insecure = insecure
         @stream = stream

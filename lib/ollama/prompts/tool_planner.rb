@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module Ollama
+  # Prompt templates for agent behavior.
   module Prompts
     def self.tool_planner(tools:, rules: [])
       tool_lines = tools.map do |t|

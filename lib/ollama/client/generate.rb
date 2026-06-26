@@ -22,8 +22,8 @@ module Ollama
       # @param raw [Boolean, nil] When true, skip prompt templating
       # @param options [Hash, nil] Runtime options (temperature, top_p, num_ctx, etc.)
       # @param hooks [Hash] Streaming callbacks (:on_token, :on_error, :on_complete)
-      # rubocop:disable Metrics/MethodLength, Metrics/ParameterLists
-      # rubocop:disable Metrics/AbcSize
+      # rubocop:disable Metrics/MethodLength
+      # rubocop:disable Metrics/ParameterLists
       def generate(prompt:, context: nil, schema: nil, model: nil, strict: nil, return_meta: false,
                    system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil,
                    options: nil, hooks: {}, tools: nil)
@@ -180,6 +180,9 @@ module Ollama
         }
       end
 
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
+      # rubocop:disable Metrics/MethodLength, Metrics/PerceivedComplexity
+      # rubocop:disable Metrics/ParameterLists
       def call_generate_api(prompt:, context:, schema:, model:, hooks:, system: nil, images: nil,
                             think: nil, keep_alive: nil, suffix: nil, raw: nil, options: nil)
         generate_uri = @provider.generate_endpoint
