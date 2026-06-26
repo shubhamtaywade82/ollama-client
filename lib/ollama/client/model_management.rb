@@ -74,7 +74,6 @@ module Ollama
       # @return [Hash] Final status response
       def create_model(model:, from: nil, modelfile: nil, path: nil, system: nil, template: nil, license: nil,
                        parameters: nil, messages: nil, quantize: nil, stream: false)
-        # rubocop:disable Metrics/ParameterLists
         params = Params::CreateModel.new(
           model: model, from: from, modelfile: modelfile, path: path, system: system,
           template: template, license: license, parameters: parameters, messages: messages,

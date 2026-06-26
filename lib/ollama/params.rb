@@ -56,7 +56,6 @@ module Ollama
                      return_meta: false, system: nil, images: nil, think: nil,
                      return_reasoning: false, keep_alive: nil, suffix: nil,
                      raw: nil, options: nil, hooks: {}, tools: nil)
-        # rubocop:disable Metrics/ParameterLists
         super()
         @prompt = prompt
         @context = context

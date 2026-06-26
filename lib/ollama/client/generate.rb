@@ -98,7 +98,6 @@ module Ollama
           retry
         end
       end
-      # rubocop:enable Metrics/AbcSize
       # rubocop:enable Metrics/MethodLength, Metrics/ParameterLists
 
       THINK_PROMPT = "Think step-by-step using 思考 tags.\n\n"
