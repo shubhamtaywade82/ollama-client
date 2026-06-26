@@ -25,9 +25,11 @@ module Ollama
       #   :on_error    ->(error)                — stream or connection error
       #   :on_complete ->                       — stream finished
       # @return [Ollama::Response] Response wrapper with message, tool_calls, timing, etc.
+      # rubocop:disable Metrics/ParameterLists
       def chat(messages:, model: nil, format: nil, tools: nil, stream: nil,
                think: nil, keep_alive: nil, options: nil, logprobs: nil,
                top_logprobs: nil, hooks: {}, profile: :auto, inputs: nil)
+        # rubocop:enable Metrics/ParameterLists
         params = Params::Chat.new(
           messages: messages, model: model, format: format, tools: tools,
           stream: stream, think: think, keep_alive: keep_alive, options: options,
