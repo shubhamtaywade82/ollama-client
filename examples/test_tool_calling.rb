@@ -4,11 +4,22 @@
 # Quick test script to verify Tool calling with chat_raw() and chat()
 # This demonstrates the new structured Tool classes and Response wrapper
 
-require_relative "lib/ollama_client"
+# Load .env file if available (overload to ensure .env takes precedence over shell env)
+begin
+  require "dotenv"
+  Dotenv.overload
+rescue LoadError
+  # dotenv not available, skip
+end
+
+require_relative "../lib/ollama_client"
 
 puts "\n=== TOOL CALLING TEST ===\n"
 
-client = Ollama::Client.new
+config = Ollama::Config.new
+config.base_url = ENV.fetch("OLLAMA_BASE_URL", "http://localhost:11434")
+config.model = ENV.fetch("OLLAMA_MODEL", config.model)
+client = Ollama::Client.new(config: config)
 
 # Define a simple tool using structured Tool classes
 weather_tool = Ollama::Tool.new(

@@ -1,6 +1,14 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+# Load .env file if available (overload to ensure .env takes precedence over shell env)
+begin
+  require "dotenv"
+  Dotenv.overload
+rescue LoadError
+  # dotenv not available, skip
+end
+
 # Use local code instead of installed gem
 $LOAD_PATH.unshift(File.expand_path("lib", __dir__))
 require "ollama_client"
@@ -10,11 +18,10 @@ require "fileutils"
 puts "\n=== MULTI-STEP AGENT WITH EXTERNAL DATA TEST ===\n"
 
 # Configuration via environment variables (defaults for local testing)
-BASE_URL = ENV.fetch("OLLAMA_BASE_URL", "http://localhost:11434")
 
 def client_for(model:, temperature:, timeout:)
   config = Ollama::Config.new
-  config.base_url = BASE_URL
+  config.base_url = ENV.fetch("OLLAMA_BASE_URL", "http://localhost:11434")
   config.model = model
   config.temperature = temperature
   config.timeout = timeout
