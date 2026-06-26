@@ -12,56 +12,78 @@ module Ollama
     # @raise [SchemaViolationError]
     def self.validate!(data, schema)
       return data unless schema.is_a?(Hash)
+      return data if schema.empty?
 
-      StrictSchema.new(schema).call!(data)
-      data
+      new(schema).validate!(data)
     rescue JSON::ParserError => e
       raise SchemaViolationError, "Invalid schema: #{e.message}"
     end
 
-    # Internal strict JSON Schema validator.
-    class StrictSchema
-      REQUIRED_KEY = "required".freeze
-      PROPERTIES_KEY = "properties".freeze
-      TYPE_KEY = "type".freeze
-      ADDITIONAL_PROPERTIES_KEY = "additionalProperties".freeze
+    def initialize(schema)
+      @required = Array(schema["required"])
+      @properties = schema["properties"] || {}
+      @additional_properties = schema.fetch("additionalProperties", false)
+      @type = schema["type"]
+    end
 
-      def initialize(schema)
-        @schema = schema
+    def validate!(data)
+      raise SchemaViolationError, "Expected object, got #{data.class}" unless data.is_a?(Hash)
+      raise SchemaViolationError, "Expected hash, got nil" if data.nil?
+
+      if @additional_properties == false
+        extra = data.keys - @properties.keys
+        raise SchemaViolationError, "Additional properties not allowed: #{extra.join(", ")}" unless extra.empty?
       end
 
-      def call!(data)
-        type = data_type(data)
-        return if type_matches?(data, @schema[TYPE_KEY])
+      required_missing = @required.reject { |key| data.key?(key) }
+      raise SchemaViolationError, "Required properties missing: #{required_missing.join(", ")}" unless required_missing.empty?
 
-        raise SchemaViolationError, "Type mismatch, expected #{@schema[TYPE_KEY] || 'any'} got #{type}"
-      end
+      data.each do |key, value|
+        expected = @properties[key]
+        raise SchemaViolationError, "Unexpected property: #{key}" if expected.nil? && @additional_properties == false
 
-      private
+        next unless expected.is_a?(Hash)
 
-      def data_type(data)
-        case data
-        when Hash then "object"
-        when Array then "array"
-        when String then "string"
-        when Numeric then "number"
-        when true, false then "boolean"
-        else "null"
+        expected_type = expected["type"]
+        next unless expected_type
+
+        actual_type = type_name(value)
+        unless type_matches?(actual_type, expected_type)
+          raise SchemaViolationError, "Type mismatch for #{key}: expected #{expected_type}, got #{actual_type}"
         end
       end
 
-      def type_matches?(data, expected)
-        return true if expected.nil?
+      data
+    end
 
-        case expected
-        when "object" then data.is_a?(Hash)
-        when "array" then data.is_a?(Array)
-        when "string" then data.is_a?(String)
-        when "number" then data.is_a?(Numeric)
-        when "boolean" then data.is_a?(TrueClass) || data.is_a?(FalseClass)
-        when "null" then data.nil?
-        else true
-        end
+    private
+
+    def type_name(value)
+      case value
+      when Hash then "object"
+      when Array then "array"
+      when String then "string"
+      when Numeric then "number"
+      when true, false then "boolean"
+      when nil then "null"
+      else value.class.name
+      end
+    end
+
+    def type_matches?(actual, expected)
+      return true if expected.nil?
+      return true if expected == "any"
+
+      case expected
+      when "object" then actual == "object"
+      when "array" then actual == "array"
+      when "string" then actual == "string"
+      when "integer" then %w[integer number].include?(actual)
+      when "number" then %w[integer number float].include?(actual)
+      when "boolean" then actual == "boolean"
+      when "null" then actual == "null"
+      else
+        actual == expected
       end
     end
   end
