@@ -81,9 +81,7 @@ tools = {
     }
 
     filename = reference_files[reference_name.to_s]
-    unless filename
-      return { error: "Unknown reference: #{reference_name}. Available: #{reference_files.keys.join(", ")}" }
-    end
+    return { error: "Unknown reference: #{reference_name}. Available: #{reference_files.keys.join(", ")}" } unless filename
 
     full_path = File.expand_path(filename, test_dir)
     return { error: "Reference file not found: #{filename}" } unless File.exist?(full_path)

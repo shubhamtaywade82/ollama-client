@@ -138,7 +138,7 @@ def build_tools
                                                         symbol: symbol,
                                                         security_id: security_id))
     end,
-    "get_historical_data" => lambda do |exchange_segment:, symbol: nil, security_id: nil, from_date:, to_date:,
+    "get_historical_data" => lambda do |exchange_segment:, from_date:, to_date:, symbol: nil, security_id: nil,
                                         interval: nil, expiry_code: nil|
       DhanHQDataTools.get_historical_data(**compact_kwargs(exchange_segment: exchange_segment,
                                                            symbol: symbol,

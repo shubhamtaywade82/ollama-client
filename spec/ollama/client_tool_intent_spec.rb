@@ -71,4 +71,3 @@ RSpec.describe Ollama::Client, "#generate_tool_intent" do
     end.to raise_error(Ollama::SchemaViolationError)
   end
 end
-

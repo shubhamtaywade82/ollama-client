@@ -24,7 +24,7 @@ module Ollama
     attr_reader :api_key, :api_keys, :enable_multi_key_concurrency, :api_key_pool
 
     # @param value [String, nil]
-    def initialize(value = nil)
+    def initialize(_value = nil)
       @base_url = "http://localhost:11434"
       @model = "llama3.2:3b"
       @timeout = 30

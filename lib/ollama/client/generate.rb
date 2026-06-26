@@ -24,9 +24,9 @@ module Ollama
       # @param hooks [Hash] Streaming callbacks (:on_token, :on_error, :on_complete)
       # rubocop:disable Metrics/MethodLength, Metrics/ParameterLists
       # rubocop:disable Metrics/AbcSize
-def generate(prompt:, context: nil, schema: nil, model: nil, strict: nil, return_meta: false,
-                    system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil,
-                    options: nil, hooks: {}, tools: nil)
+      def generate(prompt:, context: nil, schema: nil, model: nil, strict: nil, return_meta: false,
+                   system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil,
+                   options: nil, hooks: {}, tools: nil)
         params = Params::Generate.new(
           prompt: prompt, context: context, schema: schema, model: model, strict: strict,
           return_meta: return_meta, system: system, images: images, think: think,
@@ -110,7 +110,7 @@ def generate(prompt:, context: nil, schema: nil, model: nil, strict: nil, return
         raise UnsupportedThinkingModel, "Model #{model || @config.model} is not marked as reasoning-capable"
       end
 
-      THINK_PROMPT = "Think step-by-step using 思考 tags.\n\n".freeze
+      THINK_PROMPT = "Think step-by-step using 思考 tags.\n\n"
 
       def build_prompt(prompt, thinking, _return_reasoning)
         return prompt unless thinking
@@ -152,9 +152,9 @@ def generate(prompt:, context: nil, schema: nil, model: nil, strict: nil, return
         if raw_text.match?(%r{思考(.*?)</think>}mi)
           reasoning = raw_text.match(%r{思考(.*?)</think>}mi)[1].strip
           final_output = raw_text.sub(%r{思考.*?</think>}mi, "").strip
-        elsif raw_text.match?(%r{思考(.*?)回答}mi)
-          reasoning = raw_text.match(%r{思考(.*?)回答}mi)[1].strip
-          final_output = raw_text.sub(%r{思考.*?回答}mi, "").strip
+        elsif raw_text.match?(/思考(.*?)回答/mi)
+          reasoning = raw_text.match(/思考(.*?)回答/mi)[1].strip
+          final_output = raw_text.sub(/思考.*?回答/mi, "").strip
         elsif raw_text.include?("回答")
           parts = raw_text.split("回答", 2)
           reasoning = parts[0].sub("思考", "").strip

@@ -137,8 +137,8 @@ class DhanHQDataTools
         # Extract actual quote data from nested structure
         security_id_str = safe_instrument_attr(instrument, :security_id)&.to_s || security_id.to_s
         if quote_response.is_a?(Hash) && quote_response["data"]
-          quote_data = quote_response.dig("data", exchange_segment,
-                                          security_id_str)
+          quote_response.dig("data", exchange_segment,
+                             security_id_str)
         end
 
         return market_quote_from_security_id(exchange_segment: exchange_segment,

@@ -85,7 +85,10 @@ module Ollama
       # @param params [Ollama::Params::CreateModel] Model creation parameters
       # @return [Hash] Final status response
       def create_model_with_params(params)
-        raise ArgumentError, "One of from:, modelfile:, or path: is required" if params.from.nil? && params.modelfile.nil? && params.path.nil?
+        if params.from.nil? && params.modelfile.nil? && params.path.nil?
+          raise ArgumentError,
+                "One of from:, modelfile:, or path: is required"
+        end
 
         create_uri = URI("#{@config.base_url}/api/create")
         req = Net::HTTP::Post.new(create_uri)
