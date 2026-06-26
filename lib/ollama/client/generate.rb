@@ -6,7 +6,7 @@ require_relative "../json_fragment_extractor"
 module Ollama
   class Client
     # Generate completion endpoint with auto-pull, retries, and structured output
-    module Generate
+    module Generate # rubocop:disable Metrics/ModuleLength
       # @param prompt [String] Text for the model to generate a response from (required)
       # @param context [Array<Integer>, nil] Context from a previous generate call for conversational memory
       # @param schema [Hash, nil] JSON Schema for structured output; also sets format
@@ -179,9 +179,6 @@ module Ollama
         }
       end
 
-      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
-      # rubocop:disable Metrics/MethodLength, Metrics/PerceivedComplexity
-      # rubocop:disable Metrics/ParameterLists
       def call_generate_api(prompt:, context:, schema:, model:, hooks:, system: nil, images: nil,
                             think: nil, keep_alive: nil, suffix: nil, raw: nil, options: nil)
         generate_uri = @provider.generate_endpoint

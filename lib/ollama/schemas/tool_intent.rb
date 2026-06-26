@@ -3,6 +3,7 @@
 require "json"
 
 module Ollama
+  # JSON schemas and schema helper methods.
   module Schemas
     TOOL_INTENT_PATH = File.join(__dir__, "tool_intent.json")
 
