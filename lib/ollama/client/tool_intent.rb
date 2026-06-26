@@ -37,7 +37,7 @@ module Ollama
 
         input = parsed["input"].is_a?(Hash) ? parsed["input"] : {}
         Ollama::ToolIntent.new(parsed["action"].to_s, input)
-      rescue InvalidJSONError
+      rescue InvalidJSONError, RetryExhaustedError
         nil
       end
     end
