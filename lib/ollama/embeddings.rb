@@ -4,6 +4,7 @@ require "net/http"
 require "uri"
 require "json"
 require_relative "errors"
+require_relative "rate_limit_handler"
 require_relative "transport"
 require_relative "params"
 
@@ -13,6 +14,8 @@ module Ollama
   # This is a helper module used internally by Client.
   # Use client.embeddings.embed() instead of instantiating this directly.
   class Embeddings
+    include RateLimitHandler
+
     def initialize(config, transport: nil)
       @config = config
       @transport = transport || Transport.build(config)

@@ -31,6 +31,15 @@ RSpec.describe Ollama::Error do
     end
   end
 
+  describe "Ollama::RateLimitExhaustedError" do
+    it "inherits from RateLimitError and is not retryable" do
+      error = Ollama::RateLimitExhaustedError.new("exhausted", 429)
+
+      expect(error).to be_a(Ollama::RateLimitError)
+      expect(error.retryable?).to be(false)
+    end
+  end
+
   describe "Ollama::HTTPError" do
     it "inherits from Error" do
       expect(Ollama::HTTPError.new("test", 500)).to be_a(described_class)

@@ -197,17 +197,23 @@ module Ollama
         final_context = nil
 
         begin
-          Net::HTTP.start(generate_uri.hostname, generate_uri.port,
-                          **@config.http_connection_options(generate_uri)) do |h|
-            h.request(req) do |res|
-              handle_http_error(res, requested_model: model || @config.model) unless res.is_a?(Net::HTTPSuccess)
+          with_rate_limit_key_rotation do |api_key|
+            full_response = +""
+            final_context = nil
+            @config.apply_auth_to(req, api_key: api_key)
 
-              if stream_enabled
-                GenerateStreamHandler.call(res, hooks, full_response, provider: @provider)
-              else
-                response_body = @provider.normalize_generate_response(JSON.parse(res.body))
-                full_response = response_body["response"]
-                final_context = response_body["context"]
+            Net::HTTP.start(generate_uri.hostname, generate_uri.port,
+                            **@config.http_connection_options(generate_uri)) do |h|
+              h.request(req) do |res|
+                handle_http_error(res, requested_model: model || @config.model) unless res.is_a?(Net::HTTPSuccess)
+
+                if stream_enabled
+                  GenerateStreamHandler.call(res, hooks, full_response, provider: @provider)
+                else
+                  response_body = @provider.normalize_generate_response(JSON.parse(res.body))
+                  full_response = response_body["response"]
+                  final_context = response_body["context"]
+                end
               end
             end
           end
