@@ -80,8 +80,7 @@ def generate(prompt:, context: nil, schema: nil, model: nil, strict: nil, return
           sleep(2**attempts)
           retry
         rescue InvalidJSONError, SchemaViolationError, ThinkingFormatError => e
-          raise e if strict
-          raise RetryExhaustedError, "Failed after #{attempts} attempts: #{e.message}" if attempts > @config.retries
+          raise RetryExhaustedError, "Failed after #{attempts} attempts: #{e.message}"
 
           repair_msg = "CRITICAL FIX: Your last response was invalid or violated the schema. " \
                        "Error: #{e.message}. Return ONLY valid JSON."
@@ -149,7 +148,10 @@ def generate(prompt:, context: nil, schema: nil, model: nil, strict: nil, return
         reasoning = ""
         final_output = raw_text
 
-        if raw_text.match?(%r{思考(.*?)回答}mi)
+        if raw_text.match?(%r{思考(.*?)</think>}mi)
+          reasoning = raw_text.match(%r{思考(.*?)</think>}mi)[1].strip
+          final_output = raw_text.sub(%r{思考.*?</think>}mi, "").strip
+        elsif raw_text.match?(%r{思考(.*?)回答}mi)
           reasoning = raw_text.match(%r{思考(.*?)回答}mi)[1].strip
           final_output = raw_text.sub(%r{思考.*?回答}mi, "").strip
         elsif raw_text.include?("回答")

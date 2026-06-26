@@ -68,7 +68,7 @@ RSpec.describe Ollama::Client, "#generate_tool_intent" do
         prompt: "Find next step",
         tools: [{ name: "search", description: "Search the web" }]
       )
-    end.to raise_error(Ollama::RetryExhaustedError)
+    end.to raise_error(Ollama::SchemaViolationError)
   end
 end
 
