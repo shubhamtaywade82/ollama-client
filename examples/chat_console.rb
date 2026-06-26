@@ -39,8 +39,8 @@ MAX_HISTORY = 200
 COLOR_RESET = "\e[0m"
 COLOR_USER = "\e[32m"
 COLOR_LLM = "\e[36m"
-USER_PROMPT = "#{COLOR_USER}you>#{COLOR_RESET} "
-LLM_PROMPT = "#{COLOR_LLM}llm>#{COLOR_RESET} "
+USER_PROMPT = "#{COLOR_USER}you>#{COLOR_RESET} ".freeze
+LLM_PROMPT = "#{COLOR_LLM}llm>#{COLOR_RESET} ".freeze
 
 def build_reader
   TTY::Reader.new
@@ -86,7 +86,10 @@ end
 
 def chat_response(client, messages, config)
   content = +""
-  print LLM_PROMPT
+  prompt_printed = false
+
+  print "#{COLOR_LLM}...#{COLOR_RESET}"
+  $stdout.flush
 
   client.chat_raw(
     messages: messages,
@@ -97,8 +100,14 @@ def chat_response(client, messages, config)
     token = chunk.dig("message", "content").to_s
     next if token.empty?
 
+    unless prompt_printed
+      print "\r#{LLM_PROMPT}"
+      prompt_printed = true
+    end
+
     content << token
     print token
+    $stdout.flush
   end
 
   puts

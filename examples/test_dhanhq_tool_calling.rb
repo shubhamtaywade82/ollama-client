@@ -6,6 +6,7 @@
 
 require_relative "lib/ollama_client"
 require_relative "examples/dhanhq_tools"
+require "date"
 
 puts "\n=== DHANHQ TOOL CALLING TEST ===\n"
 puts "Using chat_raw() to access tool_calls\n"
@@ -68,7 +69,11 @@ historical_data_tool = Ollama::Tool.new(
   type: "function",
   function: Ollama::Tool::Function.new(
     name: "get_historical_data",
-    description: "Get historical price data (OHLCV) for a symbol. Supports daily, weekly, monthly intervals.",
+    description: "Get historical price data (OHLCV) or technical indicators. " \
+                 "Use interval for intraday data (1, 5, 15, 25, 60 minutes). " \
+                 "Omit interval for daily data. " \
+                 "Set calculate_indicators=true to get technical indicators " \
+                 "(RSI, MACD, SMA, EMA, Bollinger Bands, ATR) instead of raw data.",
     parameters: Ollama::Tool::Function::Parameters.new(
       type: "object",
       properties: {
@@ -83,8 +88,9 @@ historical_data_tool = Ollama::Tool.new(
         ),
         interval: Ollama::Tool::Function::Parameters::Property.new(
           type: "string",
-          description: "Data interval",
-          enum: %w[daily weekly monthly]
+          description: "Minute interval for intraday data. Omit for daily data. " \
+                       "Values: 1 (1-min), 5 (5-min), 15 (15-min), 25 (25-min), 60 (1-hour)",
+          enum: %w[1 5 15 25 60]
         ),
         from_date: Ollama::Tool::Function::Parameters::Property.new(
           type: "string",
@@ -92,10 +98,15 @@ historical_data_tool = Ollama::Tool.new(
         ),
         to_date: Ollama::Tool::Function::Parameters::Property.new(
           type: "string",
-          description: "End date (YYYY-MM-DD format)"
+          description: "End date (YYYY-MM-DD format, non-inclusive)"
+        ),
+        calculate_indicators: Ollama::Tool::Function::Parameters::Property.new(
+          type: "boolean",
+          description: "If true, returns technical indicators instead of raw data. " \
+                       "Reduces response size and provides ready-to-use indicator values."
         )
       },
-      required: %w[symbol exchange_segment]
+      required: %w[symbol exchange_segment from_date to_date]
     )
   )
 )
@@ -249,9 +260,11 @@ begin
         puts "  ✅ Instrument found and quote retrieved"
         quote = result[:result][:quote]
         if quote
+          ohlc = quote[:ohlc]
           puts "  📊 Last Price: #{quote[:last_price]}"
           puts "  📊 Volume: #{quote[:volume]}"
-          puts "  📊 OHLC: O=#{quote[:ohlc][:open]}, H=#{quote[:ohlc][:high]}, L=#{quote[:ohlc][:low]}, C=#{quote[:ohlc][:close]}"
+          puts "  📊 OHLC: O=#{ohlc[:open]}, H=#{ohlc[:high]}, " \
+               "L=#{ohlc[:low]}, C=#{ohlc[:close]}"
         end
       end
     rescue StandardError => e
@@ -271,6 +284,81 @@ rescue Ollama::Error => e
   puts "   Message: #{e.message}"
 end
 
+puts "\n--- Test 5: Historical Data with Technical Indicators ---"
+puts "Request: Get NIFTY intraday data with technical indicators\n"
+
+begin
+  response = client.chat_raw(
+    model: "llama3.1:8b",
+    messages: [Ollama::Agent::Messages.user(
+      "Get intraday historical data for NIFTY with technical indicators for the last 30 days"
+    )],
+    tools: historical_data_tool,
+    allow_chat: true
+  )
+
+  tool_calls = response.message&.tool_calls
+  if tool_calls && !tool_calls.empty?
+    puts "✅ Tool call received"
+    call = tool_calls.first
+    puts "  Tool: #{call.name}"
+    puts "  Arguments: #{call.arguments.inspect}\n"
+
+    args = call.arguments
+    puts "  Expected parameters:"
+    puts "    - symbol: #{args['symbol'] || args[:symbol]}"
+    puts "    - exchange_segment: #{args['exchange_segment'] || args[:exchange_segment]}"
+    puts "    - interval: #{args['interval'] || args[:interval]} (for intraday)"
+    puts "    - from_date: #{args['from_date'] || args[:from_date]}"
+    puts "    - to_date: #{args['to_date'] || args[:to_date]}"
+    puts "    - calculate_indicators: #{args['calculate_indicators'] || args[:calculate_indicators]}"
+  else
+    puts "⚠️  No tool calls detected"
+    puts "Content: #{response.message&.content}\n"
+  end
+rescue Ollama::Error => e
+  puts "❌ Error: #{e.class.name}"
+  puts "   Message: #{e.message}"
+end
+
+puts "\n--- Test 6: Intraday Data with 5-minute intervals ---"
+puts "Request: Get NIFTY 5-minute intraday data for today\n"
+
+begin
+  today = Date.today.strftime("%Y-%m-%d")
+  response = client.chat_raw(
+    model: "llama3.1:8b",
+    messages: [Ollama::Agent::Messages.user(
+      "Get NIFTY intraday data with 5-minute intervals for today (#{today})"
+    )],
+    tools: historical_data_tool,
+    allow_chat: true
+  )
+
+  tool_calls = response.message&.tool_calls
+  if tool_calls && !tool_calls.empty?
+    puts "✅ Tool call received"
+    call = tool_calls.first
+    args = call.arguments
+
+    puts "  Verifying intraday parameters:"
+    interval = args["interval"] || args[:interval]
+    if %w[1 5 15 25 60].include?(interval.to_s)
+      puts "    ✅ Interval: #{interval} (valid intraday value)"
+    else
+      puts "    ❌ Interval: #{interval} (should be one of: 1, 5, 15, 25, 60)"
+    end
+
+    from_date = args["from_date"] || args[:from_date]
+    to_date = args["to_date"] || args[:to_date]
+    puts "    Date range: #{from_date} to #{to_date}"
+  else
+    puts "⚠️  No tool calls detected"
+  end
+rescue Ollama::Error => e
+  puts "❌ Error: #{e.message}"
+end
+
 puts "\n--- Summary ---"
 puts "✅ Use chat_raw() for tool calling - gives access to tool_calls"
 puts "⚠️  Use chat() only for simple content responses (no tool_calls needed)"
@@ -279,4 +367,9 @@ puts "   1. LLM requests tool via chat_raw() → get tool_calls"
 puts "   2. Find instrument using exchange_segment + symbol"
 puts "   3. Execute tool with instrument"
 puts "   4. Feed result back to LLM (if using Executor)"
+puts "\n📊 Historical Data enhancements:"
+puts "   - Use interval (1, 5, 15, 25, 60) for intraday data"
+puts "   - Omit interval for daily data"
+puts "   - Use calculate_indicators: true for technical indicators (RSI, MACD, etc.)"
+puts "   - Reduces response size and provides ready-to-use indicator values"
 puts "\n=== DONE ===\n"

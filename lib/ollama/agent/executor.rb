@@ -187,6 +187,8 @@ module Ollama
 
       def invoke_tool(callable, args_hash)
         sym_args = normalize_parameter_names(args_hash)
+        keyword_result = call_with_keywords(callable, sym_args)
+        return keyword_result[:value] if keyword_result[:success]
 
         # Try keyword invocation first (common for Ruby tools).
         begin
@@ -239,6 +241,33 @@ module Ollama
         end
 
         aliased
+      end
+
+      def call_with_keywords(callable, sym_args)
+        { success: true, value: callable.call(**sym_args) }
+      rescue ArgumentError => e
+        return { success: false } unless missing_keyword_error?(e)
+
+        aliased_args = apply_parameter_aliases(sym_args, callable)
+        return { success: false } if aliased_args == sym_args
+
+        begin
+          { success: true, value: callable.call(**aliased_args) }
+        rescue ArgumentError
+          { success: false }
+        end
+      end
+
+      def call_with_positional(callable, args_hash)
+        callable.call(args_hash)
+      rescue ArgumentError => e
+        raise ArgumentError,
+              "Tool invocation failed: #{e.message}. Arguments provided: #{args_hash.inspect}. " \
+              "Ensure the tool call includes all required parameters."
+      end
+
+      def missing_keyword_error?(error)
+        error.message.include?("required keyword") || error.message.include?("missing keyword")
       end
 
       def encode_tool_result(result)
