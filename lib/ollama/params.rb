@@ -28,6 +28,7 @@ module Ollama
       def initialize(messages:, model: nil, format: nil, tools: nil, stream: nil,
                      think: nil, keep_alive: nil, options: nil, logprobs: nil,
                      top_logprobs: nil, hooks: {}, profile: :auto, inputs: nil)
+        super()
         @messages = messages
         @model = model
         @format = format
@@ -54,6 +55,7 @@ module Ollama
                      return_meta: false, system: nil, images: nil, think: nil,
                      return_reasoning: false, keep_alive: nil, suffix: nil,
                      raw: nil, options: nil, hooks: {}, tools: nil)
+        super()
         @prompt = prompt
         @context = context
         @schema = schema
