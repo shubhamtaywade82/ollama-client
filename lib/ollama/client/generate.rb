@@ -101,6 +101,8 @@ module Ollama
       # rubocop:enable Metrics/AbcSize
       # rubocop:enable Metrics/MethodLength, Metrics/ParameterLists
 
+      THINK_PROMPT = "Think step-by-step using 思考 tags.\n\n"
+
       private
 
       def validate_thinking_capability!(model, think)
@@ -109,8 +111,6 @@ module Ollama
 
         raise UnsupportedThinkingModel, "Model #{model || @config.model} is not marked as reasoning-capable"
       end
-
-      THINK_PROMPT = "Think step-by-step using 思考 tags.\n\n"
 
       def build_prompt(prompt, thinking, _return_reasoning)
         return prompt unless thinking
