@@ -13,6 +13,9 @@ require_relative "embeddings"
 require_relative "response"
 require_relative "params"
 require_relative "http_error_handler"
+require_relative "pipeline"
+require_relative "events"
+require_relative "plugins"
 require_relative "client/chat"
 require_relative "client/generate"
 require_relative "client/model_management"
@@ -36,7 +39,7 @@ require_relative "schema_dsl"
 module Ollama
   # Main client class for interacting with the Ollama API.
   #
-  # Provides methods for all 12 Ollama API endpoints, organized into modules:
+  # Provides methods for all Ollama API endpoints, organized into modules:
   # - Chat: multi-turn conversations with tool support
   # - Generate: prompt-to-completion with structured output
   # - ModelManagement: CRUD, pull/push, list, show, version
@@ -50,7 +53,7 @@ module Ollama
     include RateLimitHandler
     include HttpErrorHandler
 
-    attr_reader :embeddings, :provider, :config
+    attr_reader :embeddings, :provider, :config, :pipeline, :events
 
     def initialize(config: nil)
       @config = config || default_config
@@ -58,6 +61,30 @@ module Ollama
       @transport = Transport.build(@config)
       @provider = Providers.build(@config, @transport)
       @embeddings = Embeddings.new(@config, transport: @transport)
+
+      # Initialize pipeline with default middleware
+      @events = Events.new
+      @pipeline = Pipeline.new(@transport, events: @events)
+
+      # Apply global plugins
+      Ollama.apply_plugins(self)
+    end
+
+    # Add middleware to the pipeline
+    # @param middleware [Class, Ollama::Middleware] Middleware class or instance
+    # @param options [Hash] Options to pass to middleware constructor
+    # @return [Ollama::Client] self
+    def use(middleware, **options)
+      @pipeline = @pipeline.use(middleware, **options)
+      self
+    end
+
+    # Subscribe to pipeline events
+    # @param event [Symbol] Event name (:before_request, :after_request, :request_error, etc.)
+    # @param block [Proc] Callback to execute when event is published
+    # @return [Proc] The subscribed block
+    def on(event, &block)
+      @events.subscribe(event, &block)
     end
 
     # Return the capability profile for a model name.
@@ -78,6 +105,21 @@ module Ollama
     def history_sanitizer(model_name_or_profile, trace_store: nil)
       p = model_name_or_profile.is_a?(ModelProfile) ? model_name_or_profile : profile(model_name_or_profile)
       HistorySanitizer.for(p, trace_store: trace_store)
+    end
+
+    # Execute a request through the pipeline
+    # @param request [Ollama::Request] The request to execute
+    # @return [Ollama::Transport::Response] The transport response
+    def execute(request)
+      @pipeline.call(request)
+    end
+
+    # Execute a streaming request through the pipeline
+    # @param request [Ollama::Request] The request to execute
+    # @yield [chunk] Yields each chunk of the streaming response
+    # @return [Ollama::Transport::Response] The final transport response
+    def execute_stream(request, &block)
+      @pipeline.stream(request, &block)
     end
 
     private
@@ -138,7 +180,17 @@ module Ollama
       end
     end
 
+    def emit_response_hook(raw, meta)
+      hook = @config.on_response
+      return unless hook.respond_to?(:call)
+
+      hook.call(raw, meta)
+    rescue StandardError
+      nil
+    end
+
     # Shared HTTP request helper for simple (non-streaming) requests
+    # Used by modules that haven't been migrated to the pipeline yet
     def http_request(uri, req, read_timeout: @config.timeout)
       with_rate_limit_key_rotation do |api_key|
         @config.apply_auth_to(req, api_key: api_key)
@@ -151,15 +203,6 @@ module Ollama
       raise TimeoutError, "Request timed out after #{@config.timeout}s"
     rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
       raise Error, "Connection failed: #{e.message}"
-    end
-
-    def emit_response_hook(raw, meta)
-      hook = @config.on_response
-      return unless hook.respond_to?(:call)
-
-      hook.call(raw, meta)
-    rescue StandardError
-      nil
     end
   end
 end
