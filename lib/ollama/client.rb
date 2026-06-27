@@ -11,17 +11,27 @@ require_relative "transport"
 require_relative "providers"
 require_relative "embeddings"
 require_relative "response"
+require_relative "params"
+require_relative "http_error_handler"
 require_relative "client/chat"
 require_relative "client/generate"
 require_relative "client/model_management"
 require_relative "client/raw"
 require_relative "client/openai_compat"
+require_relative "client/tool_intent"
 require_relative "capabilities"
 require_relative "model_profile"
 require_relative "stream_event"
 require_relative "prompt_adapters"
 require_relative "multimodal_input"
 require_relative "history_sanitizer"
+require_relative "tool_intent"
+require_relative "chat_response"
+require_relative "attachment"
+require_relative "messages"
+require_relative "prompt"
+require_relative "tool_dsl"
+require_relative "schema_dsl"
 
 module Ollama
   # Main client class for interacting with the Ollama API.
@@ -34,9 +44,11 @@ module Ollama
     include Chat
     include Generate
     include ModelManagement
+    include ToolIntent
     include Raw
     include OpenAICompat
     include RateLimitHandler
+    include HttpErrorHandler
 
     attr_reader :embeddings, :provider, :config
 
@@ -141,27 +153,12 @@ module Ollama
       raise Error, "Connection failed: #{e.message}"
     end
 
-    def handle_http_error(res, requested_model: nil)
-      requested_model ||= @config.model
-      raise Errors.from_response(res, requested_model: requested_model)
-    end
-
     def emit_response_hook(raw, meta)
       hook = @config.on_response
       return unless hook.respond_to?(:call)
 
       hook.call(raw, meta)
     rescue StandardError
-      nil
-    end
-
-    def extract_error_message(res)
-      body = res.body
-      return nil if body.nil? || body.empty?
-
-      parsed = JSON.parse(body)
-      parsed["error"] if parsed.is_a?(Hash)
-    rescue JSON::ParserError
       nil
     end
   end

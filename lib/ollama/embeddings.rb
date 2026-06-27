@@ -6,6 +6,7 @@ require "json"
 require_relative "errors"
 require_relative "rate_limit_handler"
 require_relative "transport"
+require_relative "params"
 
 module Ollama
   # Embeddings API helper for semantic search and RAG in agents
@@ -31,44 +32,47 @@ module Ollama
     # @param options [Hash, nil] Runtime options (temperature, etc.)
     # @return [Array<Float>, Array<Array<Float>>] Embedding vector(s)
     def embed(model:, input:, truncate: nil, dimensions: nil, keep_alive: nil, options: nil)
+      params = Params::Embeddings.new(
+        model: model, input: input, truncate: truncate,
+        dimensions: dimensions, keep_alive: keep_alive, options: options
+      )
+      embed_with_params(params)
+    end
+
+    # @param params [Ollama::Params::Embeddings] Embeddings parameters
+    # @return [Array<Float>, Array<Array<Float>>] Embedding vector(s)
+    def embed_with_params(params)
       # Use provider-specific endpoint
       uri = @provider.embeddings_endpoint
       req = Net::HTTP::Post.new(uri)
       req["Content-Type"] = "application/json"
 
-      params = {
-        model: model,
-        input: input
-      }
-      params[:truncate] = truncate unless truncate.nil?
-      params[:dimensions] = dimensions if dimensions
-      params[:keep_alive] = keep_alive if keep_alive
-      params[:options] = options if options
-
-      req.body = @provider.format_embeddings_request(params).to_json
+      req.body = @provider.format_embeddings_request(params.to_h).to_json
       res = with_rate_limit_key_rotation do |api_key|
         @config.apply_auth_to(req, api_key: api_key)
         response = @transport.request(uri: uri, request: req, read_timeout: @config.timeout)
-        handle_http_error(response, requested_model: model) if response.code.to_i == 429
+        handle_http_error(response, requested_model: params.model) if response.code.to_i == 429
 
         response
       end
-
-      handle_http_error(res, requested_model: model) unless res.is_a?(Net::HTTPSuccess)
 
       response_body = @provider.normalize_embeddings_response(JSON.parse(res.body))
       # /api/embed returns "embeddings" (plural) as array of arrays
       embeddings = response_body["embeddings"] || response_body["embedding"]
 
-      validate_embedding_response!(embeddings, response_body, model)
+      validate_embedding_response!(embeddings, response_body, params.model)
 
-      format_embedding_result(embeddings, input)
+      format_embedding_result(embeddings, params.input)
     rescue JSON::ParserError => e
       raise InvalidJSONError, "Failed to parse embeddings response: #{e.message}"
     rescue Net::ReadTimeout, Net::OpenTimeout
       raise TimeoutError, "Request timed out after #{@config.timeout}s"
     rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
       raise Error, "Connection failed: #{e.message}"
+    ensure
+      if defined?(res) && !res.nil? && !res.is_a?(Net::HTTPSuccess)
+        handle_http_error(res, requested_model: params.model)
+      end
     end
 
     private

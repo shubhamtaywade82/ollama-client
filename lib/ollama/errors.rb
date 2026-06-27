@@ -13,7 +13,6 @@ module Ollama
   class ThinkingFormatError < Error; end
   class UnsupportedThinkingModel < Error; end
   class UnsupportedCapabilityError < Error; end
-
   class ConnectionFailedError < Error; end
   class MalformedResponseError < Error; end
   class MalformedStreamError < Error; end

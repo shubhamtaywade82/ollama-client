@@ -5,12 +5,14 @@
 [![Ruby](https://img.shields.io/badge/ruby-%3E%3D%203.0-ruby.svg)](https://www.ruby-lang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.txt)
 
-> **A production-safe Ollama client for Rails & agent systems.**
+> **The production-safe Ruby AI SDK for Ollama.**
 
 Not a chatbot UI. Not a 1:1 API wrapper.
 A failure-aware, contract-driven client that covers **all 12 Ollama API endpoints** with production guarantees.
 
 **Correctness. Determinism. Failure-aware design. Nothing else.**
+
+`ollama-client` is purpose-built for Rails AI features, background jobs, CLIs, agents, autonomous systems, workflow engines, RAG pipelines, structured-output consumers, MCP servers, and evaluation systems. If you use Ollama from Ruby, this is the foundation layer.
 
 ## Why This Gem Exists
 
@@ -131,6 +133,8 @@ response.message.content   # => "The answer is 12."
 ```
 
 #### Chat Options
+
+**Simple approach (auto-inferred schemas):**
 
 ```ruby
 messages = [{ role: "user", content: "Hello" }]
@@ -347,6 +351,37 @@ ollama-client pull llama3.2:3b
 ```
 
 All errors output as structured JSON to stderr. No hidden behavior.
+
+## Examples
+
+The [`examples/`](../examples/) directory contains working scripts for common patterns:
+
+- **Agent loop with tool calling** — [`examples/agent_loop.rb`](../examples/agent_loop.rb)
+- **Cloud model accessibility probe** — [`examples/cloud_models.rb`](../examples/cloud_models.rb)
+- **llama.cpp GPU server connection** — [`examples/llama_cpp_gpu_test.rb`](../examples/llama_cpp_gpu_test.rb)
+- **Timeout & retry behavior** — [`examples/timeout_retry.rb`](../examples/timeout_retry.rb)
+- **JSON repair on invalid output** — [`examples/failure_modes/invalid_json_repair.rb`](../examples/failure_modes/invalid_json_repair.rb)
+- **Rails background job pattern** — [`examples/production/rails_agent.rb`](../examples/production/rails_agent.rb)
+
+### Cloud Model Accessibility Probe
+
+If you use Ollama Cloud, this script lists all cloud models and probes each one to determine whether your account can run inference against it:
+
+```bash
+export OLLAMA_API_KEY="your-ollama-cloud-api-key"
+bundle exec ruby examples/cloud_models.rb
+```
+
+Output is a sorted JSON array:
+
+```json
+[
+  { "name": "gpt-oss:20b", "accessible": true, "reason": null },
+  { "name": "deepseek-v4-pro", "accessible": false, "reason": "plan_restricted" }
+]
+```
+
+See [`examples/README.md`](../examples/README.md) for the full list of examples and `reason` codes.
 
 ## Console (Debug Mode)
 

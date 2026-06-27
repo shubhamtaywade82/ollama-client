@@ -100,6 +100,17 @@ RSpec.describe Ollama::Client do
       expect { client.generate(prompt: "test", options: { temperature: 0.8 }) }.not_to raise_error
     end
 
+    it "allows per-call model override" do
+      request_body = nil
+      stub_request(:post, "http://localhost:11434/api/generate")
+        .with { |req| request_body = JSON.parse(req.body) }
+        .to_return(status: 200, body: { response: "ok" }.to_json)
+
+      client.generate(prompt: "test", model: "custom-model")
+
+      expect(request_body["model"]).to eq("custom-model")
+    end
+
     context "when Ollama server is not available (ECONNREFUSED)" do
       it "raises an error immediately without retrying because it is not retryable by default" do
         unavailable_client = described_class.new(config: Ollama::Config.new.tap do |c|
@@ -177,7 +188,7 @@ RSpec.describe Ollama::Client do
         # For streaming, we verify the StreamError class exists and is raised correctly
         error = Ollama::StreamError.new("model crashed")
         expect(error).to be_a(Ollama::Error)
-        expect(error.message).to match(/model crashed/)
+        expect(error.message).to include("model crashed")
       end
     end
   end
@@ -354,7 +365,7 @@ RSpec.describe Ollama::Client do
         # the error class and that chat properly raises on HTTP errors
         error = Ollama::StreamError.new("an error was encountered while running the model")
         expect(error).to be_a(Ollama::Error)
-        expect(error.message).to match(/error was encountered/)
+        expect(error.message).to include("error was encountered")
 
         # Verify chat raises on HTTP error responses
         stub_request(:post, "http://localhost:11434/api/chat")
@@ -613,6 +624,11 @@ end
 RSpec.describe Ollama::Config do
   describe "#initialize" do
     it "sets safe defaults" do
+      original_api_keys = ENV.fetch("OLLAMA_API_KEYS", nil)
+      original_api_key = ENV.fetch("OLLAMA_API_KEY", nil)
+      ENV.delete("OLLAMA_API_KEYS")
+      ENV.delete("OLLAMA_API_KEY")
+
       config = described_class.new
       expect(config.base_url).to eq("http://localhost:11434")
       expect(config.model).to eq("llama3.2:3b")
@@ -625,6 +641,9 @@ RSpec.describe Ollama::Config do
       expect(config.api_key).to be_nil
       expect(config.api_keys).to eq([])
       expect(config.enable_multi_key_concurrency).to be(false)
+
+      ENV["OLLAMA_API_KEYS"] = original_api_keys if original_api_keys
+      ENV["OLLAMA_API_KEY"] = original_api_key if original_api_key
     end
 
     it "loads comma-separated OLLAMA_API_KEYS before falling back to OLLAMA_API_KEY" do
@@ -668,6 +687,18 @@ RSpec.describe Ollama::Config do
   end
 
   describe "#apply_auth_to" do
+    around do |example|
+      original_api_keys = ENV.fetch("OLLAMA_API_KEYS", nil)
+      original_api_key = ENV.fetch("OLLAMA_API_KEY", nil)
+      ENV.delete("OLLAMA_API_KEYS")
+      ENV.delete("OLLAMA_API_KEY")
+
+      example.run
+
+      ENV["OLLAMA_API_KEYS"] = original_api_keys if original_api_keys
+      ENV["OLLAMA_API_KEY"] = original_api_key if original_api_key
+    end
+
     it "sets Authorization Bearer header when api_key is set" do
       config = described_class.new
       config.api_key = "secret"
@@ -714,6 +745,22 @@ RSpec.describe Ollama::SchemaValidator do
         }
       }
       data = { "name" => 123 }
+      expect do
+        described_class.validate!(data, schema)
+      end.to raise_error(Ollama::SchemaViolationError)
+    end
+
+    it "rejects additional properties by default for object schemas" do
+      schema = {
+        "type" => "object",
+        "properties" => {
+          "name" => { "type" => "string" }
+        }
+        # NOTE: no additionalProperties provided
+      }
+
+      data = { "name" => "test", "extra" => "nope" }
+
       expect do
         described_class.validate!(data, schema)
       end.to raise_error(Ollama::SchemaViolationError)

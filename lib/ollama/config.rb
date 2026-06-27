@@ -23,7 +23,8 @@ module Ollama
                   :transport_adapter, :provider
     attr_reader :api_key, :api_keys, :enable_multi_key_concurrency, :api_key_pool
 
-    def initialize
+    # @param value [String, nil]
+    def initialize(_value = nil)
       @base_url = "http://localhost:11434"
       @model = "llama3.2:3b"
       @timeout = 30
@@ -33,11 +34,13 @@ module Ollama
       @top_p = 0.9
       @num_ctx = 8192
       @on_response = nil
-      @enable_multi_key_concurrency = self.class.truthy_env?(ENV.fetch("ENABLE_MULTI_KEY_CONCURRENCY", nil))
-      @api_key = nil
+
+      @api_key_pool = ApiKeyPool.new([])
       @api_keys = []
-      @api_key_pool = ApiKeyPool.new([], concurrency_enabled: @enable_multi_key_concurrency)
-      self.api_keys = self.class.env_api_keys
+      @api_key = nil
+      load_env_api_keys
+      @enable_multi_key_concurrency = self.class.truthy_env?(ENV.fetch("ENABLE_MULTI_KEY_CONCURRENCY", nil))
+
       @transport_adapter = :net_http
       @provider = :ollama
     end
@@ -59,7 +62,18 @@ module Ollama
     # @param value [String, nil]
     def api_key=(value)
       @api_key = value
-      rebuild_api_key_pool([value])
+      rebuild_api_key_pool(Array(value).compact)
+    end
+
+    # Load the API key pool from the environment: OLLAMA_API_KEYS takes precedence
+    # over OLLAMA_API_KEY. When no env keys exist, the current pool stays as-is.
+    def load_env_api_keys
+      keys = ENV.fetch("OLLAMA_API_KEYS", nil)
+      keys = ENV.fetch("OLLAMA_API_KEY", nil) if keys.to_s.strip.empty?
+      return if keys.to_s.strip.empty?
+
+      parsed = self.class.parse_api_keys(keys)
+      self.api_keys = parsed
     end
 
     # Set multiple API keys and rebuild the immutable key pool.

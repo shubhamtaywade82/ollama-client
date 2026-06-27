@@ -120,7 +120,7 @@ module Ollama
 
         openai_tool_calls.map do |tc|
           {
-            "id" => tc["id"] || tc[:id] || "call_#{tc.dig('function', 'name')}_#{object_id}",
+            "id" => tc["id"] || tc[:id] || "call_#{tc.dig("function", "name")}_#{object_id}",
             "type" => tc["type"] || tc[:type] || "function",
             "function" => {
               "name" => tc.dig("function", "name"),
@@ -129,7 +129,6 @@ module Ollama
           }
         end
       end
-
     end
   end
 end

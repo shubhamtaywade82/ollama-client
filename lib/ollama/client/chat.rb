@@ -25,41 +25,64 @@ module Ollama
       #   :on_error    ->(error)                — stream or connection error
       #   :on_complete ->                       — stream finished
       # @return [Ollama::Response] Response wrapper with message, tool_calls, timing, etc.
-      # rubocop:disable Metrics/MethodLength, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/ParameterLists, Metrics/AbcSize
+      # rubocop:disable Metrics/ParameterLists
       def chat(messages:, model: nil, format: nil, tools: nil, stream: nil,
                think: nil, keep_alive: nil, options: nil, logprobs: nil,
                top_logprobs: nil, hooks: {}, profile: :auto, inputs: nil)
-        raise ArgumentError, "messages is required" if messages.nil? || messages.empty?
+        # rubocop:enable Metrics/ParameterLists
+        params = Params::Chat.new(
+          messages: messages, model: model, format: format, tools: tools,
+          stream: stream, think: think, keep_alive: keep_alive, options: options,
+          logprobs: logprobs, top_logprobs: top_logprobs, hooks: hooks,
+          profile: profile, inputs: inputs
+        )
+        chat_with_params(params)
+      end
 
-        target_model = model || @config.model
-        active_profile = resolve_profile(target_model, profile)
+      # @param params [Ollama::Params::Chat] Chat parameters
+      # @return [Ollama::Response] Response wrapper with message, tool_calls, timing, etc.
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+      def chat_with_params(params)
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+        raise ArgumentError, "messages is required" if params.messages.nil? || params.messages.empty?
+
+        target_model = params.model || @config.model
+        active_profile = resolve_profile(target_model, params.profile)
         adapter = PromptAdapters.for(active_profile) if active_profile
 
         # Apply multimodal inputs: build typed message and append to history
-        messages = apply_inputs(messages, inputs, active_profile) if inputs
+        messages = if params.inputs
+                     apply_inputs(params.messages, params.inputs, active_profile)
+                   else
+                     params.messages
+                   end
 
         # Apply prompt adapter (e.g. Gemma 4 prepends the family think tag to the system prompt)
-        adapted_messages = adapter ? adapter.adapt_messages(messages, think: !think.nil?, tools: tools) : messages
+        adapted_messages = if adapter
+                             adapter.adapt_messages(messages, think: !params.think.nil?, tools: params.tools)
+                           else
+                             messages
+                           end
 
         # Resolve think flag: adapter may handle it via prompt tag instead of API flag
-        effective_think = resolve_think_flag(think, adapter)
+        effective_think = resolve_think_flag(params.think, adapter)
 
         chat_uri = @provider.chat_endpoint
         req = Net::HTTP::Post.new(chat_uri)
         req["Content-Type"] = "application/json"
 
-        stream_enabled = stream.nil? ? hooks_present?(hooks) : stream
+        stream_enabled = params.stream.nil? ? hooks_present?(params.hooks) : params.stream
 
-        params = { model: target_model, messages: adapted_messages, stream: stream_enabled }
-        params[:format]      = format if format
-        params[:tools]       = tools if tools
-        params[:think]       = effective_think unless effective_think.nil?
-        params[:keep_alive]  = keep_alive if keep_alive
-        params[:logprobs]    = logprobs unless logprobs.nil?
-        params[:top_logprobs] = top_logprobs if top_logprobs
-        params[:options] = build_options_with_profile(options, active_profile)
+        request_params = { model: target_model, messages: adapted_messages, stream: stream_enabled }
+        request_params[:format]      = params.format if params.format
+        request_params[:tools]       = params.tools if params.tools
+        request_params[:think]       = effective_think unless effective_think.nil?
+        request_params[:keep_alive]  = params.keep_alive if params.keep_alive
+        request_params[:logprobs]    = params.logprobs unless params.logprobs.nil?
+        request_params[:top_logprobs] = params.top_logprobs if params.top_logprobs
+        request_params[:options] = build_options_with_profile(params.options, active_profile)
 
-        req.body = @provider.format_chat_request(params).to_json
+        req.body = @provider.format_chat_request(request_params).to_json
         response_data = nil
 
         begin
@@ -73,7 +96,7 @@ module Ollama
                 handle_http_error(res, requested_model: target_model) unless res.is_a?(Net::HTTPSuccess)
 
                 response_data = if stream_enabled
-                                  ChatStreamProcessor.call(res, hooks, provider: @provider)
+                                  ChatStreamProcessor.call(res, params.hooks, provider: @provider)
                                 else
                                   @provider.normalize_chat_response(JSON.parse(res.body))
                                 end
@@ -81,13 +104,13 @@ module Ollama
             end
           end
         rescue Net::ReadTimeout, Net::OpenTimeout => e
-          hooks[:on_error]&.call(e)
+          params.hooks[:on_error]&.call(e)
           raise TimeoutError, "Request timed out after #{@config.timeout}s"
         rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
-          hooks[:on_error]&.call(e)
+          params.hooks[:on_error]&.call(e)
           raise Error, "Connection failed: #{e.message}"
         rescue Error => e
-          hooks[:on_error]&.call(e)
+          params.hooks[:on_error]&.call(e)
           raise e
         end
 
@@ -98,7 +121,6 @@ module Ollama
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse chat response: #{e.message}"
       end
-      # rubocop:enable Metrics/MethodLength, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/ParameterLists, Metrics/AbcSize
 
       private
 

@@ -75,22 +75,28 @@ module Ollama
       # rubocop:disable Metrics/ParameterLists
       def create_model(model:, from: nil, modelfile: nil, path: nil, system: nil, template: nil, license: nil,
                        parameters: nil, messages: nil, quantize: nil, stream: false)
-        raise ArgumentError, "One of from:, modelfile:, or path: is required" if from.nil? && modelfile.nil? && path.nil?
+        # rubocop:enable Metrics/ParameterLists
+        params = Params::CreateModel.new(
+          model: model, from: from, modelfile: modelfile, path: path, system: system,
+          template: template, license: license, parameters: parameters, messages: messages,
+          quantize: quantize, stream: stream
+        )
+        create_model_with_params(params)
+      end
+
+      # @param params [Ollama::Params::CreateModel] Model creation parameters
+      # @return [Hash] Final status response
+      def create_model_with_params(params)
+        if params.from.nil? && params.modelfile.nil? && params.path.nil?
+          raise ArgumentError,
+                "One of from:, modelfile:, or path: is required"
+        end
 
         create_uri = URI("#{@config.base_url}/api/create")
         req = Net::HTTP::Post.new(create_uri)
         req["Content-Type"] = "application/json"
 
-        body = { model: model, stream: stream }
-        body[:from] = from if from
-        body[:modelfile] = modelfile if modelfile
-        body[:path] = path if path
-        body[:system] = system if system
-        body[:template] = template if template
-        body[:license] = license if license
-        body[:parameters] = parameters if parameters
-        body[:messages] = messages if messages
-        body[:quantize] = quantize if quantize
+        body = params.to_h
         req.body = body.to_json
 
         res = http_request(create_uri, req, read_timeout: @config.timeout * 5)
@@ -99,7 +105,6 @@ module Ollama
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse create response: #{e.message}"
       end
-      # rubocop:enable Metrics/ParameterLists
 
       # Check if a blob exists on the server
       #
@@ -138,16 +143,23 @@ module Ollama
       # @param hooks [Hash] Callbacks for streaming progress (:on_progress)
       # @return [Hash, true] Final status or true if not streaming
       def push_model(model:, insecure: false, stream: false, hooks: {})
+        params = Params::ModelTransfer.new(model: model, insecure: insecure, stream: stream, hooks: hooks)
+        push_model_with_params(params)
+      end
+
+      # @param params [Ollama::Params::ModelTransfer] Push parameters
+      # @return [Hash, true] Final status or true if not streaming
+      def push_model_with_params(params)
         push_uri = URI("#{@config.base_url}/api/push")
         req = Net::HTTP::Post.new(push_uri)
         req["Content-Type"] = "application/json"
 
-        body = { model: model, stream: stream }
-        body[:insecure] = true if insecure
+        body = { model: params.model, stream: params.stream }
+        body[:insecure] = true if params.insecure
         req.body = body.to_json
 
-        if stream
-          handle_ndjson_stream(push_uri, req, hooks)
+        if params.stream
+          handle_ndjson_stream(push_uri, req, params.hooks)
         else
           res = http_request(push_uri, req, read_timeout: @config.timeout * 10)
           handle_http_error(res) unless res.is_a?(Net::HTTPSuccess)
@@ -165,19 +177,26 @@ module Ollama
       # @param hooks [Hash] Callbacks for streaming progress (:on_progress)
       # @return [Hash, true] Final status or true if not streaming
       def pull(model_name, insecure: false, stream: false, hooks: {})
+        params = Params::ModelTransfer.new(model: model_name, insecure: insecure, stream: stream, hooks: hooks)
+        pull_with_params(params)
+      end
+
+      # @param params [Ollama::Params::ModelTransfer] Pull parameters
+      # @return [Hash, true] Final status or true if not streaming
+      def pull_with_params(params)
         pull_uri = URI("#{@config.base_url}/api/pull")
         req = Net::HTTP::Post.new(pull_uri)
         req["Content-Type"] = "application/json"
-        body = { model: model_name, stream: stream }
-        body[:insecure] = true if insecure
+        body = { model: params.model, stream: params.stream }
+        body[:insecure] = true if params.insecure
         req.body = body.to_json
         @config.apply_auth_to(req)
 
-        if stream
-          handle_ndjson_stream(pull_uri, req, hooks)
+        if params.stream
+          handle_ndjson_stream(pull_uri, req, params.hooks)
         else
           res = http_request(pull_uri, req, read_timeout: @config.timeout * 10)
-          handle_http_error(res, requested_model: model_name) unless res.is_a?(Net::HTTPSuccess)
+          handle_http_error(res, requested_model: params.model) unless res.is_a?(Net::HTTPSuccess)
           JSON.parse(res.body)
         end
       rescue JSON::ParserError => e

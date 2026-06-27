@@ -1,79 +1,88 @@
 # frozen_string_literal: true
 
-require "json-schema"
-require_relative "errors"
+require "json"
 
 module Ollama
-  # Validates JSON data against JSON Schema
-  #
-  # For agent-grade usage, enforces strict schemas by default:
-  # - additionalProperties: false (unless explicitly set)
-  # - Prevents LLMs from adding unexpected fields
+  # JSON schema validation for structured output.
   class SchemaValidator
+    # @param data [Hash]
+    # @param schema [Hash]
+    # @raise [SchemaViolationError]
     def self.validate!(data, schema)
-      JSON::Validator.validate!(prepare_schema(schema), data)
-    rescue JSON::Schema::ValidationError => e
-      raise SchemaViolationError, e.message
+      return data unless schema.is_a?(Hash)
+      return data if schema.empty?
+
+      new(schema).validate!(data)
+    rescue JSON::ParserError => e
+      raise SchemaViolationError, "Invalid schema: #{e.message}"
     end
 
-    # JSON Schema defaults to allowing additional properties unless
-    # `additionalProperties: false` is specified. For agent-grade contracts,
-    # we want the stricter default, while still allowing callers to override
-    # it explicitly on any object schema.
-    def self.prepare_schema(schema)
-      enforce_no_additional_properties(schema)
+    def initialize(schema)
+      @required = Array(schema["required"])
+      @properties = schema["properties"] || {}
+      @additional_properties = schema.fetch("additionalProperties", false)
+      @type = schema["type"]
     end
 
-    # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-    def self.enforce_no_additional_properties(node)
-      case node
-      when Array
-        node.map { |v| enforce_no_additional_properties(v) }
-      when Hash
-        h = node.dup
+    def validate!(data)
+      raise SchemaViolationError, "Expected object, got #{data.class}" unless data.is_a?(Hash)
+      raise SchemaViolationError, "Expected hash, got nil" if data.nil?
 
-        # Recurse into common schema composition keywords
-        %w[anyOf oneOf allOf].each do |k|
-          h[k] = h[k].map { |v| enforce_no_additional_properties(v) } if h[k].is_a?(Array)
+      if @additional_properties == false
+        extra = data.keys - @properties.keys
+        raise SchemaViolationError, "Additional properties not allowed: #{extra.join(", ")}" unless extra.empty?
+      end
+
+      required_missing = @required.reject { |key| data.key?(key) }
+      raise SchemaViolationError, "Required properties missing: #{required_missing.join(", ")}" unless required_missing.empty?
+
+      data.each do |key, value|
+        expected = @properties[key]
+        raise SchemaViolationError, "Unexpected property: #{key}" if expected.nil? && @additional_properties == false
+
+        next unless expected.is_a?(Hash)
+
+        expected_type = expected["type"]
+        next unless expected_type
+
+        actual_type = type_name(value)
+        unless type_matches?(actual_type, expected_type)
+          raise SchemaViolationError, "Type mismatch for #{key}: expected #{expected_type}, got #{actual_type}"
         end
+      end
 
-        # Recurse into nested schemas
-        h["not"] = enforce_no_additional_properties(h["not"]) if h["not"].is_a?(Hash)
+      data
+    end
 
-        if h["properties"].is_a?(Hash)
-          h["properties"] = h["properties"].transform_values { |v| enforce_no_additional_properties(v) }
-        end
+    private
 
-        if h["patternProperties"].is_a?(Hash)
-          h["patternProperties"] = h["patternProperties"].transform_values { |v| enforce_no_additional_properties(v) }
-        end
-
-        h["items"] = enforce_no_additional_properties(h["items"]) if h["items"]
-
-        h["additionalItems"] = enforce_no_additional_properties(h["additionalItems"]) if h["additionalItems"]
-
-        # JSON Schema draft variants
-        if h["definitions"].is_a?(Hash)
-          h["definitions"] = h["definitions"].transform_values { |v| enforce_no_additional_properties(v) }
-        end
-
-        h["$defs"] = h["$defs"].transform_values { |v| enforce_no_additional_properties(v) } if h["$defs"].is_a?(Hash)
-
-        # Enforce strict object shape by default.
-        is_objectish =
-          h["type"] == "object" ||
-          h.key?("properties") ||
-          h.key?("patternProperties")
-
-        h["additionalProperties"] = false if is_objectish && !h.key?("additionalProperties")
-
-        h
-      else
-        node
+    def type_name(value)
+      case value
+      when Hash then "object"
+      when Array then "array"
+      when String then "string"
+      when Numeric then "number"
+      when true, false then "boolean"
+      when nil then "null"
+      else value.class.name
       end
     end
-    # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
-    private_class_method :prepare_schema, :enforce_no_additional_properties
+    def type_matches?(actual, expected)
+      return true if expected.nil?
+      return true if expected == "any"
+
+      case expected
+      when "object" then actual == "object"
+      when "array" then actual == "array"
+      when "string" then actual == "string"
+      when "integer" then %w[integer number].include?(actual)
+      when "number" then %w[integer number float].include?(actual)
+      when "boolean" then actual == "boolean"
+      when "null" then actual == "null"
+      else
+        actual == expected
+      end
+    end
   end
 end
