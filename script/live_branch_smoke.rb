@@ -10,7 +10,7 @@
 #
 # Environment:
 #   OLLAMA_BASE_URL     — default http://localhost:11434
-#   OLLAMA_MODEL        — primary text model (default: llama3.2:3b)
+#   OLLAMA_MODEL        — primary text model (default: qwen3.5:4b)
 #   OLLAMA_API_KEY      — optional Bearer token (Ollama Cloud)
 #   OLLAMA_EMBED_MODEL  — optional; default picks nomic-embed-text or mxbai-embed-large from tags
 #   OLLAMA_GEMMA_MODEL  — optional Gemma chat / think-tag adapter smoke
@@ -57,7 +57,7 @@ class LiveBranchSmoke
 
   def initialize
     @base_url = ENV.fetch("OLLAMA_BASE_URL", "http://localhost:11434")
-    @model = ENV.fetch("OLLAMA_MODEL", "llama3.2:3b")
+    @model = ENV.fetch("OLLAMA_MODEL", "qwen3.5:4b")
     @gemma_model = ENV.fetch("OLLAMA_GEMMA_MODEL", nil)
     @embed_model = ENV.fetch("OLLAMA_EMBED_MODEL", nil)
     @passed = 0

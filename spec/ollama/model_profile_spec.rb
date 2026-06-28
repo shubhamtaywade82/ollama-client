@@ -69,7 +69,7 @@ RSpec.describe Ollama::ModelProfile do
     end
 
     context "with generic / unknown model" do
-      subject(:p) { described_class.for("llama3.2:3b") }
+      subject(:p) { described_class.for("qwen3.5:4b") }
 
       it { expect(p.family).to eq(:generic) }
       it { expect(p.thinking?).to be false }
@@ -89,7 +89,7 @@ RSpec.describe Ollama::ModelProfile do
     end
 
     it "returns true for text on all families" do
-      %w[gemma4:12b deepseek-r1:7b qwen3:4b llama3.2:3b].each do |m|
+      %w[gemma4:12b deepseek-r1:7b qwen3:4b qwen3.5:4b].each do |m|
         expect(described_class.for(m).supports_modality?(:text)).to be true
       end
     end
@@ -102,7 +102,7 @@ RSpec.describe Ollama::ModelProfile do
     end
 
     it "returns empty hash for models without explicit defaults" do
-      profile = described_class.for("llama3.2:3b")
+      profile = described_class.for("qwen3.5:4b")
       expect(profile.default_options).to be_a(Hash)
     end
   end

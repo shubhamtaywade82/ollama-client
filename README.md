@@ -40,9 +40,8 @@ Works out of the box — all defaults are production-safe:
 require "ollama_client"
 
 client = Ollama::Client.new
-# model: "llama3.2:3b", timeout: 30, retries: 2, strict_json: true
+# model: "qwen3.5:4b", timeout: 30, retries: 2, strict_json: true
 ```
-
 
 ### Ollama Cloud Multi-Key Failover
 
@@ -269,11 +268,11 @@ client.embeddings.embed(
 ```ruby
 client.list_models              # Returns models with details & automatic capabilities map
 # => [{ "name" => "llama3.1", "capabilities" => { "tools" => true, "thinking" => false, ... }, ... }]
-client.list_model_names         # Just names: ["qwen2.5-coder:7b", "llama3.2:3b", ...]
+client.list_model_names         # Just names: ["qwen2.5-coder:7b", "qwen3.5:4b", ...]
 client.list_running             # Currently loaded models (aliased as `ps`)
 client.show_model(model: "qwen2.5-coder:7b")           # Model details, capabilities
 client.show_model(model: "qwen2.5-coder:7b", verbose: true)  # Include model_info
-client.pull("llama3.2:3b")                      # Download a model
+client.pull("qwen3.5:4b")                      # Download a model
 client.delete_model(model: "old-model")      # Remove a model
 client.copy_model(source: "qwen2.5-coder:7b", destination: "qwen2.5-coder:7b-backup")
 client.create_model(model: "my-model", from: "qwen2.5-coder:7b", system: "You are Alpaca")
@@ -347,7 +346,7 @@ ollama-client embed --input "What is Ruby?" --model nomic-embed-text:latest
 ollama-client models
 
 # Pull a model
-ollama-client pull llama3.2:3b
+ollama-client pull qwen3.5:4b
 ```
 
 All errors output as structured JSON to stderr. No hidden behavior.
@@ -448,7 +447,7 @@ client.openai.chat.completions.create(
   model: "qwen2.5-coder:7b",
   messages: [{ role: "user", content: "hello" }]
 )
-client.openai.completions.create(model: "llama3.2:3b", prompt: "Write one line")
+client.openai.completions.create(model: "qwen3.5:4b", prompt: "Write one line")
 client.openai.embeddings.create(model: "nomic-embed-text", input: "ruby")
 ```
 
@@ -460,7 +459,7 @@ Access unsupported and future endpoints without waiting for wrapper updates:
 client = Ollama::Client.new
 
 client.raw.post("/api/chat", payload: {
-  model: "llama3.2:3b",
+  model: "qwen3.5:4b",
   messages: [{ role: "user", content: "hello" }],
   stream: false
 })

@@ -4,7 +4,7 @@ require "spec_helper"
 
 RSpec.describe Ollama::HistorySanitizer do
   let(:gemma4_profile) { Ollama::ModelProfile.for("gemma4:12b") }
-  let(:generic_profile) { Ollama::ModelProfile.for("llama3.2:3b") }
+  let(:generic_profile) { Ollama::ModelProfile.for("qwen3.5:4b") }
 
   def make_response(content:, thinking: nil, model: "gemma4:12b")
     data = {
@@ -62,7 +62,7 @@ RSpec.describe Ollama::HistorySanitizer do
 
     it "appends content to messages" do
       messages = []
-      response = make_response(content: "hello", model: "llama3.2:3b")
+      response = make_response(content: "hello", model: "qwen3.5:4b")
       sanitizer.add(response, messages: messages)
       expect(messages[0][:content]).to eq("hello")
     end

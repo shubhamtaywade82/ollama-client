@@ -26,7 +26,7 @@ module Ollama
     # @param value [String, nil]
     def initialize(_value = nil)
       @base_url = "http://localhost:11434"
-      @model = "llama3.2:3b"
+      @model = "qwen3.5:4b"
       @timeout = 30
       @retries = 2
       @strict_json = true
@@ -138,7 +138,7 @@ module Ollama
     #   {
     #     "base_url": "http://localhost:11434",
     #     "api_key": "optional-for-ollama-cloud",
-    #     "model": "llama3.2:3b",
+    #     "model": "qwen3.5:4b",
     #     "provider": "ollama",
     #     "timeout": 30,
     #     "retries": 3,

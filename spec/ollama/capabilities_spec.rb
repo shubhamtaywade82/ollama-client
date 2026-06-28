@@ -7,7 +7,7 @@ RSpec.describe Ollama::Capabilities do
   describe ".for" do
     it "accurately maps a generic Llama tool-capable model" do
       model_info = {
-        "name" => "llama3.2:3b",
+        "name" => "qwen3.5:4b",
         "details" => { "families" => ["llama"] }
       }
 
