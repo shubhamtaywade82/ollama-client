@@ -49,6 +49,9 @@ module Ollama
         # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
         raise ArgumentError, "messages is required" if params.messages.nil? || params.messages.empty?
 
+        config_timeout = @config.timeout
+        base_url = @config.base_url
+
         target_model = params.model || @config.model
         active_profile = resolve_profile(target_model, params.profile)
         adapter = PromptAdapters.for(active_profile) if active_profile
@@ -96,8 +99,8 @@ module Ollama
           options: build_options_with_profile(params.options, active_profile),
           stream: stream_enabled,
           metadata: {
-            base_url: @config.base_url,
-            timeout: @config.timeout,
+            base_url: base_url,
+            timeout: config_timeout,
             hooks: params.hooks,
             uri: @provider.chat_endpoint
           },
@@ -140,7 +143,7 @@ module Ollama
           end
         rescue Net::ReadTimeout, Net::OpenTimeout => e
           params.hooks[:on_error]&.call(e)
-          raise TimeoutError, "Request timed out after #{@config.timeout}s"
+          raise TimeoutError, "Request timed out after #{config_timeout}s"
         rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
           params.hooks[:on_error]&.call(e)
           raise Error, "Connection failed: #{e.message}"

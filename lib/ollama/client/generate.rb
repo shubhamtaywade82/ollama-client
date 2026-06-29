@@ -188,11 +188,15 @@ module Ollama
       # rubocop:disable Metrics/ParameterLists
       def call_generate_api(prompt:, context:, schema:, model:, hooks:, system: nil, images: nil,
                             think: nil, keep_alive: nil, suffix: nil, raw: nil, options: nil)
+        config_model = @config.model
+        config_timeout = @config.timeout
+        base_url = @config.base_url
+
         @provider.generate_endpoint
         stream_enabled = streaming_requested?(hooks)
 
         request_params = {
-          model: model || @config.model,
+          model: model || config_model,
           prompt: prompt,
           stream: stream_enabled,
           options: build_options(options)
@@ -213,7 +217,7 @@ module Ollama
 
         request = Request.new(
           endpoint: :generate,
-          model: model || @config.model,
+          model: model || config_model,
           prompt: request_params[:prompt],
           schema: schema,
           options: request_params[:options],
@@ -223,8 +227,8 @@ module Ollama
           format: request_params[:format],
           images: images,
           metadata: {
-            base_url: @config.base_url,
-            timeout: @config.timeout,
+            base_url: base_url,
+            timeout: config_timeout,
             hooks: hooks,
             uri: @provider.generate_endpoint
           },
@@ -258,7 +262,7 @@ module Ollama
               transport_response = @pipeline.call(transport_req)
               if transport_response.raw && !transport_response.raw.is_a?(Net::HTTPSuccess)
                 handle_http_error(transport_response.raw,
-                                  requested_model: model || @config.model)
+                                  requested_model: model || config_model)
               end
 
               parser = Parsers::Generate.new(provider: @provider)
@@ -269,7 +273,7 @@ module Ollama
           end
         rescue Net::ReadTimeout, Net::OpenTimeout => e
           hooks[:on_error]&.call(e)
-          raise TimeoutError, "Request timed out after #{@config.timeout}s"
+          raise TimeoutError, "Request timed out after #{config_timeout}s"
         rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
           hooks[:on_error]&.call(e)
           raise Error, "Connection failed: #{e.message}"
