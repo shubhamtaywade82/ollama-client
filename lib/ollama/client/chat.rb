@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 require_relative "chat_stream_processor"
+require_relative "../responses/chat"
+require_relative "../serializers/chat"
+require_relative "../parsers/chat"
 
 module Ollama
   class Client
@@ -82,25 +85,57 @@ module Ollama
         request_params[:top_logprobs] = params.top_logprobs if params.top_logprobs
         request_params[:options] = build_options_with_profile(params.options, active_profile)
 
-        req.body = @provider.format_chat_request(request_params).to_json
+        request = Request.new(
+          endpoint: :chat,
+          model: target_model,
+          messages: adapted_messages,
+          tools: params.tools,
+          format: params.format,
+          think: effective_think,
+          keep_alive: params.keep_alive,
+          options: build_options_with_profile(params.options, active_profile),
+          stream: stream_enabled,
+          metadata: {
+            base_url: @config.base_url,
+            timeout: @config.timeout,
+            hooks: params.hooks,
+            uri: @provider.chat_endpoint
+          },
+          raw_options: {
+            logprobs: params.logprobs,
+            top_logprobs: params.top_logprobs
+          }
+        )
+
+        serializer = Serializers::Chat.new
+        transport_req = serializer.call(request)
         response_data = nil
 
         begin
           with_rate_limit_key_rotation do |api_key|
             response_data = nil
-            @config.apply_auth_to(req, api_key: api_key)
+            @config.apply_auth_to(transport_req, api_key: api_key) if transport_req.is_a?(Transport::Request)
 
-            Net::HTTP.start(chat_uri.hostname, chat_uri.port,
-                            **@config.http_connection_options(chat_uri)) do |h|
-              h.request(req) do |res|
-                handle_http_error(res, requested_model: target_model) unless res.is_a?(Net::HTTPSuccess)
+            if stream_enabled
+              buffer = +""
+              processor = ChatStreamProcessor.new(params.hooks, provider: @provider)
+              processor.send(:reset_accumulators!)
 
-                response_data = if stream_enabled
-                                  ChatStreamProcessor.call(res, params.hooks, provider: @provider)
-                                else
-                                  @provider.normalize_chat_response(JSON.parse(res.body))
-                                end
+              @pipeline.stream(transport_req) do |chunk|
+                processor.send(:drain_chunk, buffer, chunk)
               end
+
+              response_data = processor.send(:build_result)
+            else
+              transport_response = @pipeline.call(transport_req)
+              if transport_response.raw && !transport_response.raw.is_a?(Net::HTTPSuccess)
+                handle_http_error(transport_response.raw,
+                                  requested_model: target_model)
+              end
+
+              parser = Parsers::Chat.new(provider: @provider)
+              parsed_response = parser.call(transport_response)
+              response_data = parsed_response.to_h
             end
           end
         rescue Net::ReadTimeout, Net::OpenTimeout => e
@@ -117,7 +152,7 @@ module Ollama
         emit_response_hook(response_data.is_a?(Hash) ? response_data.to_json : response_data,
                            endpoint: chat_uri.path, model: target_model)
 
-        Response.new(response_data)
+        Responses::Chat.new(response_data)
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse chat response: #{e.message}"
       end

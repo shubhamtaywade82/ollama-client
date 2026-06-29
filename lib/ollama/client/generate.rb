@@ -2,6 +2,9 @@
 
 require_relative "../generate_stream_handler"
 require_relative "../json_fragment_extractor"
+require_relative "../responses/generate"
+require_relative "../serializers/generate"
+require_relative "../parsers/generate"
 
 module Ollama
   class Client
@@ -185,10 +188,7 @@ module Ollama
       # rubocop:disable Metrics/ParameterLists
       def call_generate_api(prompt:, context:, schema:, model:, hooks:, system: nil, images: nil,
                             think: nil, keep_alive: nil, suffix: nil, raw: nil, options: nil)
-        generate_uri = @provider.generate_endpoint
-        req = Net::HTTP::Post.new(generate_uri)
-        req["Content-Type"] = "application/json"
-
+        @provider.generate_endpoint
         stream_enabled = streaming_requested?(hooks)
 
         request_params = {
@@ -211,7 +211,33 @@ module Ollama
           request_params[:prompt] = enhance_prompt_for_json(prompt, schema)
         end
 
-        req.body = @provider.format_generate_request(request_params).to_json
+        request = Request.new(
+          endpoint: :generate,
+          model: model || @config.model,
+          prompt: request_params[:prompt],
+          schema: schema,
+          options: request_params[:options],
+          stream: stream_enabled,
+          keep_alive: keep_alive,
+          think: think,
+          format: request_params[:format],
+          images: images,
+          metadata: {
+            base_url: @config.base_url,
+            timeout: @config.timeout,
+            hooks: hooks,
+            uri: @provider.generate_endpoint
+          },
+          raw_options: {
+            system: system,
+            suffix: suffix,
+            raw: raw,
+            context: context
+          }
+        )
+
+        serializer = Serializers::Generate.new
+        transport_req = serializer.call(request)
 
         full_response = +""
         final_context = nil
@@ -220,21 +246,25 @@ module Ollama
           with_rate_limit_key_rotation do |api_key|
             full_response = +""
             final_context = nil
-            @config.apply_auth_to(req, api_key: api_key)
+            @config.apply_auth_to(transport_req, api_key: api_key) if transport_req.is_a?(Transport::Request)
 
-            Net::HTTP.start(generate_uri.hostname, generate_uri.port,
-                            **@config.http_connection_options(generate_uri)) do |h|
-              h.request(req) do |res|
-                handle_http_error(res, requested_model: model || @config.model) unless res.is_a?(Net::HTTPSuccess)
-
-                if stream_enabled
-                  GenerateStreamHandler.call(res, hooks, full_response, provider: @provider)
-                else
-                  response_body = @provider.normalize_generate_response(JSON.parse(res.body))
-                  full_response = response_body["response"]
-                  final_context = response_body["context"]
-                end
+            if stream_enabled
+              buffer = +""
+              handler = GenerateStreamHandler.new(nil, hooks, full_response, provider: @provider)
+              @pipeline.stream(transport_req) do |chunk|
+                handler.send(:drain_chunk, buffer, chunk)
               end
+            else
+              transport_response = @pipeline.call(transport_req)
+              if transport_response.raw && !transport_response.raw.is_a?(Net::HTTPSuccess)
+                handle_http_error(transport_response.raw,
+                                  requested_model: model || @config.model)
+              end
+
+              parser = Parsers::Generate.new(provider: @provider)
+              parsed_response = parser.call(transport_response)
+              full_response = parsed_response.message.content
+              final_context = parsed_response.context
             end
           end
         rescue Net::ReadTimeout, Net::OpenTimeout => e

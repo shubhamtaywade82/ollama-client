@@ -58,3 +58,30 @@ module OllamaClient
     end
   end
 end
+
+module Ollama
+  def self.config
+    OllamaClient.config
+  end
+
+  def self.configure(&block)
+    OllamaClient.configure(&block)
+  end
+
+  def self.client
+    # We clear the cached client if the config is changed/updated, or just instantiate dynamically
+    @client ||= Client.new(config: config)
+  end
+
+  def self.chat(messages:, **args)
+    client.chat(messages: messages, **args)
+  end
+
+  def self.generate(prompt:, **args)
+    client.generate(prompt: prompt, **args)
+  end
+
+  def self.embed(...)
+    client.embeddings.embed(...)
+  end
+end

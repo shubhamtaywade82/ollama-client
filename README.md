@@ -7,68 +7,198 @@
 
 > **The production-safe Ruby AI SDK for Ollama.**
 
-Not a chatbot UI. Not a 1:1 API wrapper.
-A failure-aware, contract-driven client that covers **all 12 Ollama API endpoints** with production guarantees.
+A failure-aware, contract-driven client that wraps the Ollama API in clean, idiomatic Ruby. Built for correctness, determinism, and zero-magic reliability.
 
-**Correctness. Determinism. Failure-aware design. Nothing else.**
+---
 
-`ollama-client` is purpose-built for Rails AI features, background jobs, CLIs, agents, autonomous systems, workflow engines, RAG pipelines, structured-output consumers, MCP servers, and evaluation systems. If you use Ollama from Ruby, this is the foundation layer.
+## Why ollama-client?
 
-## Why This Gem Exists
+Other Ollama clients give you raw HTTP hashes. This SDK gives you **production guarantees** and a native Ruby developer experience.
 
-Other Ollama clients give you raw HTTP access. This one gives you **production guarantees**:
+### 1. Failure-Aware By Design
 
 | What goes wrong | What other gems do | What `ollama-client` does |
 |---|---|---|
 | Model isn't downloaded | Raise error | Auto-pull → retry |
 | Ollama server is down | Hang for 60s | Fast-fail instantly |
-| LLM returns broken JSON | Crash your parser | Repair prompt → retry |
+| LLM returns broken JSON | Crash your JSON parser | Repair prompt → retry |
 | Request times out | Raise immediately | Exponential backoff |
-| Schema violation | You find out in prod | `SchemaViolationError` before it reaches your code |
+| Schema violation | You find out in production | `SchemaViolationError` before it reaches your code |
+
+### 2. Ruby Objects Everywhere
+
+Stop parsing raw JSON strings or dig-digging through nested string hashes. 
+
+```ruby
+# Other gems
+response["message"]["content"]
+response["total_duration"]
+
+# ollama-client
+response.message.content
+response.total_duration
+```
+
+---
 
 ## Installation
 
 ```ruby
-gem "ollama-client"
+bundle add ollama-client
 ```
 
-## Quick Start
+---
 
-Works out of the box — all defaults are production-safe:
+## Configuration
+
+Set up your client globally (e.g. in a Rails initializer) or construct thread-safe local configs for concurrent background jobs.
 
 ```ruby
-require "ollama_client"
-
-client = Ollama::Client.new
-# model: "qwen3.5:4b", timeout: 30, retries: 2, strict_json: true
+# config/initializers/ollama.rb
+Ollama.configure do |config|
+  config.default_model = "qwen2.5-coder:7b"
+  config.base_url = ENV["OLLAMA_URL"] || "http://localhost:11434"
+  config.timeout = 30
+  config.retries = 2
+end
 ```
 
-### Ollama Cloud Multi-Key Failover
+---
 
-For hosted models on `https://ollama.com`, configure either one API key or a comma-separated key pool. `OLLAMA_API_KEYS` takes precedence over `OLLAMA_API_KEY`; when a cloud request receives HTTP 429, `ollama-client` transparently retries the same request with the next configured key. If every key is rate-limited, the client waits with exponential backoff (`2 ** attempt`) and retries the pool until `config.retries` is exhausted, then raises `Ollama::RateLimitExhaustedError`.
+## Testing Without a Live Server
 
-```bash
-OLLAMA_BASE_URL=https://ollama.com
-OLLAMA_API_KEYS=key_abc123,key_xyz789
-ENABLE_MULTI_KEY_CONCURRENCY=false # set true to round-robin initial keys across concurrent threads
-```
+Don't let your test suite depend on a running Ollama server. `ollama-client` ships with zero-dependency mocking helpers:
 
 ```ruby
-config = Ollama::Config.new
-config.base_url = "https://ollama.com"
-config.api_keys = ENV["OLLAMA_API_KEYS"] # accepts comma-separated strings or arrays
-config.enable_multi_key_concurrency = true
+# spec/spec_helper.rb or rails_helper.rb
+require "ollama/testing"
 
-client = Ollama::Client.new(config: config)
-client.chat(messages: [{ role: "user", content: "Hello" }], model: "gpt-oss:120b-cloud")
+RSpec.configure do |config|
+  config.include Ollama::Testing
+  config.before(:each) { clear_ollama_stubs }
+end
+
+# In your spec file
+it "generates a summary" do
+  stub_ollama_chat(content: "This is a mocked summary.")
+  
+  client = Ollama::Client.new
+  response = client.chat(messages: [{ role: "user", content: "..." }])
+  expect(response.content).to eq("This is a mocked summary.")
+end
 ```
 
-For Sidekiq or other highly concurrent agent loops, keep configuration immutable after boot and instantiate clients with per-client `Ollama::Config` objects rather than mutating `OllamaClient.configure` at runtime.
+---
 
-### Chat (Multi-turn Conversations)
+## Core DSLs: Writing Clean Ruby
 
-The primary endpoint for agentic usage:
+### 1. Prompt DSL
+Encapsulate your prompt templates into reusable class objects.
 
+```ruby
+class ExplainCode < Ollama::Prompt
+  input :code, :language
+  system "You are a senior Ruby engineer."
+  user { "Explain this #{language} implementation:\n#{code}" }
+end
+
+# Usage:
+prompt = ExplainCode.new(code: "def foo; end", language: "Ruby")
+client.chat(messages: prompt.to_h)
+```
+
+### 2. Tool DSL
+Define type-safe tools that serialize automatically into standard JSON schemas.
+
+```ruby
+class WeatherTool < Ollama::ToolDSL
+  description "Get current weather for a city"
+  tool_name "get_weather"
+
+  input do
+    string :city, description: "The name of the city"
+    string :unit, optional: true, default: "celsius"
+  end
+
+  call do
+    # Define tool action or handle execution
+  end
+end
+
+# Usage:
+client.chat(
+  messages: [{ role: "user", content: "What is the weather in London?" }],
+  tools: [WeatherTool.to_tool_hash]
+)
+```
+
+### 3. Structured Outputs (Schema DSL)
+Force the model to output valid JSON matching your schema structure.
+
+```ruby
+class TradeSignal < Ollama::SchemaDSL
+  string :action, enum: ["BUY", "SELL", "HOLD"]
+  number :confidence, description: "Confidence score from 0 to 1"
+end
+
+# Usage:
+result = client.generate(
+  prompt: "Analyze the current AAPL price trend.",
+  schema: TradeSignal.to_tool_hash # Generates valid JSON schema
+)
+result["action"]     # => "BUY"
+result["confidence"] # => 0.95
+```
+
+---
+
+## Real-World Rails Patterns
+
+### In a Controller (Streaming Chat)
+```ruby
+class ChatsController < ApplicationController
+  def create
+    client = Ollama::Client.new
+    
+    response.headers["Content-Type"] = "text/event-stream"
+    response.headers["Last-Modified"] = Time.now.httpdate
+
+    client.chat(
+      messages: [{ role: "user", content: params[:message] }],
+      hooks: {
+        on_token: ->(token) { response.stream.write(token) }
+      }
+    )
+  ensure
+    response.stream.close
+  end
+end
+```
+
+### In a Service Object (RAG Embeddings)
+```ruby
+class DocumentIndexer
+  def initialize(document)
+    @document = document
+    @client = Ollama::Client.new
+  end
+
+  def index!
+    vectors = @client.embeddings.embed(
+      model: "nomic-embed-text",
+      input: @document.content
+    )
+    
+    @document.update!(embedding: vectors)
+  end
+end
+```
+
+---
+
+## Core API & Endpoint Coverage
+
+### Chat (Multi-turn)
 ```ruby
 response = client.chat(
   messages: [
@@ -76,426 +206,58 @@ response = client.chat(
     { role: "user", content: "What is Ruby?" }
   ]
 )
-
-response.message.content  # => "Ruby is a dynamic, open source..."
-response.message.role     # => "assistant"
+response.message.content  # => "Ruby is a dynamic..."
 response.done?            # => true
-response.done_reason      # => "stop"
-response.total_duration   # => 1234567 (nanoseconds)
 ```
 
-#### Tool Calling
-
+### Generate (Prompt -> Completion)
 ```ruby
-messages = [{ role: "user", content: "What is the weather in London?" }]
-
-tools = [
-  {
-    type: "function",
-    function: {
-      name: "get_weather",
-      description: "Get weather for a city",
-      parameters: {
-        type: "object",
-        properties: { city: { type: "string" } },
-        required: ["city"]
-      }
-    }
-  }
-]
-
-response = client.chat(messages: messages, tools: tools)
-response.message.tool_calls.first.name       # => "get_weather"
-response.message.tool_calls.first.arguments  # => { "city" => "London" }
+client.generate(prompt: "Explain blocks in Ruby.")
+# => "Blocks are anonymous closures..."
 ```
 
-#### Structured Output (JSON Schema)
-
+### Thinking Mode (DeepSeek-R1 / Qwen Reasoning)
 ```ruby
-messages = [{ role: "user", content: "What is the capital of France? Answer in JSON." }]
-schema = { type: "object", properties: { answer: { type: "string" } } }
-
-response = client.chat(messages: messages, format: schema)
-JSON.parse(response.message.content)  # => { "answer" => "Paris" }
-```
-
-#### Thinking Mode
-
-> **Note:** Requires a thinking-capable model (e.g. `deepseek-coder:6.7b`, `qwen3:0.6b`).
-
-```ruby
-messages = [{ role: "user", content: "What is the square root of 144?" }]
-
-response = client.chat(messages: messages, model: "qwen3:0.6b", think: true)
-response.message.thinking  # => "Let me reason through this..."
-response.message.content   # => "The answer is 12."
-```
-
-#### Chat Options
-
-**Simple approach (auto-inferred schemas):**
-
-```ruby
-messages = [{ role: "user", content: "Hello" }]
-
-client.chat(
-  messages: messages,
-  model: "qwen2.5-coder:7b",             # Override default model
-  options: { temperature: 0.8 }, # Runtime options
-  keep_alive: "10m",           # Keep model loaded
-  logprobs: true,              # Return log probabilities
-  top_logprobs: 5
-)
-```
-
-### Generate (Prompt → Completion)
-
-```ruby
-client.generate(prompt: "Explain Ruby blocks in one sentence.")
-# => "Ruby blocks are anonymous closures passed to methods..."
-```
-
-#### Structured JSON (Agents / Planners)
-
-```ruby
-schema = {
-  "type" => "object",
-  "required" => ["action", "confidence"],
-  "properties" => {
-    "action" => { "type" => "string", "enum" => ["search", "calculate", "finish"] },
-    "confidence" => { "type" => "number" }
-  }
-}
-
-result = client.generate(prompt: "User wants weather in Paris.", schema: schema)
-result["action"]     # => "search"
-result["confidence"] # => 0.95
-```
-
-If the LLM returns invalid JSON, the client automatically retries with a repair prompt. You get valid output or a typed exception — never a silent failure.
-
-#### Structured Thinking (Zero-Magic CoT extraction)
-
-You can ask reasoning models to output their thoughts separately from the final answer. `ollama-client` enforces this via strict JSON schema prompting.
-
-> **Note:** Requires a thinking model. Supported defaults: `/deepseek/i`, `/qwen/i`, `/r1/i`.
-
-```ruby
-schema = {
-  "type" => "object",
-  "required" => ["decision"],
-  "properties" => {
-    "decision" => { "type" => "string" }
-  }
-}
-
-result = client.generate(
+response = client.chat(
   model: "deepseek-r1",
-  prompt: "Should we BUY or WAIT?",
-  schema: schema,
-  think: true,
-  return_reasoning: true
+  messages: [{ role: "user", content: "Solve: 2x + 5 = 15" }],
+  think: true
 )
-
-result["reasoning"]          # => "...step by step analysis..."
-result["final"]["decision"]  # => "WAIT"
-```
-
-#### Generate Options
-
-```ruby
-client.generate(
-  prompt: "Write a poem",
-  model: "qwen3:0.6b",               # Explicitly use a thinking model
-  system: "You are a poet",          # System prompt
-  think: true,                       # Thinking output
-  keep_alive: "5m",                  # Keep model loaded
-  options: { temperature: 0.8 }      # Runtime options
-)
-```
-
-### Streaming (Observer Hooks)
-
-No raw SSE. No state corruption risk. Works with both `chat` and `generate`:
-
-```ruby
-# Stream generate tokens
-client.generate(
-  prompt: "Write a haiku about code.",
-  hooks: {
-    on_token:    ->(token) { print token },
-    on_error:    ->(err)   { warn err.message },
-    on_complete: ->        { puts "\nDone" }
-  }
-)
-
-# Stream chat tokens with log probabilities
-client.chat(
-  messages: [{ role: "user", content: "Tell me a story" }],
-  logprobs: true,
-  hooks: {
-    # If your block takes 2 args, it receives the logprobs array for that token
-    on_token: ->(token, logprobs) {
-      print token
-      # logprobs is an Array of Hashes, e.g. [{"token"=>"Once", "logprob"=>-0.12}, ...]
-    },
-    on_complete: -> { puts }
-  }
-)
-```
-
-### Embeddings (RAG)
-
-```ruby
-client.embeddings.embed(model: "nomic-embed-text:latest", input: "What is Ruby?")
-# => [0.12, -0.05, 0.88, ...]
-
-# Batch embeddings
-client.embeddings.embed(model: "nomic-embed-text:latest", input: ["text1", "text2"])
-
-# With options
-client.embeddings.embed(
-  model: "nomic-embed-text:latest",
-  input: "text",
-  truncate: true,        # Truncate long inputs
-  dimensions: 256,       # Embedding dimensions
-  keep_alive: "5m"       # Keep model loaded
-)
+response.message.thinking # => "Subtract 5 from both sides... divide by 2..."
+response.message.content  # => "Therefore, x = 5."
 ```
 
 ### Model Management
-
 ```ruby
-client.list_models              # Returns models with details & automatic capabilities map
-# => [{ "name" => "llama3.1", "capabilities" => { "tools" => true, "thinking" => false, ... }, ... }]
-client.list_model_names         # Just names: ["qwen2.5-coder:7b", "qwen3.5:4b", ...]
-client.list_running             # Currently loaded models (aliased as `ps`)
-client.show_model(model: "qwen2.5-coder:7b")           # Model details, capabilities
-client.show_model(model: "qwen2.5-coder:7b", verbose: true)  # Include model_info
-client.pull("qwen3.5:4b")                      # Download a model
-client.delete_model(model: "old-model")      # Remove a model
-client.copy_model(source: "qwen2.5-coder:7b", destination: "qwen2.5-coder:7b-backup")
-client.create_model(model: "my-model", from: "qwen2.5-coder:7b", system: "You are Alpaca")
-client.push_model(model: "user/my-model")    # Push to registry
-client.version                               # => "0.12.6"
+client.list_models        # Returns models with capability profiles
+client.pull("qwen3.5:4b") # Pull new model
+client.delete_model(model: "old-model")
 ```
 
-### Runtime Options
+---
 
-Pass via `options:` on `chat` or `generate`:
+## Advanced
 
+### Composable Middleware Pipeline
 ```ruby
-messages = [{ role: "user", content: "Tell me a joke" }]
-
-options = Ollama::Options.new(
-  temperature: 0.7,
-  num_predict: 256,
-  stop: ["END"],
-  presence_penalty: 0.5,
-  frequency_penalty: -0.3
-)
-
-client.chat(messages: messages, options: options.to_h)
-```
-
-<details>
-<summary>All supported options</summary>
-
-| Option | Type | Description |
-|---|---|---|
-| `temperature` | Float (0–2) | Sampling temperature |
-| `top_p` | Float (0–1) | Nucleus sampling |
-| `top_k` | Integer | Top-K sampling |
-| `num_ctx` | Integer | Context window size |
-| `num_predict` | Integer | Max tokens to generate |
-| `repeat_penalty` | Float (0–2) | Repeat penalty |
-| `seed` | Integer | Random seed |
-| `stop` | Array | Stop sequences |
-| `tfs_z` | Float | Tail-free sampling |
-| `mirostat` | 0/1/2 | Mirostat sampling mode |
-| `mirostat_tau` | Float | Mirostat target entropy |
-| `mirostat_eta` | Float | Mirostat learning rate |
-| `typical_p` | Float (0–1) | Typical-p sampling |
-| `presence_penalty` | Float (-2–2) | Presence penalty |
-| `frequency_penalty` | Float (-2–2) | Frequency penalty |
-| `num_gpu` | Integer | GPU layers |
-| `num_thread` | Integer | CPU threads |
-| `num_keep` | Integer | Tokens to keep for context |
-
-</details>
-
-## CLI
-
-A strict, JSON-first CLI ships with the gem:
-
-```bash
-# Generate text
-ollama-client generate --prompt "Explain Ruby blocks"
-
-# Structured output with schema
-echo '{"type":"object","properties":{"category":{"type":"string"}}}' > schema.json
-ollama-client generate --prompt "Classify this" --schema schema.json --json
-
-# Stream tokens
-ollama-client generate --prompt "Write a poem" --stream
-
-# Embeddings
-ollama-client embed --input "What is Ruby?" --model nomic-embed-text:latest
-
-# List models
-ollama-client models
-
-# Pull a model
-ollama-client pull qwen3.5:4b
-```
-
-All errors output as structured JSON to stderr. No hidden behavior.
-
-## Examples
-
-The [`examples/`](../examples/) directory contains working scripts for common patterns:
-
-- **Agent loop with tool calling** — [`examples/agent_loop.rb`](../examples/agent_loop.rb)
-- **Cloud model accessibility probe** — [`examples/cloud_models.rb`](../examples/cloud_models.rb)
-- **llama.cpp GPU server connection** — [`examples/llama_cpp_gpu_test.rb`](../examples/llama_cpp_gpu_test.rb)
-- **Timeout & retry behavior** — [`examples/timeout_retry.rb`](../examples/timeout_retry.rb)
-- **JSON repair on invalid output** — [`examples/failure_modes/invalid_json_repair.rb`](../examples/failure_modes/invalid_json_repair.rb)
-- **Rails background job pattern** — [`examples/production/rails_agent.rb`](../examples/production/rails_agent.rb)
-
-### Cloud Model Accessibility Probe
-
-If you use Ollama Cloud, this script lists all cloud models and probes each one to determine whether your account can run inference against it:
-
-```bash
-export OLLAMA_API_KEY="your-ollama-cloud-api-key"
-bundle exec ruby examples/cloud_models.rb
-```
-
-Output is a sorted JSON array:
-
-```json
-[
-  { "name": "gpt-oss:20b", "accessible": true, "reason": null },
-  { "name": "deepseek-v4-pro", "accessible": false, "reason": "plan_restricted" }
-]
-```
-
-See [`examples/README.md`](../examples/README.md) for the full list of examples and `reason` codes.
-
-## Console (Debug Mode)
-
-```bash
-bin/console
-```
-
-```ruby
-verbose!  # Enable HTTP request/response logging
-quiet!    # Disable it
-
 client = Ollama::Client.new
-client.version  # Prints full HTTP request/response to STDERR
+client.use Ollama::Middleware::Logger # Logs requests/responses
+client.use MyCustomMiddleware
 ```
 
-## Failure Behaviors
-
-| Scenario | What happens |
-|---|---|
-| **Model missing (404)** | Auto-pull → retry your request |
-| **Server unreachable** | Instant `Ollama::Error` — no waiting |
-| **Timeout** | Exponential backoff (`2^attempt` seconds) |
-| **Invalid JSON** | Repair prompt → retry → `InvalidJSONError` if exhausted |
-| **Schema violation** | Repair prompt → retry → `SchemaViolationError` if exhausted |
-| **Streaming error** | `StreamError` raised with Ollama's error message |
-
-## v1.0 Stability Contract
-
-The public API is locked. See [API_CONTRACT.md](API_CONTRACT.md) for the full specification.
-
-1. All method signatures are stable until v2.0
-2. Error class hierarchy is stable until v2.0
-3. Recovery behaviors (auto-pull, backoff, repair) are guaranteed
-4. No silent coercion of malformed JSON — ever
-5. Typed errors over generic exceptions — always
-
-## Testing
-
-```bash
-# Unit + lint
-bundle exec rake
-
-# Integration (requires running Ollama)
-OLLAMA_INTEGRATION=1 bundle exec rspec spec/integration/
-```
-
-## License
-
-MIT. See [LICENSE.txt](LICENSE.txt).
-
-## OpenAI-Compatible Facade (Optional Extension)
-
-OpenAI compatibility is intentionally isolated from the core runtime.
-Load it explicitly when needed:
-
+### OpenAI Compatibility
 ```ruby
-require "ollama_client"
 require "ollama/openai"
 
 client = Ollama::Client.new
-
-client.openai.models.list
 client.openai.chat.completions.create(
   model: "qwen2.5-coder:7b",
   messages: [{ role: "user", content: "hello" }]
 )
-client.openai.completions.create(model: "qwen3.5:4b", prompt: "Write one line")
-client.openai.embeddings.create(model: "nomic-embed-text", input: "ruby")
 ```
 
-## Raw Endpoint Escape Hatch (New)
+---
 
-Access unsupported and future endpoints without waiting for wrapper updates:
+## License
 
-```ruby
-client = Ollama::Client.new
-
-client.raw.post("/api/chat", payload: {
-  model: "qwen3.5:4b",
-  messages: [{ role: "user", content: "hello" }],
-  stream: false
-})
-```
-
-## Transport Adapter (Foundation)
-
-The client now resolves HTTP through a transport adapter boundary.
-Default remains Net::HTTP, and the API is forward-compatible with future adapters.
-
-```ruby
-config = Ollama::Config.new
-config.transport_adapter = :net_http
-client = Ollama::Client.new(config: config)
-```
-
-Transport internals now normalize responses through a transport response object
-(`status`, `headers`, `body`, `duration_ms`) to support future adapters and observability.
-A stream transport contract (`transport.stream`) is also defined as the next expansion point.
-
-### Mock transport (testing)
-
-For deterministic tests without a live Ollama server:
-
-```ruby
-config = Ollama::Config.new
-config.transport_adapter = :mock
-client = Ollama::Client.new(config: config)
-
-transport = client.instance_variable_get(:@transport)
-transport.enqueue(status: 200, body: '{"version":"0.0.0-test"}')
-client.version # => "0.0.0-test"
-```
-
-### Error taxonomy foundation
-
-Runtime now includes explicit typed transport/runtime errors such as:
-`UnauthorizedError`, `ModelUnavailableError`, `ConnectionFailedError`, and
-`MalformedResponseError` for safer retry and policy layering.
+MIT. See [LICENSE.txt](LICENSE.txt).

@@ -29,6 +29,21 @@ RSpec.describe Ollama::Client do
       expect(config.model).to eq("qwen3.5:4b")
     end
 
+    it "allows configuration via Ollama.configure and default_model" do
+      Ollama.configure do |c|
+        c.default_model = "qwen2.5-coder:7b"
+      end
+      client = described_class.new
+      config = client.instance_variable_get(:@config)
+      expect(config.model).to eq("qwen2.5-coder:7b")
+      expect(config.default_model).to eq("qwen2.5-coder:7b")
+
+      # Restore default
+      Ollama.configure do |c|
+        c.model = "qwen3.5:4b"
+      end
+    end
+
     it "accepts custom config" do
       custom_config = Ollama::Config.new
       custom_config.model = "custom_model"

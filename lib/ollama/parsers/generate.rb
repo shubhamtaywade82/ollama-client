@@ -1,14 +1,20 @@
 # frozen_string_literal: true
 
 require_relative "base"
-require_relative "../../response"
+require_relative "../responses/generate"
 
 module Ollama
   module Parsers
     # Parses generate completion responses
     class Generate < Base
+      def initialize(provider: nil)
+        super()
+        @provider = provider
+      end
+
       def call(transport_response)
         data = json(transport_response)
+        data = @provider.normalize_generate_response(data) if @provider.respond_to?(:normalize_generate_response)
         # Generate endpoint returns a flat response with "response" field
         # Convert to Response-compatible format
         response_data = {
@@ -25,7 +31,7 @@ module Ollama
           "eval_duration" => data["eval_duration"],
           "context" => data["context"]
         }
-        Response.new(response_data)
+        Responses::Generate.new(response_data)
       end
     end
   end

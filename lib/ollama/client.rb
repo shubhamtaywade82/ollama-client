@@ -60,11 +60,10 @@ module Ollama
       @base_uri = URI(@config.base_url)
       @transport = Transport.build(@config)
       @provider = Providers.build(@config, @transport)
-      @embeddings = Embeddings.new(@config, transport: @transport)
-
       # Initialize pipeline with default middleware
       @events = Events.new
       @pipeline = Pipeline.new(@transport, events: @events)
+      @embeddings = Embeddings.new(@config, transport: @transport, pipeline: @pipeline)
 
       # Apply global plugins
       Ollama.apply_plugins(self)
@@ -76,6 +75,7 @@ module Ollama
     # @return [Ollama::Client] self
     def use(middleware, **options)
       @pipeline = @pipeline.use(middleware, **options)
+      @embeddings.pipeline = @pipeline if @embeddings.respond_to?(:pipeline=)
       self
     end
 

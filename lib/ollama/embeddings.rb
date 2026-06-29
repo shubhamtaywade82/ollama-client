@@ -7,6 +7,10 @@ require_relative "errors"
 require_relative "rate_limit_handler"
 require_relative "transport"
 require_relative "params"
+require_relative "responses/embeddings"
+require_relative "request"
+require_relative "serializers/embeddings"
+require_relative "parsers/embeddings"
 
 module Ollama
   # Embeddings API helper for semantic search and RAG in agents
@@ -16,9 +20,12 @@ module Ollama
   class Embeddings
     include RateLimitHandler
 
-    def initialize(config, transport: nil)
+    attr_accessor :pipeline
+
+    def initialize(config, transport: nil, pipeline: nil)
       @config = config
       @transport = transport || Transport.build(config)
+      @pipeline = pipeline || Pipeline.new(@transport)
       @provider = Providers.build(config, @transport)
     end
 
@@ -43,22 +50,40 @@ module Ollama
     # @return [Array<Float>, Array<Array<Float>>] Embedding vector(s)
     def embed_with_params(params)
       # Use provider-specific endpoint
-      uri = @provider.embeddings_endpoint
-      req = Net::HTTP::Post.new(uri)
-      req["Content-Type"] = "application/json"
+      @provider.embeddings_endpoint
 
-      req.body = @provider.format_embeddings_request(params.to_h).to_json
+      request = Ollama::Request.new(
+        endpoint: :embeddings,
+        model: params.model,
+        prompt: params.input,
+        options: params.options,
+        keep_alive: params.keep_alive,
+        metadata: {
+          base_url: @config.base_url,
+          timeout: @config.timeout,
+          uri: @provider.embeddings_endpoint
+        }
+      )
+
+      serializer = Ollama::Serializers::Embeddings.new
+      transport_req = serializer.call(request)
+
       res = with_rate_limit_key_rotation do |api_key|
-        @config.apply_auth_to(req, api_key: api_key)
-        response = @transport.request(uri: uri, request: req, read_timeout: @config.timeout)
-        handle_http_error(response, requested_model: params.model) if response.code.to_i == 429
+        @config.apply_auth_to(transport_req, api_key: api_key) if transport_req.is_a?(Transport::Request)
+        response = @pipeline.call(transport_req)
+        handle_http_error(response.raw, requested_model: params.model) if response.raw && response.code.to_i == 429
 
         response
       end
 
-      response_body = @provider.normalize_embeddings_response(JSON.parse(res.body))
+      # Parse the Response using Parsers::Embeddings which returns Responses::Embeddings
+      parser = Ollama::Parsers::Embeddings.new(provider: @provider)
+      parsed_response = parser.call(res)
+      response_body = parsed_response.to_h
+
       # /api/embed returns "embeddings" (plural) as array of arrays
-      embeddings = response_body["embeddings"] || response_body["embedding"]
+      embeddings = parsed_response.embeddings
+      embeddings = response_body["embedding"] if embeddings.nil?
 
       validate_embedding_response!(embeddings, response_body, params.model)
 
@@ -70,8 +95,8 @@ module Ollama
     rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
       raise Error, "Connection failed: #{e.message}"
     ensure
-      if defined?(res) && !res.nil? && !res.is_a?(Net::HTTPSuccess)
-        handle_http_error(res, requested_model: params.model)
+      if defined?(res) && !res.nil? && res.respond_to?(:raw) && res.raw && !res.raw.is_a?(Net::HTTPSuccess)
+        handle_http_error(res.raw, requested_model: params.model)
       end
     end
 

@@ -23,6 +23,9 @@ module Ollama
                   :transport_adapter, :provider
     attr_reader :api_key, :api_keys, :enable_multi_key_concurrency, :api_key_pool
 
+    alias default_model model
+    alias default_model= model=
+
     # @param value [String, nil]
     def initialize(_value = nil)
       @base_url = "http://localhost:11434"
@@ -45,15 +48,12 @@ module Ollama
       @provider = :ollama
     end
 
-    # Set Authorization header on a request when api_key is configured (e.g. for Ollama Cloud).
-    # No-op when api_key is nil or empty.
-    #
-    # @param req [Net::HTTP::Request]
     def apply_auth_to(req, api_key: self.api_key)
+      headers = req.respond_to?(:headers) ? req.headers : req
       if api_key.to_s.strip.empty?
-        req.delete("Authorization")
+        headers.delete("Authorization")
       else
-        req["Authorization"] = "Bearer #{api_key}"
+        headers["Authorization"] = "Bearer #{api_key}"
       end
     end
 

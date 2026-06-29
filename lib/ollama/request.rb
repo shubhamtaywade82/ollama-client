@@ -109,9 +109,8 @@ module Ollama
 
     # Check if endpoint supports streaming
     def streaming?
-      return @stream unless @stream.nil?
-
-      %i[chat generate pull push create_model].include?(@endpoint)
+      hooks = @options.is_a?(Hash) ? @options[:hooks] : nil
+      (hooks && !hooks.empty?) || @stream == true
     end
 
     # Get the base path for the endpoint
@@ -119,7 +118,7 @@ module Ollama
       case @endpoint
       when :chat then "/api/chat"
       when :generate then "/api/generate"
-      when :embeddings then "/api/embeddings"
+      when :embeddings then "/api/embed"
       when :show_model then "/api/show"
       when :list_models then "/api/tags"
       when :version then "/api/version"
@@ -133,6 +132,7 @@ module Ollama
       else "/api/#{@endpoint}"
       end
     end
+    alias path base_path
 
     # Convert to a hash for serialization
     def to_h
