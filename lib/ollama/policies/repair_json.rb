@@ -76,13 +76,18 @@ module Ollama
         in_string = false
         escape = false
 
-        body.chars.each_with_index do |char, _i|
-          next if escape
+        body.each_char do |char|
+          if escape
+            escape = false
+            next
+          end
 
-          escape = true if char == "\\" && in_string
-          escape = false if escape && char != "\\"
+          if char == "\\" && in_string
+            escape = true
+            next
+          end
 
-          if char == '"' && !escape
+          if char == '"'
             in_string = !in_string
             next
           end

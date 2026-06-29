@@ -126,8 +126,7 @@ module Ollama
 
         case prop["type"] || prop[:type]
         when "string" then ""
-        when "number" then 0
-        when "integer" then 0
+        when "number", "integer" then 0
         when "boolean" then false
         when "array" then []
         when "object" then {}

@@ -19,6 +19,7 @@ module Ollama
       # @param jitter [Float] Jitter factor 0.0-1.0 (default: 0.1)
       # @param retryable_errors [Array<Class>] Exception classes to retry (default: standard retryable)
       # @param hooks [Hash] Optional hooks: :before_retry, :after_retry
+      # rubocop:disable Metrics/ParameterLists
       def initialize(
         max_attempts: 3,
         strategy: :exponential,
@@ -37,6 +38,7 @@ module Ollama
         @retryable_errors = retryable_errors || default_retryable_errors
         @hooks = hooks
       end
+      # rubocop:enable Metrics/ParameterLists
 
       def call(request, env = {})
         attempt = 0
