@@ -8,7 +8,7 @@ require_relative "../parsers/chat"
 module Ollama
   class Client
     # Chat completion endpoint — the primary method for multi-turn conversations
-    module Chat
+    module Chat # rubocop:disable Metrics/ModuleLength
       # @param messages [Array<Hash>] Chat history, each with :role and :content (required)
       # @param model [String, nil] Model name override
       # @param format [Hash, String, nil] "json" or JSON Schema object for structured output

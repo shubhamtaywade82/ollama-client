@@ -59,6 +59,7 @@ module OllamaClient
   end
 end
 
+# Top-level namespace for the Ollama Client SDK
 module Ollama
   def self.config
     OllamaClient.config

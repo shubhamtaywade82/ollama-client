@@ -3,6 +3,7 @@
 require "time"
 
 module Ollama
+  # Testing support module for stubbing Ollama client responses in specs
   module Testing
     class << self
       attr_reader :stubbed_responses
@@ -25,6 +26,7 @@ module Ollama
       end
     end
 
+    # Client extension to intercept requests and return stubbed responses during testing
     module ClientExtension
       def chat(messages:, **args)
         stub = Ollama::Testing.pop_stub(:chat)
