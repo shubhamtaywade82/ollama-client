@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+# rubocop:disable Metrics/ModuleLength
 module LiveBranchSmokeUtilityExercises
   def exercise_version(client)
     v = client.version
@@ -371,3 +372,4 @@ module LiveBranchSmokeUtilityExercises
     smoke_emit("message.thinking", r.message.thinking)
   end
 end
+# rubocop:enable Metrics/ModuleLength
