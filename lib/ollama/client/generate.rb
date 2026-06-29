@@ -2,6 +2,11 @@
 
 require_relative "../generate_stream_handler"
 require_relative "../json_fragment_extractor"
+require_relative "../responses/generate"
+require_relative "../serializers/generate"
+require_relative "../parsers/generate"
+require_relative "generate/response_formatter"
+require_relative "generate/request_preparer"
 
 module Ollama
   class Client
@@ -47,6 +52,7 @@ module Ollama
         validate_thinking_capability!(params.model, params.think)
 
         @summarize_schema_cache = {}
+        formatter = ResponseFormatter.new(provider: @provider, config: @config, schema_cache: @summarize_schema_cache)
 
         attempts = 0
         started_at = monotonic_time
@@ -64,8 +70,8 @@ module Ollama
           emit_response_hook(raw_response,
                              endpoint: "/api/generate", model: params.model || @config.model, attempt: attempts)
 
-          response_data = process_generate_response(raw_response, params.schema, params.think, params.return_reasoning)
-          format_response(response_data, final_context, params.return_meta, params.model || @config.model, attempts, started_at)
+          response_data = formatter.process(raw_response, params.schema, params.think, params.return_reasoning)
+          formatter.format(response_data, final_context, params.return_meta, params.model || @config.model, attempts, started_at)
         rescue RateLimitExhaustedError => e
           raise e
         rescue NotFoundError => e
@@ -118,100 +124,22 @@ module Ollama
         "#{THINK_PROMPT}#{prompt}"
       end
 
-      def process_generate_response(raw_response, schema, think, return_reasoning)
-        if think && return_reasoning
-          extract_reasoning(raw_response, schema)
-        elsif schema
-          parsed = parse_json_response(raw_response)
-          SchemaValidator.validate!(parsed, schema)
-          parsed
-        else
-          raw_response
-        end
-      end
-
-      def format_response(response_data, context, return_meta, model, attempts, started_at)
-        return response_data unless return_meta
-
-        {
-          "data" => response_data,
-          "context" => context,
-          "meta" => {
-            "endpoint" => @provider.generate_endpoint.path,
-            "model" => model || @config.model,
-            "attempts" => attempts,
-            "latency_ms" => elapsed_ms(started_at)
-          }
-        }
-      end
-
-      def extract_reasoning(raw_text, user_schema)
-        reasoning = ""
-        final_output = raw_text
-
-        if raw_text.match?(%r{思考(.*?)</think>}mi)
-          reasoning = raw_text.match(%r{思考(.*?)</think>}mi)[1].strip
-          final_output = raw_text.sub(%r{思考.*?</think>}mi, "").strip
-        elsif raw_text.match?(/思考(.*?)回答/mi)
-          reasoning = raw_text.match(/思考(.*?)回答/mi)[1].strip
-          final_output = raw_text.sub(/思考.*?回答/mi, "").strip
-        elsif raw_text.include?("回答")
-          parts = raw_text.split("回答", 2)
-          reasoning = parts[0].sub("思考", "").strip
-          final_output = parts[1].strip
-        elsif raw_text.match?(%r{<think>(.*?)</think>}mi)
-          reasoning = raw_text.match(%r{<think>(.*?)</think>}mi)[1].strip
-          final_output = raw_text.sub(%r{<think>.*?</think>}mi, "").strip
-        elsif raw_text.include?("\n")
-          parts = raw_text.split("\n", 2)
-          reasoning = parts[0].strip
-          final_output = parts[1].strip
-        end
-
-        if user_schema
-          parsed_final = parse_json_response(final_output)
-          SchemaValidator.validate!(parsed_final, user_schema)
-          final_output = parsed_final
-        end
-
-        {
-          "reasoning" => reasoning,
-          "final" => final_output
-        }
-      end
-
-      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
-      # rubocop:disable Metrics/MethodLength, Metrics/PerceivedComplexity
-      # rubocop:disable Metrics/ParameterLists
+      # rubocop:disable Metrics/AbcSize, Metrics/MethodLength, Metrics/ParameterLists
       def call_generate_api(prompt:, context:, schema:, model:, hooks:, system: nil, images: nil,
                             think: nil, keep_alive: nil, suffix: nil, raw: nil, options: nil)
-        generate_uri = @provider.generate_endpoint
-        req = Net::HTTP::Post.new(generate_uri)
-        req["Content-Type"] = "application/json"
+        preparer = RequestPreparer.new(config: @config, provider: @provider, schema_cache: @summarize_schema_cache)
+        request = preparer.build_request(
+          prompt: prompt, context: context, schema: schema, model: model, hooks: hooks,
+          system: system, images: images, think: think, keep_alive: keep_alive,
+          suffix: suffix, raw: raw, options: options, client_instance: self
+        )
 
-        stream_enabled = streaming_requested?(hooks)
+        serializer = Serializers::Generate.new
+        transport_req = serializer.call(request)
 
-        request_params = {
-          model: model || @config.model,
-          prompt: prompt,
-          stream: stream_enabled,
-          options: build_options(options)
-        }
-
-        request_params[:context] = context if context
-        request_params[:system] = system if system
-        request_params[:images] = images if images
-        request_params[:think] = think unless think.nil?
-        request_params[:keep_alive] = keep_alive if keep_alive
-        request_params[:suffix] = suffix if suffix
-        request_params[:raw] = raw unless raw.nil?
-
-        if schema
-          request_params[:format] = schema
-          request_params[:prompt] = enhance_prompt_for_json(prompt, schema)
-        end
-
-        req.body = @provider.format_generate_request(request_params).to_json
+        stream_enabled = request.stream
+        config_timeout = request.metadata[:timeout]
+        config_model = request.model
 
         full_response = +""
         final_context = nil
@@ -220,26 +148,30 @@ module Ollama
           with_rate_limit_key_rotation do |api_key|
             full_response = +""
             final_context = nil
-            @config.apply_auth_to(req, api_key: api_key)
+            @config.apply_auth_to(transport_req, api_key: api_key) if transport_req.is_a?(Transport::Request)
 
-            Net::HTTP.start(generate_uri.hostname, generate_uri.port,
-                            **@config.http_connection_options(generate_uri)) do |h|
-              h.request(req) do |res|
-                handle_http_error(res, requested_model: model || @config.model) unless res.is_a?(Net::HTTPSuccess)
-
-                if stream_enabled
-                  GenerateStreamHandler.call(res, hooks, full_response, provider: @provider)
-                else
-                  response_body = @provider.normalize_generate_response(JSON.parse(res.body))
-                  full_response = response_body["response"]
-                  final_context = response_body["context"]
-                end
+            if stream_enabled
+              buffer = +""
+              handler = GenerateStreamHandler.new(nil, hooks, full_response, provider: @provider)
+              @pipeline.stream(transport_req) do |chunk|
+                handler.send(:drain_chunk, buffer, chunk)
               end
+            else
+              transport_response = @pipeline.call(transport_req)
+              if transport_response.raw && !transport_response.raw.is_a?(Net::HTTPSuccess)
+                handle_http_error(transport_response.raw,
+                                  requested_model: model || config_model)
+              end
+
+              parser = Parsers::Generate.new(provider: @provider)
+              parsed_response = parser.call(transport_response)
+              full_response = parsed_response.message.content
+              final_context = parsed_response.context
             end
           end
         rescue Net::ReadTimeout, Net::OpenTimeout => e
           hooks[:on_error]&.call(e)
-          raise TimeoutError, "Request timed out after #{@config.timeout}s"
+          raise TimeoutError, "Request timed out after #{config_timeout}s"
         rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
           hooks[:on_error]&.call(e)
           raise Error, "Connection failed: #{e.message}"
@@ -252,58 +184,7 @@ module Ollama
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse API response: #{e.message}"
       end
-      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity
-      # rubocop:enable Metrics/MethodLength, Metrics/PerceivedComplexity
-      # rubocop:enable Metrics/ParameterLists
-
-      def enhance_prompt_for_json(prompt, schema)
-        return prompt if prompt.match?(/json|JSON/i)
-
-        schema_summary = summarize_schema(schema)
-        json_instruction = "CRITICAL: Respond with ONLY valid JSON (no markdown code blocks, no explanations). " \
-                           "The JSON must include these exact required fields: #{schema_summary}"
-        "#{prompt}\n\n#{json_instruction}"
-      end
-
-      def summarize_schema(schema)
-        return "object" unless schema.is_a?(Hash)
-
-        cache_key = schema.hash
-        return @summarize_schema_cache[cache_key] if @summarize_schema_cache.key?(cache_key)
-
-        required = schema["required"] || []
-        properties = schema["properties"] || {}
-        return "object" if required.empty? && properties.empty?
-
-        example = {}
-        required.each do |key|
-          prop = properties[key] || {}
-          example[key] = case prop["type"]
-                         when "string" then "string_value"
-                         when "number" then 0
-                         when "boolean" then true
-                         when "array" then []
-                         else {}
-                         end
-        end
-
-        required_list = required.map { |k| "\"#{k}\"" }.join(", ")
-        example_json = JSON.pretty_generate(example)
-        result = "Required fields: [#{required_list}]. Example structure:\n#{example_json}"
-        @summarize_schema_cache[cache_key] = result
-        result
-      end
-
-      def parse_json_response(raw)
-        json_text = JsonFragmentExtractor.call(raw)
-        JSON.parse(json_text)
-      rescue JSON::ParserError => e
-        raise InvalidJSONError, "Failed to parse extracted JSON: #{e.message}. Extracted: #{json_text&.slice(0, 200)}..."
-      end
-
-      def streaming_requested?(hooks)
-        !(hooks[:on_token] || hooks[:on_error] || hooks[:on_complete]).nil?
-      end
+      # rubocop:enable Metrics/AbcSize, Metrics/MethodLength, Metrics/ParameterLists
 
       def enhance_not_found_error(error)
         return error if error.requested_model.nil?

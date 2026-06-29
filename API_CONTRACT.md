@@ -49,7 +49,7 @@ When `think: true` and `return_reasoning: true`, the return value is a `Hash` wi
 | `create_model` | `(model:, from:, system: nil, template: nil, license: nil, parameters: nil, messages: nil, quantize: nil, stream: false)` | `Hash` |
 | `push_model` | `(model:, insecure: false, stream: false)` | `Hash` |
 | `version` | `()` | `String` |
-| `embeddings` | _(attr_reader)_ | `Ollama::Embeddings` instance |
+| `embeddings` | *(attr_reader)* | `Ollama::Embeddings` instance |
 
 ### `Ollama::Embeddings`
 
@@ -122,7 +122,7 @@ All attributes are read/write via `attr_accessor`:
 |---|---|---|---|
 | `base_url` | `String` | `"http://localhost:11434"` | Ollama server URL |
 | `api_key` | `String, nil` | `nil` | Optional Bearer token for Ollama Cloud (`https://ollama.com`) |
-| `model` | `String` | `"llama3.2:3b"` | Default model for generation |
+| `model` | `String` | `"qwen3.5:4b"` | Default model for generation |
 | `timeout` | `Integer` | `30` | HTTP read/open timeout in seconds |
 | `retries` | `Integer` | `2` | Max retry attempts |
 | `strict_json` | `Boolean` | `true` | Enable JSON validation + repair |

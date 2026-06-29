@@ -12,7 +12,6 @@
 
 # Gem files
 *.gem
-Gemfile.lock
 
 # Editor files
 *.swp

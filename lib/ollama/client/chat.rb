@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 require_relative "chat_stream_processor"
+require_relative "../responses/chat"
+require_relative "../serializers/chat"
+require_relative "../parsers/chat"
+require_relative "chat/request_preparer"
 
 module Ollama
   class Client
@@ -41,71 +45,51 @@ module Ollama
 
       # @param params [Ollama::Params::Chat] Chat parameters
       # @return [Ollama::Response] Response wrapper with message, tool_calls, timing, etc.
-      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+      # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       def chat_with_params(params)
-        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
         raise ArgumentError, "messages is required" if params.messages.nil? || params.messages.empty?
 
-        target_model = params.model || @config.model
-        active_profile = resolve_profile(target_model, params.profile)
-        adapter = PromptAdapters.for(active_profile) if active_profile
+        preparer = RequestPreparer.new(config: @config, provider: @provider)
+        request = preparer.build_request(params, self)
 
-        # Apply multimodal inputs: build typed message and append to history
-        messages = if params.inputs
-                     apply_inputs(params.messages, params.inputs, active_profile)
-                   else
-                     params.messages
-                   end
-
-        # Apply prompt adapter (e.g. Gemma 4 prepends the family think tag to the system prompt)
-        adapted_messages = if adapter
-                             adapter.adapt_messages(messages, think: !params.think.nil?, tools: params.tools)
-                           else
-                             messages
-                           end
-
-        # Resolve think flag: adapter may handle it via prompt tag instead of API flag
-        effective_think = resolve_think_flag(params.think, adapter)
-
-        chat_uri = @provider.chat_endpoint
-        req = Net::HTTP::Post.new(chat_uri)
-        req["Content-Type"] = "application/json"
-
-        stream_enabled = params.stream.nil? ? hooks_present?(params.hooks) : params.stream
-
-        request_params = { model: target_model, messages: adapted_messages, stream: stream_enabled }
-        request_params[:format]      = params.format if params.format
-        request_params[:tools]       = params.tools if params.tools
-        request_params[:think]       = effective_think unless effective_think.nil?
-        request_params[:keep_alive]  = params.keep_alive if params.keep_alive
-        request_params[:logprobs]    = params.logprobs unless params.logprobs.nil?
-        request_params[:top_logprobs] = params.top_logprobs if params.top_logprobs
-        request_params[:options] = build_options_with_profile(params.options, active_profile)
-
-        req.body = @provider.format_chat_request(request_params).to_json
+        serializer = Serializers::Chat.new
+        transport_req = serializer.call(request)
         response_data = nil
+        stream_enabled = request.stream
+        config_timeout = request.metadata[:timeout]
+        target_model = request.model
+        chat_uri = request.metadata[:uri]
 
         begin
           with_rate_limit_key_rotation do |api_key|
             response_data = nil
-            @config.apply_auth_to(req, api_key: api_key)
+            @config.apply_auth_to(transport_req, api_key: api_key) if transport_req.is_a?(Transport::Request)
 
-            Net::HTTP.start(chat_uri.hostname, chat_uri.port,
-                            **@config.http_connection_options(chat_uri)) do |h|
-              h.request(req) do |res|
-                handle_http_error(res, requested_model: target_model) unless res.is_a?(Net::HTTPSuccess)
+            if stream_enabled
+              buffer = +""
+              processor = ChatStreamProcessor.new(params.hooks, provider: @provider)
+              processor.send(:reset_accumulators!)
 
-                response_data = if stream_enabled
-                                  ChatStreamProcessor.call(res, params.hooks, provider: @provider)
-                                else
-                                  @provider.normalize_chat_response(JSON.parse(res.body))
-                                end
+              @pipeline.stream(transport_req) do |chunk|
+                processor.send(:drain_chunk, buffer, chunk)
               end
+
+              response_data = processor.send(:build_result)
+            else
+              transport_response = @pipeline.call(transport_req)
+              if transport_response.raw && !transport_response.raw.is_a?(Net::HTTPSuccess)
+                handle_http_error(transport_response.raw,
+                                  requested_model: target_model)
+              end
+
+              parser = Parsers::Chat.new(provider: @provider)
+              parsed_response = parser.call(transport_response)
+              response_data = parsed_response.to_h
             end
           end
         rescue Net::ReadTimeout, Net::OpenTimeout => e
           params.hooks[:on_error]&.call(e)
-          raise TimeoutError, "Request timed out after #{@config.timeout}s"
+          raise TimeoutError, "Request timed out after #{config_timeout}s"
         rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
           params.hooks[:on_error]&.call(e)
           raise Error, "Connection failed: #{e.message}"
@@ -117,31 +101,11 @@ module Ollama
         emit_response_hook(response_data.is_a?(Hash) ? response_data.to_json : response_data,
                            endpoint: chat_uri.path, model: target_model)
 
-        Response.new(response_data)
+        Responses::Chat.new(response_data)
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse chat response: #{e.message}"
       end
-
-      private
-
-      def hooks_present?(hooks)
-        [hooks[:on_token], hooks[:on_thought], hooks[:on_error],
-         hooks[:on_complete], hooks[:on_tool_call]].any?
-      end
-
-      def apply_inputs(messages, inputs, active_profile)
-        input_obj = MultimodalInput.build(inputs, profile: active_profile || ModelProfile.for("generic"))
-        messages + [input_obj.to_message]
-      end
-
-      # Gemma 4 uses the system-prompt tag — do not send think: true to the API.
-      # Other adapters that inject_think_flag? pass the user's think value through.
-      def resolve_think_flag(think, adapter)
-        return nil if think.nil?
-        return nil if adapter&.inject_think_flag? == false && adapter.is_a?(PromptAdapters::Gemma4)
-
-        think
-      end
+      # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
     end
   end
 end

@@ -20,6 +20,7 @@ This document addresses three key areas that warrant attention in the `ollama-cl
 ### Responsibilities
 
 The `Client` class currently handles:
+
 1. HTTP communication with Ollama API
 2. JSON parsing and validation
 3. Schema validation
@@ -65,12 +66,14 @@ end
 ```
 
 **Benefits:**
+
 - Single Responsibility Principle
 - Easier to test
 - Easier to maintain
 - Can enable RuboCop metrics
 
 **Trade-offs:**
+
 - More files to navigate
 - Slightly more complex initialization
 
@@ -88,23 +91,27 @@ end
 ```
 
 **Benefits:**
+
 - Still one file
 - Better organization
 - Can test modules independently
 
 **Trade-offs:**
+
 - Still a large file
 - RuboCop metrics still problematic
 
 #### Option C: Accept Complexity (Current State)
 
 **Rationale:**
+
 - Client is the core API surface
 - All methods are public API
 - Breaking it up might make usage more complex
 - Current structure is functional
 
 **Action Items:**
+
 - Document why metrics are disabled
 - Add architectural decision record (ADR)
 - Consider refactoring in future major version
@@ -122,6 +129,7 @@ end
 ### Current State
 
 **Global Configuration:**
+
 ```ruby
 module OllamaClient
   @config_mutex = Mutex.new
@@ -136,6 +144,7 @@ end
 ```
 
 **Issues:**
+
 1. Mutex protects global config access, but warning says "not thread-safe"
 2. Confusing messaging - mutex IS present but warning suggests it's not safe
 3. Per-client config is recommended but not enforced
@@ -143,11 +152,13 @@ end
 ### Analysis
 
 **What's Actually Thread-Safe:**
+
 - ✅ Global config access (protected by mutex)
 - ✅ Per-client instances (each has own config)
 - ✅ Client methods (stateless, use instance config)
 
 **What's NOT Thread-Safe:**
+
 - ⚠️ Modifying global config while clients are using it
 - ⚠️ Shared config objects between threads (if mutated)
 
@@ -270,7 +281,7 @@ Need structured output?
 ```ruby
 # High-level API for beginners
 class SimpleAgent
-  def initialize(model: "llama3.2:3b")
+  def initialize(model: "qwen3.5:4b")
     @client = Ollama::Client.new
     @model = model
   end
@@ -294,6 +305,7 @@ end
 ### Recommended Approach
 
 **Immediate:**
+
 1. Add "Quick Start" section to README (Option A)
 2. Add decision tree diagram (Option B)
 
