@@ -47,7 +47,7 @@ module Ollama
         modality_order: %i[text]
       },
       qwen: {
-        pattern: /\bqwen\d*/i,
+        pattern: /\bqwen3(?![.\d])/i,
         thinking: true,
         multimodal: %i[text image],
         audio: false,

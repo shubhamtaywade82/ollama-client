@@ -53,19 +53,17 @@ module Ollama
             break if repaired_body
           end
 
-          if repaired_body
-            @hooks[:after_repair]&.call(repaired_body, env)
-            # Return new response with repaired body
-            response.class.new(
-              status: response.status,
-              headers: response.headers,
-              body: repaired_body,
-              raw: response.raw,
-              duration_ms: response.duration_ms
-            )
-          else
-            raise e
-          end
+          raise e unless repaired_body
+
+          @hooks[:after_repair]&.call(repaired_body, env)
+          # Return new response with repaired body
+          response.class.new(
+            status: response.status,
+            headers: response.headers,
+            body: repaired_body,
+            raw: response.raw,
+            duration_ms: response.duration_ms
+          )
         end
       end
 
@@ -78,10 +76,11 @@ module Ollama
         in_string = false
         escape = false
 
-        body.chars.each_with_index do |char, i|
+        body.chars.each_with_index do |char, _i|
           next if escape
-          escape = true if char == '\\' && in_string
-          escape = false if escape && char != '\\'
+
+          escape = true if char == "\\" && in_string
+          escape = false if escape && char != "\\"
 
           if char == '"' && !escape
             in_string = !in_string
@@ -91,18 +90,17 @@ module Ollama
           next if in_string
 
           case char
-          when '{' then open_braces += 1
-          when '}' then open_braces -= 1
-          when '[' then open_brackets += 1
-          when ']' then open_brackets -= 1
+          when "{" then open_braces += 1
+          when "}" then open_braces -= 1
+          when "[" then open_brackets += 1
+          when "]" then open_brackets -= 1
           end
-
         end
 
         # Add missing closing braces/brackets
         result = body.dup
-        result += '}' * open_braces if open_braces.positive?
-        result += ']' * open_brackets if open_brackets.positive?
+        result += "}" * open_braces if open_braces.positive?
+        result += "]" * open_brackets if open_brackets.positive?
 
         begin
           JSON.parse(result)
@@ -117,11 +115,11 @@ module Ollama
         return nil unless body.is_a?(String)
 
         # Find first { or [
-        start_idx = body.index(/[\{\[]/)
+        start_idx = body.index(/[{\[]/)
         return nil unless start_idx
 
         # Try to extract from start_idx
-        (start_idx..body.length - 1).each do |end_idx|
+        (start_idx..(body.length - 1)).each do |end_idx|
           candidate = body[start_idx..end_idx]
           begin
             JSON.parse(candidate)
