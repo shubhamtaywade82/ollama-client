@@ -5,6 +5,7 @@ require_relative "../json_fragment_extractor"
 require_relative "../responses/generate"
 require_relative "../serializers/generate"
 require_relative "../parsers/generate"
+require_relative "generate/response_formatter"
 
 module Ollama
   class Client
@@ -50,6 +51,7 @@ module Ollama
         validate_thinking_capability!(params.model, params.think)
 
         @summarize_schema_cache = {}
+        formatter = ResponseFormatter.new(provider: @provider, config: @config, schema_cache: @summarize_schema_cache)
 
         attempts = 0
         started_at = monotonic_time
@@ -67,8 +69,8 @@ module Ollama
           emit_response_hook(raw_response,
                              endpoint: "/api/generate", model: params.model || @config.model, attempt: attempts)
 
-          response_data = process_generate_response(raw_response, params.schema, params.think, params.return_reasoning)
-          format_response(response_data, final_context, params.return_meta, params.model || @config.model, attempts, started_at)
+          response_data = formatter.process(raw_response, params.schema, params.think, params.return_reasoning)
+          formatter.format(response_data, final_context, params.return_meta, params.model || @config.model, attempts, started_at)
         rescue RateLimitExhaustedError => e
           raise e
         rescue NotFoundError => e
@@ -119,68 +121,6 @@ module Ollama
         return prompt unless thinking
 
         "#{THINK_PROMPT}#{prompt}"
-      end
-
-      def process_generate_response(raw_response, schema, think, return_reasoning)
-        if think && return_reasoning
-          extract_reasoning(raw_response, schema)
-        elsif schema
-          parsed = parse_json_response(raw_response)
-          SchemaValidator.validate!(parsed, schema)
-          parsed
-        else
-          raw_response
-        end
-      end
-
-      def format_response(response_data, context, return_meta, model, attempts, started_at)
-        return response_data unless return_meta
-
-        {
-          "data" => response_data,
-          "context" => context,
-          "meta" => {
-            "endpoint" => @provider.generate_endpoint.path,
-            "model" => model || @config.model,
-            "attempts" => attempts,
-            "latency_ms" => elapsed_ms(started_at)
-          }
-        }
-      end
-
-      def extract_reasoning(raw_text, user_schema)
-        reasoning = ""
-        final_output = raw_text
-
-        if raw_text.match?(%r{思考(.*?)</think>}mi)
-          reasoning = raw_text.match(%r{思考(.*?)</think>}mi)[1].strip
-          final_output = raw_text.sub(%r{思考.*?</think>}mi, "").strip
-        elsif raw_text.match?(/思考(.*?)回答/mi)
-          reasoning = raw_text.match(/思考(.*?)回答/mi)[1].strip
-          final_output = raw_text.sub(/思考.*?回答/mi, "").strip
-        elsif raw_text.include?("回答")
-          parts = raw_text.split("回答", 2)
-          reasoning = parts[0].sub("思考", "").strip
-          final_output = parts[1].strip
-        elsif raw_text.match?(%r{<think>(.*?)</think>}mi)
-          reasoning = raw_text.match(%r{<think>(.*?)</think>}mi)[1].strip
-          final_output = raw_text.sub(%r{<think>.*?</think>}mi, "").strip
-        elsif raw_text.include?("\n")
-          parts = raw_text.split("\n", 2)
-          reasoning = parts[0].strip
-          final_output = parts[1].strip
-        end
-
-        if user_schema
-          parsed_final = parse_json_response(final_output)
-          SchemaValidator.validate!(parsed_final, user_schema)
-          final_output = parsed_final
-        end
-
-        {
-          "reasoning" => reasoning,
-          "final" => final_output
-        }
       end
 
       # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
@@ -326,13 +266,6 @@ module Ollama
         result = "Required fields: [#{required_list}]. Example structure:\n#{example_json}"
         @summarize_schema_cache[cache_key] = result
         result
-      end
-
-      def parse_json_response(raw)
-        json_text = JsonFragmentExtractor.call(raw)
-        JSON.parse(json_text)
-      rescue JSON::ParserError => e
-        raise InvalidJSONError, "Failed to parse extracted JSON: #{e.message}. Extracted: #{json_text&.slice(0, 200)}..."
       end
 
       def streaming_requested?(hooks)

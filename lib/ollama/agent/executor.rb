@@ -190,33 +190,7 @@ module Ollama
         keyword_result = call_with_keywords(callable, sym_args)
         return keyword_result[:value] if keyword_result[:success]
 
-        # Try keyword invocation first (common for Ruby tools).
-        begin
-          callable.call(**sym_args)
-        rescue ArgumentError => e
-          # If the error indicates required keyword arguments, try parameter aliases.
-          if e.message.include?("required keyword") || e.message.include?("missing keyword")
-            aliased_args = apply_parameter_aliases(sym_args, callable)
-            if aliased_args != sym_args
-              begin
-                return callable.call(**aliased_args)
-              rescue ArgumentError # rubocop:disable Metrics/BlockNesting
-                # Aliases didn't help, continue to try positional
-              end
-            end
-          end
-
-          # Try positional hash for callables that accept a hash argument.
-          # This handles cases where tools are defined as `lambda { |h| ... }` instead of keyword args.
-          begin
-            callable.call(args_hash)
-          rescue ArgumentError => positional_error
-            # If both keyword and positional fail, re-raise with context.
-            raise ArgumentError,
-                  "Tool invocation failed: #{positional_error.message}. Arguments provided: #{args_hash.inspect}. " \
-                  "Ensure the tool call includes all required parameters."
-          end
-        end
+        call_with_positional(callable, args_hash)
       end
 
       def normalize_parameter_names(args_hash)
