@@ -7,11 +7,13 @@ This guide shows you step-by-step how to create a client object to use all featu
 ### Option A: Using Bundler (Recommended)
 
 Add to your `Gemfile`:
+
 ```ruby
 gem "ollama-client"
 ```
 
 Then run:
+
 ```bash
 bundle install
 ```
@@ -46,7 +48,7 @@ client = Ollama::Client.new
 
 # Defaults:
 # - base_url: "http://localhost:11434"
-# - model: "llama3.2:3b"
+# - model: "qwen3.5:4b"
 # - timeout: 20 seconds
 # - retries: 2
 # - temperature: 0.2
@@ -131,7 +133,7 @@ Create a `config.json` file:
 ```json
 {
   "base_url": "http://localhost:11434",
-  "model": "llama3.2:3b",
+  "model": "qwen3.5:4b",
   "timeout": 30,
   "retries": 3,
   "temperature": 0.2,
@@ -335,7 +337,7 @@ require "ollama_client"
 # Step 2: Create client (using environment variables from .env)
 config = Ollama::Config.new
 config.base_url = ENV["OLLAMA_BASE_URL"] || "http://localhost:11434"
-config.model = ENV["OLLAMA_MODEL"] || "llama3.2:3b"
+config.model = ENV["OLLAMA_MODEL"] || "qwen3.5:4b"
 config.temperature = ENV["OLLAMA_TEMPERATURE"].to_f if ENV["OLLAMA_TEMPERATURE"]
 
 client = Ollama::Client.new(config: config)
@@ -367,7 +369,7 @@ end
 | Option | Default | Description |
 |--------|---------|-------------|
 | `base_url` | `"http://localhost:11434"` | Ollama server URL |
-| `model` | `"llama3.2:3b"` | Default model to use |
+| `model` | `"qwen3.5:4b"` | Default model to use |
 | `timeout` | `20` | Request timeout in seconds |
 | `retries` | `2` | Number of retry attempts on failure |
 | `temperature` | `0.2` | Model temperature (0.0-2.0) |

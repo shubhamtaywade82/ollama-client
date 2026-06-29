@@ -15,6 +15,7 @@ When the LLM was processing a response, the `llm>` prompt appeared immediately, 
 Added a **thinking indicator** that shows while waiting for the API response:
 
 **Before:**
+
 ```
 you> Hi
 llm> [cursor blinks here - looks like a prompt!]
@@ -23,6 +24,7 @@ llm> [cursor blinks here - looks like a prompt!]
 ```
 
 **After:**
+
 ```
 you> Hi
 ... [thinking indicator in cyan]
@@ -62,6 +64,7 @@ end
 ```
 
 **Key Changes:**
+
 - `\r` (carriage return) replaces `...` with `llm>` when first token arrives
 - `$stdout.flush` ensures immediate visual feedback
 - Clear visual state: thinking → responding → ready for input
@@ -71,11 +74,13 @@ end
 ### Problem
 
 Tool results were displayed as raw JSON dumps, making it hard to quickly understand:
+
 - **Which tool** was called
 - **What data** was retrieved
 - **Key information** from the response
 
 **Before:**
+
 ```
 Tool Results:
 - get_live_ltp
@@ -103,6 +108,7 @@ Tool Results:
 Implemented **formatted, human-readable tool results** that extract and display key information:
 
 **After:**
+
 ```
 🔧 Tool Called: get_live_ltp
    → NIFTY (IDX_I)
@@ -114,6 +120,7 @@ llm> The current price of NIFTY is 25694.35.
 ### Formatted Output by Tool
 
 #### 1. Live LTP (`get_live_ltp`)
+
 ```
 🔧 Tool Called: get_live_ltp
    → NIFTY (IDX_I)
@@ -121,6 +128,7 @@ llm> The current price of NIFTY is 25694.35.
 ```
 
 #### 2. Market Quote (`get_market_quote`)
+
 ```
 🔧 Tool Called: get_market_quote
    → RELIANCE
@@ -132,6 +140,7 @@ llm> The current price of NIFTY is 25694.35.
 #### 3. Historical Data (`get_historical_data`)
 
 **Regular data:**
+
 ```
 🔧 Tool Called: get_historical_data
    → Historical data: 30 records
@@ -139,6 +148,7 @@ llm> The current price of NIFTY is 25694.35.
 ```
 
 **With indicators:**
+
 ```
 🔧 Tool Called: get_historical_data
    → Technical Indicators:
@@ -150,6 +160,7 @@ llm> The current price of NIFTY is 25694.35.
 ```
 
 #### 4. Option Chain (`get_option_chain`)
+
 ```
 🔧 Tool Called: get_option_chain
    → Spot: ₹25694.35
@@ -158,6 +169,7 @@ llm> The current price of NIFTY is 25694.35.
 ```
 
 #### 5. Expiry List (`get_expiry_list`)
+
 ```
 🔧 Tool Called: get_expiry_list
    → Available expiries: 12
@@ -166,6 +178,7 @@ llm> The current price of NIFTY is 25694.35.
 ```
 
 #### 6. Find Instrument (`find_instrument`)
+
 ```
 🔧 Tool Called: find_instrument
    → Found: NIFTY
@@ -192,6 +205,7 @@ end
 ```
 
 Each tool has a dedicated formatter that:
+
 1. Extracts key information from the result
 2. Formats it in a human-readable way
 3. Uses color coding for better readability
@@ -200,11 +214,13 @@ Each tool has a dedicated formatter that:
 ## Benefits
 
 ### Chat Console
+
 ✅ **Clear visual feedback** - Users know when the LLM is thinking vs responding
 ✅ **No confusion** - Thinking indicator prevents accidental typing
 ✅ **Better UX** - Immediate response to user input
 
 ### DhanHQ Console
+
 ✅ **Instant comprehension** - See what tool was called at a glance
 ✅ **Key data highlighted** - Important values (price, volume) are prominent
 ✅ **Less noise** - No JSON clutter, just the facts
@@ -216,14 +232,16 @@ Each tool has a dedicated formatter that:
 Both consoles support environment variables:
 
 **Chat Console:**
+
 ```bash
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.2:3b
+OLLAMA_MODEL=qwen3.5:4b
 OLLAMA_TEMPERATURE=0.7
 OLLAMA_SYSTEM="You are a helpful assistant"
 ```
 
 **DhanHQ Console:**
+
 ```bash
 # All chat console vars, plus:
 DHANHQ_CLIENT_ID=your_client_id
@@ -243,6 +261,7 @@ ruby examples/dhan_console.rb
 ```
 
 Try queries like:
+
 - "What is NIFTY price?" → See formatted LTP
 - "Get RELIANCE quote" → See formatted quote with OHLC
 - "Show me historical data for NIFTY" → See record count

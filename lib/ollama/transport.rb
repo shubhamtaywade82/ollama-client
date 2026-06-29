@@ -5,6 +5,7 @@ require_relative "transport/base"
 require_relative "transport/net_http"
 require_relative "transport/response"
 require_relative "transport/mock"
+require_relative "transport/request"
 
 module Ollama
   # Transport adapter namespace and factory.
