@@ -37,10 +37,6 @@ module Ollama
 
         body.compact
       end
-
-      def build_uri(request, base_path)
-        request.metadata[:uri] || URI.join(request.metadata[:base_url] || "http://localhost:11434", base_path)
-      end
     end
   end
 end

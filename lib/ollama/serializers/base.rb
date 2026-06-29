@@ -34,6 +34,11 @@ module Ollama
       def path(request)
         request.base_path
       end
+
+      # Construct full URI from base URL and endpoint path
+      def build_uri(request, base_path)
+        request.metadata[:uri] || URI.join(request.metadata[:base_url] || "http://localhost:11434", base_path)
+      end
     end
   end
 end
