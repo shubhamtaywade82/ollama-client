@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation
 - `API_CONTRACT.md`: documented `hooks: { on_progress: }` on `pull`/`push_model`, and the full `create_model`/`pull` keyword signatures (previously only partially listed).
 
+### CI/CD
+- CI now also runs against Ruby 3.4, and splits `rspec`/`rubocop` into separate steps so failures are distinguishable at a glance.
+- Added a `build` job that builds the gem, installs it, and verifies the public API loads — catches packaging regressions on every PR instead of only at release time.
+- Added a `dependency-audit` job (`bundler-audit`) that fails the build on known CVEs in `Gemfile.lock`; fixed three vulnerable transitive dependencies it found (`erb`, `json`, `concurrent-ruby`, `addressable`).
+- Added a `ci` gate job aggregating `test`/`build`/`dependency-audit` for a single required branch-protection check.
+- Added a weekly CodeQL security-analysis workflow for Ruby.
+- Added Dependabot for weekly Bundler and GitHub Actions dependency updates.
+- `release.yml` now runs the full test suite and RuboCop before building/publishing a tagged gem.
+
 ## [1.3.0] - 2026-04-20
 
 ### Added

@@ -2,8 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -12,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ruby: ["3.2", "3.3"]
+        ruby: ["3.2", "3.3", "3.4"]
 
     steps:
       - uses: actions/checkout@v4
@@ -25,8 +29,11 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
 
-      - name: Run tests and linting
-        run: bundle exec rake
+      - name: Run tests
+        run: COVERAGE=true bundle exec rspec
+
+      - name: Run RuboCop
+        run: bundle exec rubocop
 
       - name: Upload coverage
         if: matrix.ruby == '3.3'
@@ -34,3 +41,76 @@ jobs:
         with:
           files: coverage/.resultset.json
           fail_ci_if_error: false
+
+  build:
+    runs-on: ubuntu-latest
+    name: Gem packaging
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Build gem
+        run: gem build ollama-client.gemspec
+
+      - name: Install built gem into a clean environment
+        run: gem install ./ollama-client-*.gem --local
+
+      - name: Verify the gem loads and exposes its public API
+        run: |
+          ruby -e '
+            require "ollama_client"
+            raise "VERSION missing" unless defined?(Ollama::VERSION)
+            raise "Client missing" unless defined?(Ollama::Client)
+            client = Ollama::Client.new
+            %i[chat generate list_models pull embeddings web_search web_fetch].each do |m|
+              raise "Client##{m} missing from public API" unless client.respond_to?(m)
+            end
+            puts "OK: ollama-client #{Ollama::VERSION} loads and exposes its documented API"
+          '
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    name: Dependency vulnerability audit
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Install bundler-audit
+        run: gem install bundler-audit
+
+      - name: Update vulnerability database
+        run: bundle-audit update
+
+      - name: Audit Gemfile.lock for known CVEs
+        run: bundle-audit check --update
+
+  ci:
+    name: CI gate
+    if: always()
+    needs: [test, build, dependency-audit]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any required job failed
+        run: |
+          if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "true" ]; then
+            echo "One or more required checks failed:"
+            echo "  test: ${{ needs.test.result }}"
+            echo "  build: ${{ needs.build.result }}"
+            echo "  dependency-audit: ${{ needs.dependency-audit.result }}"
+            exit 1
+          fi
+          echo "All required checks passed."
