@@ -212,7 +212,7 @@ DEPENDENCIES
   ollama-client!
   rake (~> 13.4)
   rspec (~> 3.0)
-  rubocop (~> 1.21)
+  rubocop (~> 1.89)
   rubocop-rake
   rubocop-rspec
   rubycritic
