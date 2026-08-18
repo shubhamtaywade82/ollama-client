@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-require_relative "middleware"
+require_relative "../middleware"
 
 module Ollama
-  module Middleware
+  class Middleware
     # Metrics middleware - collects request/response metrics
     class Metrics < Ollama::Middleware
       attr_reader :collector, :hooks
