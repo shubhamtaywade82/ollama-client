@@ -12,11 +12,10 @@ require "json"
 
 MODEL = ENV.fetch("MODEL", "qwen3.5:4b")
 EMBED_MODEL = ENV.fetch("EMBED_MODEL", "nomic-embed-text")
-$passed = 0
-$failed = 0
+COUNTS = { passed: 0, failed: 0 } # rubocop:disable Style/MutableConstant -- counters are mutated in place
 
 def section(title)
-  puts "\n" + "=" * 70
+  puts "\n#{"=" * 70}"
   puts "  #{title}"
   puts "=" * 70
 end
@@ -27,10 +26,10 @@ def test(name)
   begin
     yield
     puts "\e[32m\u2713\e[0m PASS"
-    $passed += 1
-  rescue => e
+    COUNTS[:passed] += 1
+  rescue StandardError => e
     puts "\e[31m\u2717\e[0m FAIL: #{e.message}"
-    $failed += 1
+    COUNTS[:failed] += 1
   end
 end
 
@@ -42,8 +41,8 @@ def assert(cond, msg = "assertion failed")
   raise msg unless cond
 end
 
-def assert_eq(a, b, msg = nil)
-  raise msg || "expected #{a.inspect} == #{b.inspect}" unless a == b
+def assert_eq(actual, expected, msg = nil)
+  raise msg || "expected #{actual.inspect} == #{expected.inspect}" unless actual == expected
 end
 
 def assert_kind(klass, obj)
@@ -55,7 +54,10 @@ def assert_not_empty(obj)
 end
 
 def quick_client(timeout: 30)
-  Ollama::Client.new(config: Ollama::Config.new.tap { _1.timeout = timeout; _1.retries = 0 })
+  Ollama::Client.new(config: Ollama::Config.new.tap do |c|
+    c.timeout = timeout
+    c.retries = 0
+  end)
 end
 
 section("CONFIGURATION")
@@ -79,7 +81,7 @@ test("Custom config") do
   c.retries = 5
   c.temperature = 0.8
   c.top_p = 0.95
-  c.num_ctx = 16384
+  c.num_ctx = 16_384
   c.strict_json = false
   assert_eq "http://custom:11434", c.base_url
   assert_eq "test-model", c.model
@@ -88,8 +90,14 @@ test("Custom config") do
 end
 
 test("Per-client config isolation") do
-  c1 = Ollama::Config.new.tap { _1.model = "model-a"; _1.temperature = 0.1 }
-  c2 = Ollama::Config.new.tap { _1.model = "model-b"; _1.temperature = 0.9 }
+  c1 = Ollama::Config.new.tap do |c|
+    c.model = "model-a"
+    c.temperature = 0.1
+  end
+  c2 = Ollama::Config.new.tap do |c|
+    c.model = "model-b"
+    c.temperature = 0.9
+  end
   assert_eq "model-a", Ollama::Client.new(config: c1).config.model
   assert_eq "model-b", Ollama::Client.new(config: c2).config.model
   assert_eq 0.1, Ollama::Client.new(config: c1).config.temperature
@@ -127,15 +135,15 @@ test("generate with return_meta") do
   assert_kind Hash, result
   assert result.key?("data")
   assert result.key?("meta")
-  info "meta: #{result['meta']}"
+  info "meta: #{result["meta"]}"
 end
 
 test("generate streaming hooks") do
   tokens = []
   result = quick_client(timeout: 10).generate(prompt: "Count 1 2 3", model: MODEL, hooks: {
-    on_token: ->(t) { tokens << t },
-    on_complete: -> {}
-  })
+                                                on_token: ->(t) { tokens << t },
+                                                on_complete: -> {}
+                                              })
   assert_not_empty result
   info "received #{tokens.size} token callbacks"
 end
@@ -171,13 +179,13 @@ section("EMBEDDINGS")
 test("single embedding") do
   result = quick_client(timeout: 30).embeddings.embed(model: EMBED_MODEL, input: "Hello world")
   assert_kind Array, result
-  assert result.size > 0
+  assert result.size.positive?
   assert_kind Float, result.first
   info "dimension: #{result.size}"
 end
 
 test("batch embedding") do
-  result = quick_client(timeout: 30).embeddings.embed(model: EMBED_MODEL, input: ["Hello", "World"])
+  result = quick_client(timeout: 30).embeddings.embed(model: EMBED_MODEL, input: %w[Hello World])
   assert_kind Array, result
   assert_eq 2, result.size
   assert_kind Array, result.first
@@ -195,7 +203,7 @@ end
 test("list model names") do
   names = quick_client.list_model_names
   assert_kind Array, names
-  assert names.size > 0
+  assert names.size.positive?
   info "names: #{names.first(5)}"
 end
 
@@ -233,7 +241,7 @@ test("Tool DSL produces valid tool hash") do
   hash = weather.to_tool_hash
   assert_eq "get_weather", hash.dig("function", "name")
   assert_eq "celsius", hash.dig("function", "parameters", "properties", "unit", "default")
-  info "tool: #{hash.dig('function', 'name')}, params: #{hash.dig('function', 'parameters', 'properties').keys.join(', ')}"
+  info "tool: #{hash.dig("function", "name")}, params: #{hash.dig("function", "parameters", "properties").keys.join(", ")}"
 end
 
 test("Schema DSL produces valid schema") do
@@ -245,7 +253,7 @@ test("Schema DSL produces valid schema") do
   assert_eq "object", schema["type"]
   assert_eq %w[color price], schema["required"]
   assert_eq %w[red green blue], schema["properties"]["color"]["enum"]
-  info "schema: type=#{schema['type']}, required=#{schema['required']}"
+  info "schema: type=#{schema["type"]}, required=#{schema["required"]}"
 end
 
 section("PROFILES & SANITIZER")
@@ -260,9 +268,9 @@ test("history sanitizer") do
   s = Ollama::Client.new.history_sanitizer(MODEL)
   assert_kind Ollama::HistorySanitizer, s
   cleaned = s.sanitize([
-    { role: "user", content: "Hi" },
-    { role: "assistant", content: "Hello" }
-  ])
+                         { role: "user", content: "Hi" },
+                         { role: "assistant", content: "Hello" }
+                       ])
   assert_kind Array, cleaned
   info "sanitized #{cleaned.size} messages"
 end
@@ -273,7 +281,7 @@ test("raw GET /api/tags") do
   result = quick_client.raw.get("/api/tags")
   assert_kind Hash, result
   assert result.key?("models")
-  info "found #{result['models'].size} models"
+  info "found #{result["models"].size} models"
 end
 
 section("ERROR HIERARCHY")
@@ -290,8 +298,8 @@ test("all error classes inherit from Ollama::Error") do
   info "8 error classes verified"
 end
 
-total = $passed + $failed
-puts "\n" + "=" * 70
-puts "  RESULTS: #{$passed}/#{total} passed, #{$failed} failed"
+total = COUNTS[:passed] + COUNTS[:failed]
+puts "\n#{"=" * 70}"
+puts "  RESULTS: #{COUNTS[:passed]}/#{total} passed, #{COUNTS[:failed]} failed"
 puts "=" * 70
-exit($failed > 0 ? 1 : 0)
+exit(COUNTS[:failed].positive? ? 1 : 0)
