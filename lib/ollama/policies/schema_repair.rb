@@ -19,11 +19,11 @@ module Ollama
         @hooks = hooks
       end
 
-      def call(request, env = {})
-        response = @app.call(request, env)
+      def around(request, env, &block)
+        response = block.call(request, env)
 
         # Only validate/repair if schema is provided
-        schema = request.raw_options&.dig(:schema) || request.raw_options&.dig(:format)
+        schema = body_hash(request)["format"]
         return response unless schema
 
         attempt = 0
@@ -33,7 +33,7 @@ module Ollama
           attempt += 1
           env[:schema_repair_attempt] = attempt
 
-          parsed = parse_body(current_response)
+          parsed = extract_structured(current_response)
           return current_response unless parsed
 
           begin
@@ -51,16 +51,28 @@ module Ollama
             raise e unless repaired
 
             @hooks[:after_repair]&.call(repaired, env)
-            current_response = create_repaired_response(current_response, repaired)
+            current_response = embed_repaired(current_response, repaired)
           end
         end
       end
 
-      def stream(request, env = {}, &block)
-        @app.stream(request, env, &block)
-      end
-
       private
+
+      # Extract the structured payload from a response body. Ollama wraps
+      # schema-formatted output as a JSON string in "response" (generate)
+      # or message.content (chat); returns nil when there is nothing to
+      # validate.
+      def extract_structured(response)
+        body = parse_body(response)
+        return nil unless body.is_a?(Hash)
+
+        raw = body["response"] || body.dig("message", "content")
+        return nil unless raw.is_a?(String) && !raw.empty?
+
+        JSON.parse(raw)
+      rescue JSON::ParserError
+        nil
+      end
 
       def parse_body(response)
         return nil unless response&.body
@@ -74,6 +86,24 @@ module Ollama
         end
       rescue JSON::ParserError
         nil
+      end
+
+      def embed_repaired(original_response, repaired_data)
+        body = parse_body(original_response)
+        encoded = JSON.generate(repaired_data)
+        if body.is_a?(Hash) && body["response"].is_a?(String)
+          body["response"] = encoded
+        elsif body.is_a?(Hash) && body.dig("message", "content").is_a?(String)
+          body["message"]["content"] = encoded
+        end
+
+        original_response.class.new(
+          status: original_response.status,
+          headers: original_response.headers,
+          body: JSON.generate(body),
+          raw: original_response.raw,
+          duration_ms: original_response.duration_ms
+        )
       end
 
       def validate_schema(data, schema)
@@ -144,16 +174,6 @@ module Ollama
         when "object" then value.is_a?(Hash) ? value : {}
         else value
         end
-      end
-
-      def create_repaired_response(original_response, repaired_data)
-        original_response.class.new(
-          status: original_response.status,
-          headers: original_response.headers,
-          body: JSON.generate(repaired_data),
-          raw: original_response.raw,
-          duration_ms: original_response.duration_ms
-        )
       end
     end
   end

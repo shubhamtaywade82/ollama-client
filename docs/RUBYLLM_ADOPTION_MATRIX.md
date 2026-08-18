@@ -131,7 +131,7 @@ for rejection.
 | G3 | Retry tuning | `max_retries`, `retry_interval`, `retry_backoff_factor`, `retry_interval_randomness` | `config.retries` only; backoff hardcoded `2 ** attempt`, no jitter | **COPY** | Add interval/factor/jitter knobs. Contract-safe: `API_CONTRACT.md` explicitly permits retry-timing changes and new config attributes with compatible defaults |
 | G4 | Logging | `logger`, `log_file`, `log_level`, `log_stream_debug` | `config.on_response` callback only | **COPY (core) + ECOSYSTEM** | Minimal `config.logger` in core; OTel/metrics/exporters → `ollama-observability` |
 | G5 | Proxy / connection | `http_proxy`, Faraday connection options | `http_connection_options` (ssl + timeouts) | **COPY** | Proxy support + connection pooling (already on `ROADMAP.md`) |
-| G6 | Transport swap | Faraday middleware, not a documented public seam | `Transport::Base`/`NetHTTP`/`Mock` factory (`lib/ollama/transport.rb`) | **HAVE / exceed** | Formalize as the middleware stack in `IMPROVE.md` Phase 4 |
+| G6 | Transport swap | Faraday middleware, not a documented public seam | `Transport::Base`/`NetHTTP`/`Mock` factory (`lib/ollama/transport.rb`) + `client.use(policy)` middleware stack (`lib/ollama/policies/`) | **HAVE / exceed** | Formalize the middleware stack in `API_CONTRACT.md` |
 | G7 | Raw escape hatch | `with_params`, `response.raw` | `client.raw.get/post/delete` (`lib/ollama/client/raw.rb`) + `client.openai` facade | **HAVE / exceed** | — |
 | G8 | Error taxonomy | `Error`, `BadRequest`, `Unauthorized`, `RateLimit`, `ServerError`, `ModelNotFound`, … | 11 typed errors with documented retryability + recovery guarantees | **HAVE / exceed** | — |
 | G9 | Multi-key failover | None | `ApiKeyPool` + round-robin + rate-limit rotation (`lib/ollama/api_key_pool.rb`) | **HAVE / exceed** | Relevant to Ollama Cloud; keep and document |
@@ -196,6 +196,10 @@ the current Ollama API docs before claiming it:
 The strategy says `ollama-client` owns tool *schema, parsing, validation, normalization*, and
 `ollama-agent` owns *execution loops, permissions, scheduling, policies*. RubyLLM puts the loop in core.
 Meanwhile `Ollama::Agent::Executor` already sits in this gem's `lib/`, undeclared in `API_CONTRACT.md`.
+**UPDATE (2026-08): `Ollama::Agent::Executor` is now declared public — it is required by the default
+load path, `#run` uses the current `chat()` API (tool loop included), and string or symbol tool keys
+are both accepted. The strategic question below still stands for future `ollama-agent` work, but the
+loop-in-core default is now implemented.**
 
 **Recommendation: put a bounded loop in core, and keep policy out.**
 
@@ -266,4 +270,4 @@ finalized (A10, B8, L) → `ollama-stream` / async (D7).
 | `Ollama::Response#cost` | Never — explicitly rejected (E7) |
 | `config.retry_interval`, `config.logger`, `config.default_embedding_model`, `config.http_proxy` | Additive with compatible defaults — permitted |
 | `Ollama::ToolLoopExhausted` | New error under the existing hierarchy — permitted |
-| `Agent::Executor` | Must be either declared public with a contract, made private, or moved to `ollama-agent`. Currently undefined status |
+| `Agent::Executor` | Must be either declared public with a contract, made private, or moved to `ollama-agent`. Currently undefined status. **UPDATE (2026-08): declared public and wired into the default load path; `#run` now uses the current `chat()` API.** |

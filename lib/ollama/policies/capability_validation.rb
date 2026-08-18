@@ -20,21 +20,21 @@ module Ollama
         @hooks = hooks
       end
 
-      def call(request, env = {})
-        return @app.call(request, env) unless @enabled
+      def around(request, env, &block)
+        return block.call(request, env) unless @enabled
 
         # Skip if no model or endpoint doesn't require capabilities
-        return @app.call(request, env) unless validate_capabilities?(request)
+        return block.call(request, env) unless validate_capabilities?(request)
 
-        model = request.model
-        return @app.call(request, env) unless model
+        model = request_model(request)
+        return block.call(request, env) unless model
 
         # Get model profile (with caching)
         profile = get_model_profile(model)
 
         # Check capabilities
         missing = check_capabilities(request, profile)
-        return @app.call(request, env) if missing.empty?
+        return block.call(request, env) if missing.empty?
 
         @hooks[:capability_missing]&.call(missing, model, env)
 
@@ -42,15 +42,11 @@ module Ollama
               "Model '#{model}' does not support: #{missing.join(", ")}"
       end
 
-      def stream(request, env = {}, &block)
-        call(request, env) { |req, env| @app.stream(req, env, &block) }
-      end
-
       private
 
       def validate_capabilities?(request)
         # Only validate for endpoints that may require specific capabilities
-        %i[chat generate embeddings].include?(request.endpoint)
+        %i[chat generate embeddings].include?(endpoint(request))
       end
 
       def get_model_profile(model)
@@ -60,9 +56,9 @@ module Ollama
           return cached
         end
 
-        # Get profile from capabilities module
-        require_relative "../capabilities"
-        profile = Ollama::Capabilities.for(model)
+        # Infer capabilities from the model name pattern
+        require_relative "../model_profile"
+        profile = Ollama::ModelProfile.for(model)
 
         @cache&.write(cache_key, profile, expires_in: @cache_ttl)
 
@@ -70,22 +66,20 @@ module Ollama
       end
 
       def check_capabilities(request, profile)
+        body = body_hash(request)
         missing = []
 
         # Check thinking capability
-        missing << "thinking" if request.raw_options&.dig(:think) && !profile["thinking"]
+        missing << "thinking" if body["think"] && !profile.thinking?
 
         # Check vision capability
-        missing << "vision" if request.raw_options&.dig(:images) && !profile["vision"]
+        missing << "vision" if body["images"] && !profile.supports_modality?(:image)
 
         # Check tools capability
-        missing << "tools" if request.raw_options&.dig(:tools) && !profile["tools"]
+        missing << "tools" if body["tools"] && !profile.tool_calling?
 
         # Check structured output capability
-        missing << "structured_output" if request.raw_options&.dig(:format) && !profile["structured_output"]
-
-        # Check embeddings capability
-        missing << "embeddings" if request.endpoint == :embeddings && !profile["embeddings"]
+        missing << "structured_output" if body["format"] && !profile.structured_output?
 
         missing
       end

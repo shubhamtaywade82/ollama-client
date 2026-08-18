@@ -6,7 +6,18 @@ module Ollama
   class Error < StandardError; end
   class TimeoutError < Error; end
   class InvalidJSONError < Error; end
-  class SchemaViolationError < Error; end
+
+  # Raised when structured output does not match the requested JSON schema.
+  # Carries structured violation details for repair middleware.
+  class SchemaViolationError < Error
+    attr_reader :violations
+
+    def initialize(message = nil, violations: [])
+      super(message)
+      @violations = Array(violations)
+    end
+  end
+
   class RetryExhaustedError < Error; end
   class ChatNotAllowedError < Error; end
   class StreamError < Error; end

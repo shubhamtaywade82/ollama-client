@@ -25,8 +25,8 @@ module Ollama
         @hooks = hooks
       end
 
-      def call(request, env = {})
-        return @app.call(request, env) unless @enabled && !@models.empty?
+      def around(request, env, &block)
+        return block.call(request, env) unless @enabled && !@models.empty?
 
         current_request = request
         last_error = nil
@@ -37,7 +37,7 @@ module Ollama
           env[:fallback_index] = index
 
           begin
-            response = @app.call(current_request, env)
+            response = block.call(current_request, env)
             @hooks[:fallback_succeeded]&.call(model, index, env) if index.positive?
             return response
           rescue StandardError => e
@@ -51,24 +51,6 @@ module Ollama
 
         # All fallbacks exhausted
         raise last_error
-      end
-
-      def stream(request, env = {}, &block)
-        call(request, env) { |req, env| @app.stream(req, env, &block) }
-      end
-
-      private
-
-      def request_with_model(request, model)
-        # Create new request with fallback model
-        if request.respond_to?(:with_model)
-          request.with_model(model)
-        else
-          # For Request objects, create a new one
-          attrs = request.to_h
-          attrs[:model] = model
-          Request.build(request.endpoint, **attrs)
-        end
       end
     end
   end

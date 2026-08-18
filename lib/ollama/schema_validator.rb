@@ -28,17 +28,46 @@ module Ollama
       raise SchemaViolationError, "Expected object, got #{data.class}" unless data.is_a?(Hash)
       raise SchemaViolationError, "Expected hash, got nil" if data.nil?
 
-      if @additional_properties == false
-        extra = data.keys - @properties.keys
-        raise SchemaViolationError, "Additional properties not allowed: #{extra.join(", ")}" unless extra.empty?
-      end
+      check_additional_properties!(data)
+      check_required!(data)
+      check_property_types!(data)
 
+      data
+    end
+
+    private
+
+    def check_additional_properties!(data)
+      return unless @additional_properties == false
+
+      extra = data.keys - @properties.keys
+      return if extra.empty?
+
+      raise SchemaViolationError.new(
+        "Additional properties not allowed: #{extra.join(", ")}",
+        violations: extra.map { |key| { type: :additional_properties, field: key } }
+      )
+    end
+
+    def check_required!(data)
       required_missing = @required.reject { |key| data.key?(key) }
-      raise SchemaViolationError, "Required properties missing: #{required_missing.join(", ")}" unless required_missing.empty?
+      return if required_missing.empty?
 
+      raise SchemaViolationError.new(
+        "Required properties missing: #{required_missing.join(", ")}",
+        violations: required_missing.map { |key| { type: :missing_required_field, field: key } }
+      )
+    end
+
+    def check_property_types!(data)
       data.each do |key, value|
         expected = @properties[key]
-        raise SchemaViolationError, "Unexpected property: #{key}" if expected.nil? && @additional_properties == false
+        if expected.nil? && @additional_properties == false
+          raise SchemaViolationError.new(
+            "Unexpected property: #{key}",
+            violations: [{ type: :additional_properties, field: key }]
+          )
+        end
 
         next unless expected.is_a?(Hash)
 
@@ -46,15 +75,14 @@ module Ollama
         next unless expected_type
 
         actual_type = type_name(value)
-        unless type_matches?(actual_type, expected_type)
-          raise SchemaViolationError, "Type mismatch for #{key}: expected #{expected_type}, got #{actual_type}"
-        end
+        next if type_matches?(actual_type, expected_type)
+
+        raise SchemaViolationError.new(
+          "Type mismatch for #{key}: expected #{expected_type}, got #{actual_type}",
+          violations: [{ type: :type_mismatch, field: key, expected: expected_type }]
+        )
       end
-
-      data
     end
-
-    private
 
     def type_name(value)
       case value

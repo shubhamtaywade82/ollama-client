@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require_relative "errors"
+require_relative "transport/response"
+
 module Ollama
   # Pipeline orchestrates the middleware execution chain.
   # It wraps the transport and applies middleware in order.
@@ -59,7 +62,9 @@ module Ollama
         # Run before_request hooks
         modified_request = run_before_request_chain(request, env)
 
-        # Execute the transport
+        # HTTP failures are surfaced as typed errors inside the transport
+        # chain (see Transport::Base#call) so policy middleware (Retry,
+        # AutoPull, Fallback) can observe them.
         response = chain.call(modified_request, env)
 
         # Run after_response hooks
@@ -153,7 +158,8 @@ module Ollama
     end
 
     def call(request, env = {})
-      @middleware.around(request, env) { @app.call(request, env) }
+      # Yielded args let middleware modify the request/env mid-chain (e.g. Fallback).
+      @middleware.around(request, env) { |req, e| @app.call(req || request, e || env) }
     end
 
     def stream(uri:, request:, &block)

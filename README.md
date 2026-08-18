@@ -256,6 +256,39 @@ client.use Ollama::Middleware::Logger # Logs requests/responses
 client.use MyCustomMiddleware
 ```
 
+### Production Policies
+```ruby
+client = Ollama::Client.new
+
+# Retry network failures and HTTP 429/5xx with backoff
+client.use Ollama::Policies::Retry, max_attempts: 3
+
+# Auto-pull missing models on 404, then retry
+client.use Ollama::Policies::AutoPull
+
+# Fall back to alternative models on failure
+client.use Ollama::Policies::Fallback, models: %w[gemma4:31b llama3.1:8b]
+```
+
+See `API_CONTRACT.md` → "Policy Middleware" for the full catalog (Timeout, RateLimit,
+CapabilityValidation, RepairJson, SchemaRepair).
+
+### Agent Executor (Tool-Calling Loop)
+```ruby
+client = Ollama::Client.new
+
+tools = {
+  "get_price" => ->(symbol:) { { symbol: symbol, price: 24500.50 } }
+}
+
+executor = Ollama::Agent::Executor.new(client, tools: tools)
+answer = executor.run(
+  system: "You are a helpful trading assistant.",
+  user: "What is the price of NIFTY?"
+)
+puts answer
+```
+
 ### OpenAI Compatibility
 ```ruby
 require "ollama/openai"

@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+require_relative "../parsers/show_model"
+require_relative "../parsers/list_running"
+require_relative "../parsers/version"
+
 module Ollama
   class Client
     # Model management endpoints: CRUD, pull/push, list, show, version
@@ -13,7 +17,7 @@ module Ollama
         body = { model: model }
         body[:verbose] = true if verbose
         res = execute_management_request("/api/show", body: body, model: model)
-        parsed = JSON.parse(res.body)
+        parsed = Parsers::ShowModel.new.call(management_response(res))
         parsed["capabilities"] = Capabilities.for(parsed)
         parsed
       rescue JSON::ParserError => e
@@ -217,8 +221,7 @@ module Ollama
       # @return [Array<Hash>] Array of running model hashes with name, size, vram, context_length, etc.
       def list_running
         res = execute_management_request("/api/ps", method: :get)
-        body = JSON.parse(res.body)
-        models = body["models"] || []
+        models = Parsers::ListRunning.new.call(management_response(res))
         models.each { |m| m["capabilities"] = Capabilities.for(m) }
         models
       rescue JSON::ParserError => e
@@ -233,8 +236,7 @@ module Ollama
         return nil if @provider.is_a?(Providers::OpenAI)
 
         res = execute_management_request("/api/version", method: :get)
-        body = JSON.parse(res.body)
-        body["version"]
+        Parsers::Version.new.call(management_response(res))
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse version response: #{e.message}"
       end
@@ -265,6 +267,11 @@ module Ollama
 
         end
         res
+      end
+
+      # Wrap a Net::HTTP response for the parser layer (Parsers::*).
+      def management_response(res)
+        Transport::Response.new(status: res.code.to_i, headers: {}, body: res.body, raw: res)
       end
 
       def handle_ndjson_stream(uri, req, hooks)

@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "net/http"
 require_relative "base"
 
 module Ollama
@@ -53,7 +54,7 @@ module Ollama
       end
       # rubocop:enable Metrics/ParameterLists
 
-      def call(request, env = {})
+      def around(request, env, &block)
         attempt = 0
         last_error = nil
 
@@ -62,8 +63,7 @@ module Ollama
           env[:attempt] = attempt
 
           begin
-            response = @app.call(request, env)
-            return response
+            return block.call(request, env)
           rescue StandardError => e
             last_error = e
 
@@ -89,10 +89,6 @@ module Ollama
         raise last_error || e
       end
 
-      def stream(request, env = {}, &block)
-        @app.stream(request, env, &block)
-      end
-
       private
 
       def build_strategy(strategy)
@@ -115,6 +111,8 @@ module Ollama
       def default_retryable_errors
         [
           TimeoutError,
+          Net::ReadTimeout,
+          Net::OpenTimeout,
           Errno::ECONNREFUSED,
           Errno::EHOSTUNREACH,
           Errno::ETIMEDOUT,
@@ -128,19 +126,26 @@ module Ollama
         # Check if error class is in retryable list
         return true if @retryable_errors.any? { |cls| error.is_a?(cls) }
 
-        # Check for HTTP 429 (rate limit) and 5xx
-        if error.respond_to?(:status)
-          status = error.status
-          return true if status == 429 || (status >= 500 && status < 600)
-        end
+        server_error?(status_of(error)) || server_error?(response_code_of(error))
+      end
 
-        # Check for HTTP 429 in response
-        if error.respond_to?(:response) && error.response&.code
-          code = error.response.code.to_i
-          return true if code == 429 || (code >= 500 && code < 600)
+      def status_of(error)
+        if error.respond_to?(:status_code)
+          error.status_code
+        elsif error.respond_to?(:status)
+          error.status
         end
+      end
 
-        false
+      def response_code_of(error)
+        return unless error.respond_to?(:response) && error.response&.code
+
+        error.response.code.to_i
+      end
+
+      # Retry on 429 (rate limit) and 5xx server errors.
+      def server_error?(status)
+        status == 429 || (status.is_a?(Integer) && status >= 500 && status < 600)
       end
     end
   end
