@@ -12,6 +12,14 @@ module Ollama
         raise NotImplementedError, "transport adapter must implement #request"
       end
 
+      def call(request, _env = {})
+        request(
+          uri: request.uri,
+          request: request,
+          read_timeout: request.timeout
+        )
+      end
+
       def stream(_uri:, _request:, &_block)
         raise NotImplementedError, "transport adapter must implement #stream"
       end

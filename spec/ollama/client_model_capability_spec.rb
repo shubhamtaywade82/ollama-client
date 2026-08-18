@@ -14,7 +14,7 @@ RSpec.describe Ollama::Client do
     end
 
     it "returns a generic profile for unknown models" do
-      p = client.profile("llama3.2:3b")
+      p = client.profile("qwen3.5:4b")
       expect(p.family).to eq(:generic)
     end
   end

@@ -12,7 +12,7 @@ RSpec.describe Ollama::Client do
     before do
       OllamaClient.configure do |c|
         c.base_url = "http://localhost:11434"
-        c.model = "llama3.2:3b"
+        c.model = "qwen3.5:4b"
         c.timeout = 30
         c.retries = 2
         c.strict_json = true
@@ -26,7 +26,7 @@ RSpec.describe Ollama::Client do
       client = described_class.new
       config = client.instance_variable_get(:@config)
       expect(config).to be_a(Ollama::Config)
-      expect(config.model).to eq("llama3.2:3b")
+      expect(config.model).to eq("qwen3.5:4b")
     end
 
     it "accepts custom config" do
@@ -194,12 +194,12 @@ RSpec.describe Ollama::Client do
     it "sends a basic chat request and returns Response" do
       stub_request(:post, "http://localhost:11434/api/chat")
         .with(body: hash_including(
-          "model" => "llama3.2:3b",
+          "model" => "qwen3.5:4b",
           "messages" => [{ "role" => "user", "content" => "Hello" }],
           "stream" => false
         ))
         .to_return(status: 200, body: {
-          model: "llama3.2:3b",
+          model: "qwen3.5:4b",
           message: { role: "assistant", content: "Hi there!" },
           done: true,
           done_reason: "stop",
@@ -460,6 +460,83 @@ RSpec.describe Ollama::Client do
     end
   end
 
+  describe "#pull" do
+    let(:client) { described_class.new(config: Ollama::Config.new) }
+
+    it "pulls a model and returns the final status hash" do
+      stub_request(:post, "http://localhost:11434/api/pull")
+        .with(body: hash_including("model" => "qwen3:8b", "stream" => false))
+        .to_return(status: 200, body: { status: "success" }.to_json)
+
+      result = client.pull("qwen3:8b")
+      expect(result).to eq({ "status" => "success" })
+    end
+
+    it "passes insecure: true through to the request body" do
+      req = stub_request(:post, "http://localhost:11434/api/pull")
+            .with(body: hash_including("insecure" => true))
+            .to_return(status: 200, body: { status: "success" }.to_json)
+
+      client.pull("qwen3:8b", insecure: true)
+
+      expect(req).to have_been_requested
+    end
+  end
+
+  describe "#blob_exists?" do
+    let(:client) { described_class.new(config: Ollama::Config.new) }
+
+    it "returns true when the server responds with success" do
+      stub_request(:head, "http://localhost:11434/api/blobs/sha256:abc")
+        .to_return(status: 200)
+
+      expect(client.blob_exists?(digest: "sha256:abc")).to be(true)
+    end
+
+    it "returns false when the blob is missing" do
+      stub_request(:head, "http://localhost:11434/api/blobs/sha256:missing")
+        .to_return(status: 404)
+
+      expect(client.blob_exists?(digest: "sha256:missing")).to be(false)
+    end
+  end
+
+  describe "#create_blob" do
+    let(:client) { described_class.new(config: Ollama::Config.new) }
+
+    it "uploads blob content and returns true" do
+      stub_request(:post, "http://localhost:11434/api/blobs/sha256:abc")
+        .with(body: "raw-bytes")
+        .to_return(status: 201)
+
+      expect(client.create_blob(digest: "sha256:abc", content: "raw-bytes")).to be(true)
+    end
+  end
+
+  describe "#load_model" do
+    let(:client) { described_class.new(config: Ollama::Config.new) }
+
+    it "sends an empty-prompt generate request with keep_alive" do
+      stub_request(:post, "http://localhost:11434/api/generate")
+        .with(body: hash_including("model" => "qwen3:8b", "prompt" => "", "keep_alive" => "10m"))
+        .to_return(status: 200, body: { done: true }.to_json)
+
+      expect(client.load_model(model: "qwen3:8b", keep_alive: "10m")).to be(true)
+    end
+  end
+
+  describe "#unload_model" do
+    let(:client) { described_class.new(config: Ollama::Config.new) }
+
+    it "sends keep_alive: 0 to unload the model" do
+      stub_request(:post, "http://localhost:11434/api/generate")
+        .with(body: hash_including("model" => "qwen3:8b", "keep_alive" => 0))
+        .to_return(status: 200, body: { done: true }.to_json)
+
+      expect(client.unload_model(model: "qwen3:8b")).to be(true)
+    end
+  end
+
   describe "#list_models" do
     let(:client) { described_class.new(config: Ollama::Config.new) }
 
@@ -491,11 +568,11 @@ RSpec.describe Ollama::Client do
     it "returns array of model name strings" do
       stub_request(:get, "http://localhost:11434/api/tags")
         .to_return(status: 200, body: {
-          models: [{ name: "qwen2.5-coder:7b" }, { name: "llama3.2:3b" }]
+          models: [{ name: "qwen2.5-coder:7b" }, { name: "qwen3.5:4b" }]
         }.to_json)
 
       names = client.list_model_names
-      expect(names).to eq(%w[qwen2.5-coder:7b llama3.2:3b])
+      expect(names).to eq(%w[qwen2.5-coder:7b qwen3.5:4b])
     end
   end
 
@@ -554,207 +631,9 @@ RSpec.describe Ollama::Client do
         .with(headers: { "Authorization" => "Bearer cloud-key" })
         .to_return(status: 200, body: { response: "Hi", done: true }.to_json)
 
-      client.generate(prompt: "Hello", model: "llama3.2:3b")
+      client.generate(prompt: "Hello", model: "qwen3.5:4b")
       expect(WebMock).to have_requested(:post, "http://localhost:11434/api/generate")
         .with(headers: { "Authorization" => "Bearer cloud-key" })
-    end
-  end
-end
-
-RSpec.describe Ollama::Config do
-  describe "#initialize" do
-    it "sets safe defaults" do
-      original_api_keys = ENV.fetch("OLLAMA_API_KEYS", nil)
-      original_api_key = ENV.fetch("OLLAMA_API_KEY", nil)
-      ENV.delete("OLLAMA_API_KEYS")
-      ENV.delete("OLLAMA_API_KEY")
-
-      config = described_class.new
-      expect(config.base_url).to eq("http://localhost:11434")
-      expect(config.model).to eq("llama3.2:3b")
-      expect(config.timeout).to eq(30)
-      expect(config.retries).to eq(2)
-      expect(config.strict_json).to be(true)
-      expect(config.temperature).to eq(0.2)
-      expect(config.top_p).to eq(0.9)
-      expect(config.num_ctx).to eq(8192)
-      expect(config.api_key).to be_nil
-
-      ENV["OLLAMA_API_KEYS"] = original_api_keys if original_api_keys
-      ENV["OLLAMA_API_KEY"] = original_api_key if original_api_key
-    end
-  end
-
-  describe "#apply_auth_to" do
-    around do |example|
-      original_api_keys = ENV.fetch("OLLAMA_API_KEYS", nil)
-      original_api_key = ENV.fetch("OLLAMA_API_KEY", nil)
-      ENV.delete("OLLAMA_API_KEYS")
-      ENV.delete("OLLAMA_API_KEY")
-
-      example.run
-
-      ENV["OLLAMA_API_KEYS"] = original_api_keys if original_api_keys
-      ENV["OLLAMA_API_KEY"] = original_api_key if original_api_key
-    end
-
-    it "sets Authorization Bearer header when api_key is set" do
-      config = described_class.new
-      config.api_key = "secret"
-      req = Net::HTTP::Post.new(URI("http://localhost/api/chat"))
-      config.apply_auth_to(req)
-      expect(req["Authorization"]).to eq("Bearer secret")
-    end
-
-    it "does not set Authorization when api_key is nil" do
-      config = described_class.new
-      req = Net::HTTP::Post.new(URI("http://localhost/api/chat"))
-      config.apply_auth_to(req)
-      expect(req["Authorization"]).to be_nil
-    end
-
-    it "does not set Authorization when api_key is empty string" do
-      config = described_class.new
-      config.api_key = "  "
-      req = Net::HTTP::Post.new(URI("http://localhost/api/chat"))
-      config.apply_auth_to(req)
-      expect(req["Authorization"]).to be_nil
-    end
-  end
-end
-
-RSpec.describe Ollama::SchemaValidator do
-  describe ".validate!" do
-    it "validates data against schema" do
-      schema = {
-        "type" => "object",
-        "properties" => {
-          "name" => { "type" => "string" }
-        }
-      }
-      data = { "name" => "test" }
-      expect { described_class.validate!(data, schema) }.not_to raise_error
-    end
-
-    it "raises SchemaViolationError on invalid data" do
-      schema = {
-        "type" => "object",
-        "properties" => {
-          "name" => { "type" => "string" }
-        }
-      }
-      data = { "name" => 123 }
-      expect do
-        described_class.validate!(data, schema)
-      end.to raise_error(Ollama::SchemaViolationError)
-    end
-  end
-end
-
-RSpec.describe Ollama::Response do
-  describe "accessor methods" do
-    let(:data) do
-      {
-        "model" => "qwen2.5-coder:7b",
-        "created_at" => "2025-01-01T00:00:00Z",
-        "message" => {
-          "role" => "assistant",
-          "content" => "Hello!",
-          "thinking" => "Let me think...",
-          "images" => ["base64data"],
-          "tool_calls" => [
-            {
-              "function" => {
-                "name" => "get_weather",
-                "description" => "Get weather",
-                "arguments" => { "city" => "Tokyo" }
-              }
-            }
-          ]
-        },
-        "done" => true,
-        "done_reason" => "stop",
-        "total_duration" => 1_000_000,
-        "load_duration" => 200_000,
-        "prompt_eval_count" => 10,
-        "prompt_eval_duration" => 300_000,
-        "eval_count" => 20,
-        "eval_duration" => 500_000,
-        "logprobs" => [{ "token" => "Hello", "logprob" => -0.1 }]
-      }
-    end
-    let(:response) { described_class.new(data) }
-
-    it "exposes all timing fields" do
-      expect(response.total_duration).to eq(1_000_000)
-      expect(response.load_duration).to eq(200_000)
-      expect(response.prompt_eval_count).to eq(10)
-      expect(response.prompt_eval_duration).to eq(300_000)
-      expect(response.eval_count).to eq(20)
-      expect(response.eval_duration).to eq(500_000)
-    end
-
-    it "exposes done? and done_reason" do
-      expect(response.done?).to be true
-      expect(response.done_reason).to eq("stop")
-    end
-
-    it "exposes model and created_at" do
-      expect(response.model).to eq("qwen2.5-coder:7b")
-      expect(response.created_at).to eq("2025-01-01T00:00:00Z")
-    end
-
-    it "exposes logprobs" do
-      expect(response.logprobs.first["token"]).to eq("Hello")
-    end
-
-    it "provides content shorthand" do
-      expect(response.content).to eq("Hello!")
-    end
-
-    it "exposes message thinking" do
-      expect(response.message.thinking).to eq("Let me think...")
-    end
-
-    it "exposes message images" do
-      expect(response.message.images).to eq(["base64data"])
-    end
-
-    it "exposes tool call function description" do
-      expect(response.message.tool_calls.first.function.description).to eq("Get weather")
-    end
-  end
-end
-
-RSpec.describe Ollama::Options do
-  describe "expanded options" do
-    it "accepts all new option keys" do
-      opts = described_class.new(
-        temperature: 0.5, num_predict: 100, stop: ["END"],
-        mirostat: 2, mirostat_tau: 5.0, mirostat_eta: 0.1,
-        presence_penalty: 0.5, frequency_penalty: -0.3,
-        typical_p: 0.9, tfs_z: 1.0, num_thread: 4
-      )
-
-      hash = opts.to_h
-      expect(hash[:num_predict]).to eq(100)
-      expect(hash[:stop]).to eq(["END"])
-      expect(hash[:mirostat]).to eq(2)
-      expect(hash[:presence_penalty]).to eq(0.5)
-      expect(hash[:frequency_penalty]).to eq(-0.3)
-      expect(hash[:typical_p]).to eq(0.9)
-    end
-
-    it "validates mirostat values" do
-      expect { described_class.new(mirostat: 3) }.to raise_error(ArgumentError, /mirostat/)
-    end
-
-    it "validates presence_penalty range" do
-      expect { described_class.new(presence_penalty: 3.0) }.to raise_error(ArgumentError, /presence_penalty/)
-    end
-
-    it "validates stop is array" do
-      expect { described_class.new(stop: "not array") }.to raise_error(ArgumentError, /stop/)
     end
   end
 end

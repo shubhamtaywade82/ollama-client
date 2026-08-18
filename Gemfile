@@ -22,3 +22,5 @@ gem "webmock", "~> 3.18"
 gem "dotenv", "~> 2.8"
 
 gem "concurrent-ruby", "~> 1.2"
+
+gem "rubycritic", require: false

@@ -28,7 +28,9 @@ client = Ollama::Client.new(config: Ollama::Config.new)
 
 | Method | Signature | Returns |
 |---|---|---|
-| `generate` | `(prompt:, schema: nil, model: nil, strict: config.strict_json, return_meta: false, system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil, options: nil, hooks: {})` | `String` (no schema) or `Hash` (with schema) |
+| `generate` | `(prompt:, context: nil, schema: nil, model: nil, strict: config.strict_json, return_meta: false, system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil, options: nil, hooks: {}, tools: nil)` | `String` (no schema) or `Hash` (with schema) |
+
+`context:` accepts the `context` array returned by a previous `generate` call (or via `return_meta: true`) for `/api/generate`-side conversational memory, independent of `chat`'s message history.
 
 When `think: true` and `return_reasoning: true`, the return value is a `Hash` with:
 
@@ -43,13 +45,28 @@ When `think: true` and `return_reasoning: true`, the return value is a `Hash` wi
 | `list_model_names` | `()` | `Array<String>` |
 | `list_running` / `ps` | `()` | `Array<Hash>` |
 | `show_model` | `(model:, verbose: false)` | `Hash` |
-| `pull` | `(model_name)` | `true` |
+| `pull` | `(model_name, insecure: false, stream: false, hooks: {})` | `Hash` (final status) |
 | `delete_model` | `(model:)` | `true` |
 | `copy_model` | `(source:, destination:)` | `true` |
-| `create_model` | `(model:, from:, system: nil, template: nil, license: nil, parameters: nil, messages: nil, quantize: nil, stream: false)` | `Hash` |
-| `push_model` | `(model:, insecure: false, stream: false)` | `Hash` |
+| `create_model` | `(model:, from: nil, modelfile: nil, path: nil, system: nil, template: nil, license: nil, parameters: nil, messages: nil, quantize: nil, stream: false)` | `Hash` |
+| `push_model` | `(model:, insecure: false, stream: false, hooks: {})` | `Hash` (final status) |
+| `blob_exists?` | `(digest:)` | `Boolean` |
+| `create_blob` | `(digest:, content:)` | `true` |
+| `load_model` | `(model:, keep_alive: "5m")` | `true` |
+| `unload_model` | `(model:)` | `true` |
 | `version` | `()` | `String` |
-| `embeddings` | _(attr_reader)_ | `Ollama::Embeddings` instance |
+| `embeddings` | *(attr_reader)* | `Ollama::Embeddings` instance |
+
+`pull` and `push_model` accept `hooks: { on_progress: ->(status) { ... } }`, invoked once per streamed NDJSON status line (`stream: true`) with the parsed status `Hash`.
+
+#### Web Search (Ollama Cloud)
+
+Require `config.base_url = "https://ollama.com"` and `config.api_key` / `OLLAMA_API_KEY`.
+
+| Method | Signature | Returns |
+|---|---|---|
+| `web_search` | `(query:, max_results: nil)` | `Array<Hash>` (`"title"`, `"url"`, `"content"`) |
+| `web_fetch` | `(url:)` | `Hash` (`"title"`, `"content"`, `"links"`) |
 
 ### `Ollama::Embeddings`
 
@@ -122,7 +139,7 @@ All attributes are read/write via `attr_accessor`:
 |---|---|---|---|
 | `base_url` | `String` | `"http://localhost:11434"` | Ollama server URL |
 | `api_key` | `String, nil` | `nil` | Optional Bearer token for Ollama Cloud (`https://ollama.com`) |
-| `model` | `String` | `"llama3.2:3b"` | Default model for generation |
+| `model` | `String` | `"qwen3.5:4b"` | Default model for generation |
 | `timeout` | `Integer` | `30` | HTTP read/open timeout in seconds |
 | `retries` | `Integer` | `2` | Max retry attempts |
 | `strict_json` | `Boolean` | `true` | Enable JSON validation + repair |
@@ -130,6 +147,29 @@ All attributes are read/write via `attr_accessor`:
 | `top_p` | `Float` | `0.9` | Nucleus sampling |
 | `num_ctx` | `Integer` | `8192` | Context window size |
 | `on_response` | `Proc/nil` | `nil` | Global response callback |
+
+### Raw Escape Hatch
+
+`client.raw` — direct HTTP access for endpoints without a dedicated method. Auth, retries, and error
+mapping (`handle_http_error`) are applied the same as typed methods; the response body is JSON-parsed.
+
+| Method | Signature | Returns |
+|---|---|---|
+| `raw.get` | `(path, query: nil)` | `Hash` |
+| `raw.post` | `(path, payload: {}, query: nil)` | `Hash` |
+| `raw.delete` | `(path, payload: nil, query: nil)` | `Hash` |
+
+### OpenAI Compatibility Facade
+
+`client.openai` — wraps `chat`, `generate`, `embeddings`, and `list_models` in OpenAI Chat Completions
+API request/response shapes, for code written against OpenAI-shaped SDKs.
+
+| Method | Signature | Returns |
+|---|---|---|
+| `openai.models.list` | `()` | `Hash` (`{"object"=>"list", "data"=>[...]}`) |
+| `openai.embeddings.create` | `(model:, input:, **opts)` | `Hash` (`{"object"=>"list", "data"=>[...], "model"=>...}`) |
+| `openai.chat.completions.create` | `(model:, messages:, tools: nil, temperature: nil, top_p: nil, **)` | `Hash` (OpenAI chat completion shape) |
+| `openai.completions.create` | `(model:, prompt:, temperature: nil, top_p: nil, **)` | `Hash` (OpenAI text completion shape) |
 
 ## Error Classes
 
