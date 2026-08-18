@@ -20,7 +20,7 @@ gem "timecop", "~> 0.9"
 gem "vcr", "~> 6.2"
 gem "webmock", "~> 3.26"
 
-gem "dotenv", "~> 2.8"
+gem "dotenv", "~> 3.2"
 
 gem "concurrent-ruby", "~> 1.2"
 
