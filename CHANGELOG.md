@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.4.0] - 2026-08-18
 
 ### Added
 - `Ollama::Policies::*` middleware is now **wired and public**: `client.use(Ollama::Policies::Retry, ...)` etc. attaches retry/timeout/auto-pull/fallback/rate-limit/capability-validation/JSON-repair/schema-repair policies to the request pipeline. The Rack-style `call(request, env)`/`@app` scaffolding was converted to the pipeline's `around` contract, and HTTP failures now surface as typed errors *inside* the chain (`Transport::Base#call` → `Errors.from_response`) so policies can observe 404/429/5xx responses. Documented in `API_CONTRACT.md`.
@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SchemaViolationError` now carries structured `violations` (field/type data), raised by `SchemaValidator` and consumed by `SchemaRepair`.
 - `Ollama::Schemas.tool_intent` is now the default schema for `client.generate_tool_intent`.
 - `list_running`, `show_model`, and `version` now parse through `Parsers::{ListRunning,ShowModel,Version}` (previously dead files).
+- Multi-API-key Ollama Cloud failover via `Ollama::Config#api_keys`, `OLLAMA_API_KEYS`, and automatic HTTP 429 rotation with `Ollama::RateLimitExhaustedError` when every key remains rate-limited.
+- `ENABLE_MULTI_KEY_CONCURRENCY` / `Ollama::Config#enable_multi_key_concurrency` for thread-safe round-robin initial key distribution across concurrent requests.
+- `Ollama::Client#web_search` and `#web_fetch` — Ollama Cloud `/api/web_search` and `/api/web_fetch` endpoints (see `API_CONTRACT.md`).
+
+### Changed
+- Repositioned gem identity from "agent-first" to "Ruby AI SDK for Ollama" in gemspec and README. No API, behavior, or config changes.
 
 ### Removed
 - Genuinely dead duplicates with zero references: `lib/ollama/parsers/{list_models,model_management}.rb` and `lib/ollama/serializers/vision.rb`.
@@ -27,16 +33,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed the now-redundant top-level `lib/ollama/openai_compat.rb` (zero references anywhere; `Ollama::Client` already includes `OpenAICompat` directly). `lib/ollama/openai.rb`'s `require "ollama/openai"` (documented in README) is kept for backwards compatibility — it's a harmless no-op now, since `client.openai` already works without it.
   - `Ollama::Agent::Executor#run` still calls `Client#chat_raw`, a pre-refactor method that no longer exists (superseded by `chat()`), and is deliberately **not** added to the default load path — see the note in `lib/ollama/agent/executor.rb`: `docs/RUBYLLM_ADOPTION_MATRIX.md` section L tracks whether tool-execution loops belong in core or a separate `ollama-agent` gem as an open question. **Resolved in the Added section above: wired into the default load path on the current `chat()` API.**
   - Confirmed genuinely dead with zero references anywhere (code, docs, examples): `lib/ollama/parsers/{list_models,list_running,model_management,show_model,version}.rb`, `lib/ollama/serializers/vision.rb`, `lib/ollama/schemas/tool_intent.rb`. Since resolved: `list_running`/`show_model`/`version` parsers are wired into model management, `Schemas.tool_intent` is the default intent schema, and the remaining dead duplicates were removed (see Added/Removed above).
-
-## [1.4.0] - 2026-08-18
-
-### Changed
-- Repositioned gem identity from "agent-first" to "Ruby AI SDK for Ollama" in gemspec and README. No API, behavior, or config changes.
-
-### Added
-- Multi-API-key Ollama Cloud failover via `Ollama::Config#api_keys`, `OLLAMA_API_KEYS`, and automatic HTTP 429 rotation with `Ollama::RateLimitExhaustedError` when every key remains rate-limited.
-- `ENABLE_MULTI_KEY_CONCURRENCY` / `Ollama::Config#enable_multi_key_concurrency` for thread-safe round-robin initial key distribution across concurrent requests.
-- `Ollama::Client#web_search` and `#web_fetch` — Ollama Cloud `/api/web_search` and `/api/web_fetch` endpoints (see `API_CONTRACT.md`).
 
 ### Documentation
 - `API_CONTRACT.md`: documented `hooks: { on_progress: }` on `pull`/`push_model`, and the full `create_model`/`pull` keyword signatures (previously only partially listed).
