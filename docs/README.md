@@ -9,6 +9,7 @@ This directory contains internal development documentation for the ollama-client
 ## Contents
 
 ### Design Documentation
+- **[RUBYLLM_ADOPTION_MATRIX.md](RUBYLLM_ADOPTION_MATRIX.md)** - Feature-by-feature comparison against RubyLLM's public API, with copy/improve/reject/ecosystem verdicts and a prioritized build order
 - **[HANDLERS_ANALYSIS.md](HANDLERS_ANALYSIS.md)** - Analysis of handler architecture decisions (why we didn't adopt ollama-ruby's handler pattern)
 - **[FEATURES_ADDED.md](FEATURES_ADDED.md)** - Features integrated from ollama-ruby that align with our agent-first philosophy
 - **[PRODUCTION_FIXES.md](PRODUCTION_FIXES.md)** - Production-ready fixes for hybrid agents (JSON parsing, retry policy, etc.)
