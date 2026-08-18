@@ -460,6 +460,83 @@ RSpec.describe Ollama::Client do
     end
   end
 
+  describe "#pull" do
+    let(:client) { described_class.new(config: Ollama::Config.new) }
+
+    it "pulls a model and returns the final status hash" do
+      stub_request(:post, "http://localhost:11434/api/pull")
+        .with(body: hash_including("model" => "qwen3:8b", "stream" => false))
+        .to_return(status: 200, body: { status: "success" }.to_json)
+
+      result = client.pull("qwen3:8b")
+      expect(result).to eq({ "status" => "success" })
+    end
+
+    it "passes insecure: true through to the request body" do
+      req = stub_request(:post, "http://localhost:11434/api/pull")
+            .with(body: hash_including("insecure" => true))
+            .to_return(status: 200, body: { status: "success" }.to_json)
+
+      client.pull("qwen3:8b", insecure: true)
+
+      expect(req).to have_been_requested
+    end
+  end
+
+  describe "#blob_exists?" do
+    let(:client) { described_class.new(config: Ollama::Config.new) }
+
+    it "returns true when the server responds with success" do
+      stub_request(:head, "http://localhost:11434/api/blobs/sha256:abc")
+        .to_return(status: 200)
+
+      expect(client.blob_exists?(digest: "sha256:abc")).to be(true)
+    end
+
+    it "returns false when the blob is missing" do
+      stub_request(:head, "http://localhost:11434/api/blobs/sha256:missing")
+        .to_return(status: 404)
+
+      expect(client.blob_exists?(digest: "sha256:missing")).to be(false)
+    end
+  end
+
+  describe "#create_blob" do
+    let(:client) { described_class.new(config: Ollama::Config.new) }
+
+    it "uploads blob content and returns true" do
+      stub_request(:post, "http://localhost:11434/api/blobs/sha256:abc")
+        .with(body: "raw-bytes")
+        .to_return(status: 201)
+
+      expect(client.create_blob(digest: "sha256:abc", content: "raw-bytes")).to be(true)
+    end
+  end
+
+  describe "#load_model" do
+    let(:client) { described_class.new(config: Ollama::Config.new) }
+
+    it "sends an empty-prompt generate request with keep_alive" do
+      stub_request(:post, "http://localhost:11434/api/generate")
+        .with(body: hash_including("model" => "qwen3:8b", "prompt" => "", "keep_alive" => "10m"))
+        .to_return(status: 200, body: { done: true }.to_json)
+
+      expect(client.load_model(model: "qwen3:8b", keep_alive: "10m")).to be(true)
+    end
+  end
+
+  describe "#unload_model" do
+    let(:client) { described_class.new(config: Ollama::Config.new) }
+
+    it "sends keep_alive: 0 to unload the model" do
+      stub_request(:post, "http://localhost:11434/api/generate")
+        .with(body: hash_including("model" => "qwen3:8b", "keep_alive" => 0))
+        .to_return(status: 200, body: { done: true }.to_json)
+
+      expect(client.unload_model(model: "qwen3:8b")).to be(true)
+    end
+  end
+
   describe "#list_models" do
     let(:client) { described_class.new(config: Ollama::Config.new) }
 

@@ -43,11 +43,15 @@ When `think: true` and `return_reasoning: true`, the return value is a `Hash` wi
 | `list_model_names` | `()` | `Array<String>` |
 | `list_running` / `ps` | `()` | `Array<Hash>` |
 | `show_model` | `(model:, verbose: false)` | `Hash` |
-| `pull` | `(model_name, insecure: false, stream: false, hooks: {})` | `true` |
+| `pull` | `(model_name, insecure: false, stream: false, hooks: {})` | `Hash` (final status) |
 | `delete_model` | `(model:)` | `true` |
 | `copy_model` | `(source:, destination:)` | `true` |
 | `create_model` | `(model:, from: nil, modelfile: nil, path: nil, system: nil, template: nil, license: nil, parameters: nil, messages: nil, quantize: nil, stream: false)` | `Hash` |
-| `push_model` | `(model:, insecure: false, stream: false, hooks: {})` | `Hash` |
+| `push_model` | `(model:, insecure: false, stream: false, hooks: {})` | `Hash` (final status) |
+| `blob_exists?` | `(digest:)` | `Boolean` |
+| `create_blob` | `(digest:, content:)` | `true` |
+| `load_model` | `(model:, keep_alive: "5m")` | `true` |
+| `unload_model` | `(model:)` | `true` |
 | `version` | `()` | `String` |
 | `embeddings` | *(attr_reader)* | `Ollama::Embeddings` instance |
 
