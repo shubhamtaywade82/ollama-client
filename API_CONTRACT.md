@@ -1,6 +1,6 @@
-# API Contract — v1.3.0
+# API Contract — v1.4.0
 
-This document defines the **public API surface** of `ollama-client` v1.3.0.
+This document defines the **public API surface** of `ollama-client` v1.4.0.
 Everything listed here is guaranteed stable until `v2.0.0` (unless explicitly marked as *may evolve* in minor releases).
 
 ## Public Methods
