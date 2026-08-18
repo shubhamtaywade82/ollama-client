@@ -234,6 +234,17 @@ client.pull("qwen3.5:4b") # Pull new model
 client.delete_model(model: "old-model")
 ```
 
+### Web Search & Fetch (Ollama Cloud)
+```ruby
+client = Ollama::Client.new(config: Ollama::Config.new.tap do |c|
+  c.base_url = "https://ollama.com"
+  c.api_key  = ENV.fetch("OLLAMA_API_KEY")
+end)
+
+client.web_search(query: "what is ollama?") # => [{ "title" => ..., "url" => ..., "content" => ... }]
+client.web_fetch(url: "https://ollama.com") # => { "title" => ..., "content" => ..., "links" => [...] }
+```
+
 ---
 
 ## Advanced

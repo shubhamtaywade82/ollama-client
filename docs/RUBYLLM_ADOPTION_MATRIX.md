@@ -185,11 +185,11 @@ Items 1–6 are all fixable additively, without touching a frozen signature.
 Depth positioning means "100% Ollama API coverage" must be literally true. Open items to verify against
 the current Ollama API docs before claiming it:
 
-- `web_search` / `web_fetch` cloud endpoints (introduced 2025, `ollama.com` API-key gated) — **verify and cover**; `client.raw` works today but this deserves a first-class surface given the Cloud story.
-- `/api/embeddings` (legacy singular) alongside `/api/embed` — currently only the plural path is used.
-- `/api/generate` `context` parameter (deprecated but present), `suffix` (FIM) — `suffix`/`raw` are supported; confirm `context` handling.
-- Streamed `create`/`pull`/`push` progress: `hooks[:on_progress]` exists but is not in `API_CONTRACT.md`.
-- `/api/show` `model_info` fields (real context length, quantization, parameter count) are fetched but discarded — they are the raw material for E4.
+- ~~`web_search` / `web_fetch` cloud endpoints~~ — **done**: `client.web_search(query:, max_results:)` and `client.web_fetch(url:)` (`lib/ollama/client/web_search.rb`, documented in `API_CONTRACT.md`).
+- `/api/embeddings` (legacy singular) alongside `/api/embed` — currently only the plural path is used. Low priority: the singular route is Ollama's deprecated legacy alias and `/api/embed` is the documented current endpoint.
+- `/api/generate` `context` parameter (deprecated but present), `suffix` (FIM) — confirmed: `context`, `suffix`, and `raw` are all threaded through `Client::Generate` and `Params::Generate`.
+- ~~Streamed `create`/`pull`/`push` progress: `hooks[:on_progress]` exists but is not in `API_CONTRACT.md`~~ — **done**: documented. (`create_model` itself still has no streaming hook — only `pull`/`push_model` do.)
+- `/api/show` `model_info` fields (real context length, quantization, parameter count) are fetched but discarded — they are the raw material for E4. Still open; tracked as roadmap item E4, not a missing-endpoint gap.
 
 ## L. The one contested boundary: who runs the tool loop?
 

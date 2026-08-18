@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Multi-API-key Ollama Cloud failover via `Ollama::Config#api_keys`, `OLLAMA_API_KEYS`, and automatic HTTP 429 rotation with `Ollama::RateLimitExhaustedError` when every key remains rate-limited.
 - `ENABLE_MULTI_KEY_CONCURRENCY` / `Ollama::Config#enable_multi_key_concurrency` for thread-safe round-robin initial key distribution across concurrent requests.
+- `Ollama::Client#web_search` and `#web_fetch` — Ollama Cloud `/api/web_search` and `/api/web_fetch` endpoints (see `API_CONTRACT.md`).
+
+### Documentation
+- `API_CONTRACT.md`: documented `hooks: { on_progress: }` on `pull`/`push_model`, and the full `create_model`/`pull` keyword signatures (previously only partially listed).
 
 ## [1.3.0] - 2026-04-20
 

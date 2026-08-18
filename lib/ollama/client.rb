@@ -19,6 +19,7 @@ require_relative "plugins"
 require_relative "client/chat"
 require_relative "client/generate"
 require_relative "client/model_management"
+require_relative "client/web_search"
 require_relative "client/raw"
 require_relative "client/openai_compat"
 require_relative "client/tool_intent"
@@ -43,10 +44,12 @@ module Ollama
   # - Chat: multi-turn conversations with tool support
   # - Generate: prompt-to-completion with structured output
   # - ModelManagement: CRUD, pull/push, list, show, version
+  # - WebSearch: Ollama Cloud web_search / web_fetch endpoints
   class Client
     include Chat
     include Generate
     include ModelManagement
+    include WebSearch
     include ToolIntent
     include Raw
     include OpenAICompat
