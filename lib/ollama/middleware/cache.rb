@@ -2,8 +2,10 @@
 
 require_relative "../middleware"
 
+require "digest"
+
 module Ollama
-  module Middleware
+  class Middleware
     # Cache middleware - caches responses based on request key.
     class Cache < ::Ollama::Middleware
       attr_reader :store, :ttl, :key_generator, :cacheable_endpoints

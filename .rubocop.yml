@@ -88,6 +88,7 @@ RSpec/DescribeMethod:
   Exclude:
     - "spec/ollama/client_model_suggestions_spec.rb"
     - "spec/ollama/vcr/**/*"
+    - "spec/ollama/middleware_spec.rb"
 
 RSpec/DescribedClass:
   Exclude:
@@ -99,6 +100,15 @@ RSpec/SpecFilePathFormat:
     - "spec/ollama/client_model_suggestions_spec.rb"
     - "spec/integration/**/*"
     - "spec/ollama/vcr/**/*"
+    - "spec/ollama/middleware_spec.rb"
+
+# lib/ollama_client.rb intentionally defines two top-level namespaces: the
+# legacy `OllamaClient` global-config module and the primary `Ollama` module
+# that delegates to it. It's the gem's single main entry point by design,
+# not a candidate for splitting into two files.
+Style/OneClassPerFile:
+  Exclude:
+    - "lib/ollama_client.rb"
 
 # Exclude examples from style checks (they're just examples)
 Style/Documentation:

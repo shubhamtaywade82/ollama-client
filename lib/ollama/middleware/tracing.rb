@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-require_relative "middleware"
+require_relative "../middleware"
 
 module Ollama
-  module Middleware
+  class Middleware
     # Tracing middleware - adds distributed tracing support
     class Tracing < Ollama::Middleware
       attr_reader :tracer, :service_name
@@ -30,8 +30,11 @@ module Ollama
 
         env[:trace_span] = span
 
-        # Inject trace context into headers if tracer supports it
-        if @tracer.respond_to?(:inject)
+        # Inject trace context into headers if both the tracer and the
+        # request object support it (Ollama::Request itself does not carry
+        # headers — auth/headers are applied at the transport layer — but a
+        # custom Request-like object passed by a caller might).
+        if @tracer.respond_to?(:inject) && request.respond_to?(:with_headers) && request.respond_to?(:headers)
           headers = {}
           @tracer.inject(span.context, headers)
           request = request.with_headers(request.headers.merge(headers))
@@ -66,6 +69,19 @@ module Ollama
         nil
       end
 
+      # No-op context for the default tracer
+      class NoOpContext; end # rubocop:disable Lint/EmptyClass -- distinct marker type, deliberately empty
+
+      # No-op span implementation used when no tracer is configured
+      class NoOpSpan
+        def set_tag(*_args); end
+        def finish; end
+
+        def context
+          NoOpContext.new
+        end
+      end
+
       private
 
       # No-op tracer by default
@@ -83,23 +99,3 @@ module Ollama
     end
   end
 end
-
-# No-op span for default tracer
-module Ollama
-  module Middleware
-    module Tracing
-      # No-op span implementation used when no tracer is configured
-      class NoOpSpan
-        def set_tag(*_args); end
-        def finish; end
-
-        def context
-          NoOpContext.new
-        end
-      end
-    end
-  end
-end
-
-# No-op context for default tracer
-NoOpContext = Class.new
