@@ -28,7 +28,9 @@ client = Ollama::Client.new(config: Ollama::Config.new)
 
 | Method | Signature | Returns |
 |---|---|---|
-| `generate` | `(prompt:, schema: nil, model: nil, strict: config.strict_json, return_meta: false, system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil, options: nil, hooks: {})` | `String` (no schema) or `Hash` (with schema) |
+| `generate` | `(prompt:, context: nil, schema: nil, model: nil, strict: config.strict_json, return_meta: false, system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil, options: nil, hooks: {}, tools: nil)` | `String` (no schema) or `Hash` (with schema) |
+
+`context:` accepts the `context` array returned by a previous `generate` call (or via `return_meta: true`) for `/api/generate`-side conversational memory, independent of `chat`'s message history.
 
 When `think: true` and `return_reasoning: true`, the return value is a `Hash` with:
 
@@ -145,6 +147,29 @@ All attributes are read/write via `attr_accessor`:
 | `top_p` | `Float` | `0.9` | Nucleus sampling |
 | `num_ctx` | `Integer` | `8192` | Context window size |
 | `on_response` | `Proc/nil` | `nil` | Global response callback |
+
+### Raw Escape Hatch
+
+`client.raw` — direct HTTP access for endpoints without a dedicated method. Auth, retries, and error
+mapping (`handle_http_error`) are applied the same as typed methods; the response body is JSON-parsed.
+
+| Method | Signature | Returns |
+|---|---|---|
+| `raw.get` | `(path, query: nil)` | `Hash` |
+| `raw.post` | `(path, payload: {}, query: nil)` | `Hash` |
+| `raw.delete` | `(path, payload: nil, query: nil)` | `Hash` |
+
+### OpenAI Compatibility Facade
+
+`client.openai` — wraps `chat`, `generate`, `embeddings`, and `list_models` in OpenAI Chat Completions
+API request/response shapes, for code written against OpenAI-shaped SDKs.
+
+| Method | Signature | Returns |
+|---|---|---|
+| `openai.models.list` | `()` | `Hash` (`{"object"=>"list", "data"=>[...]}`) |
+| `openai.embeddings.create` | `(model:, input:, **opts)` | `Hash` (`{"object"=>"list", "data"=>[...], "model"=>...}`) |
+| `openai.chat.completions.create` | `(model:, messages:, tools: nil, temperature: nil, top_p: nil, **)` | `Hash` (OpenAI chat completion shape) |
+| `openai.completions.create` | `(model:, prompt:, temperature: nil, top_p: nil, **)` | `Hash` (OpenAI text completion shape) |
 
 ## Error Classes
 
