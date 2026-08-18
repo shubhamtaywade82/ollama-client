@@ -1,0 +1,60 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: https://ollama.com/api/tags
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Host:
+      - ollama.com
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OLLAMA_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Set-Cookie:
+      - aid=9f188a29-e5c6-4a06-abf1-d90aff9b076f; Path=/; Max-Age=31536000; HttpOnly;
+        Secure; SameSite=Lax
+      X-Build-Commit:
+      - 170b47cb89b77ea3199c41e34d9c97c97cc5d540
+      X-Build-Time:
+      - '2026-08-17T16:12:34-07:00'
+      X-Frame-Options:
+      - DENY
+      X-Request-Id:
+      - 7874e256-069e-47db-bde2-2c7a8c68bc6e
+      Date:
+      - Tue, 18 Aug 2026 04:07:13 GMT
+      Server:
+      - Google Frontend
+      X-Cloud-Trace-Context:
+      - ef33d87860d0b9a590c24a5b780aacbc/7755727532839588124
+      Traceparent:
+      - 00-ef33d87860d0b9a590c24a5b780aacbc-6ba1e119799ed11c-00
+      Via:
+      - 1.1 google
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: UTF-8
+      string: '{"models":[{"name":"qwen3.5:397b","model":"qwen3.5:397b","modified_at":"2026-02-16T00:00:00Z","size":397000000000,"digest":"b909ca2f1b7f","details":{"parent_model":"","format":"","family":"","families":null,"parameter_size":"","quantization_level":""}},{"name":"nemotron-3-super","model":"nemotron-3-super","modified_at":"2026-03-11T00:00:00Z","size":230500000000,"digest":"da11955bb451","details":{"parent_model":"","format":"","family":"","families":null,"parameter_size":"","quantization_level":""}},{"name":"kimi-k2.6","model":"kimi-k2.6","modified_at":"2026-04-20T00:00:00Z","size":595148192736,"digest":"4764ecb21f85","details":{"parent_model":"","format":"","family":"","families":null,"parameter_size":"","quantization_level":""}},{"name":"deepseek-v4-pro:0813","model":"deepseek-v4-pro:0813","modified_at":"2026-08-13T08:00:00-07:00","size":892744322880,"digest":"db976f1eacdd","details":{"parent_model":"","format":"","family":"","families":null,"parameter_size":"","quantization_level":""}},{"name":"nemotron-3-nano:30b","model":"nemotron-3-nano:30b","modified_at":"2025-12-15T00:00:00Z","size":32645090390,"digest":"a4b4f1851393","details":{"parent_model":"","format":"","family":"","families":null,"parameter_size":"","quantization_level":""}},{"name":"mistral-large-3:675b","model":"mistral-large-3:675b","modified_at":"2025-12-02T00:00:00Z","size":682000000000,"digest":"f7e3b2a16d5c","details":{"parent_model":"","format":"","family":"","families":null,"parameter_size":"","quantization_level":""}},{"name":"deepseek-v4-pro:preview","model":"deepseek-v4-pro:preview","modified_at":"2026-04-24T00:00:00Z","size":1600000000000,"digest":"079ba36ea28c","details":{"parent_model":"","format":"","family":"","families":null,"parameter_size":"","quantization_level":""}},{"name":"deepseek-v4-flash:0731","model":"deepseek-v4-flash:0731","modified_at":"2026-07-31T08:00:00-07:00","size":166878536440,"digest":"4de9bf66c0eb","details":{"parent_model":"","format":"","family":"","families":null,"parameter_size":"","quantization_level":""}},{"name":"gpt-oss:120b","model":"gpt-oss:120b","modified_at":"2025-08-05T00:00:00Z","size":65290180781,"digest":"d98fe6ba01e6","details":{"parent_model":"","format":"","family":"","families":null,"parameter_size":"","quantization_level":""}},{"name":"glm-5.1","model":"glm-5.1","modified_at":"2026-04-07T08:00:00-07:00","size":1507728316928,"digest":"882e35812821","details":{"parent_model":"","format":"","family":"","families":null,"parameter_size":"","quantization_level":""}},{"name":"deepseek-v4-flash:preview","model":"deepseek-v4-flash:preview","modified_at":"2026-04-24T00:00:00Z","size":140000000000,"digest":"ac252c581d64","details":{"parent_model":"","format":"","family":"","families":null,"parameter_size":"","quantization_level":""}},{"name":"kimi-k2.7-code","model":"kimi-k2.7-code","modified_at":"2026-06-12T00:00:00Z","size":595148192736,"digest":"1a7e88d8c572","details":{"parent_model":"","format":"","family":"","families":null,"parameter_size":"","quantization_level":""}},{"name":"gpt-oss:20b","model":"gpt-oss:20b","modified_at":"2025-08-05T00:00:00Z","size":13780162412,"digest":"05afbac4bad6","details":{"parent_model":"","format":"","family":"","families":null,"parameter_size":"","quantization_level":""}},{"name":"nemotron-3-ultra","model":"nemotron-3-ultra","modified_at":"2026-06-04T00:00:00Z","size":0,"digest":"4eecabff7a75","details":{"parent_model":"","format":"","family":"","families":null,"parameter_size":"","quantization_level":""}},{"name":"kimi-k3","model":"kimi-k3","modified_at":"2026-07-27T08:00:00-07:00","size":1560860324864,"digest":"d189309738f0","details":{"parent_model":"","format":"","family":"","families":null,"parameter_size":"","quantization_level":""}},{"name":"minimax-m2.7","model":"minimax-m2.7","modified_at":"2026-03-18T00:00:00Z","size":480836588544,"digest":"d1008bea3761","details":{"parent_model":"","format":"","family":"","families":null,"parameter_size":"","quantization_level":""}},{"name":"glm-5.2","model":"glm-5.2","modified_at":"2026-06-16T08:00:00-07:00","size":0,"digest":"f553240f6dc4","details":{"parent_model":"","format":"","family":"","families":null,"parameter_size":"","quantization_level":""}},{"name":"minimax-m3","model":"minimax-m3","modified_at":"2026-06-01T00:00:00Z","size":0,"digest":"9ce5291d9c0e","details":{"parent_model":"","format":"","family":"","families":null,"parameter_size":"","quantization_level":""}},{"name":"gemma4:31b","model":"gemma4:31b","modified_at":"2026-04-02T09:00:00-08:00","size":62546177752,"digest":"221b330d11a8","details":{"parent_model":"","format":"","family":"","families":null,"parameter_size":"","quantization_level":""}}]}
+
+        '
+  recorded_at: Tue, 18 Aug 2026 04:07:13 GMT
+recorded_with: VCR 6.4.0

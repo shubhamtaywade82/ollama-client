@@ -11,6 +11,8 @@ end
 
 require "ollama_client"
 require "webmock/rspec"
+require_relative "support/vcr"
+require_relative "support/vcr_client_helper"
 
 RSpec.configure do |config|
   # Enable flags like --only-failures and --next-failure

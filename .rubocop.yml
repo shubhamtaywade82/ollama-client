@@ -87,6 +87,7 @@ RSpec/DescribeClass:
 RSpec/DescribeMethod:
   Exclude:
     - "spec/ollama/client_model_suggestions_spec.rb"
+    - "spec/ollama/vcr/**/*"
 
 RSpec/DescribedClass:
   Exclude:
@@ -97,6 +98,7 @@ RSpec/SpecFilePathFormat:
   Exclude:
     - "spec/ollama/client_model_suggestions_spec.rb"
     - "spec/integration/**/*"
+    - "spec/ollama/vcr/**/*"
 
 # Exclude examples from style checks (they're just examples)
 Style/Documentation:

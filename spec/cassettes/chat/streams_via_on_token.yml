@@ -1,0 +1,103 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://ollama.com/api/chat
+    body:
+      encoding: UTF-8
+      string: '{"model":"gpt-oss:20b","messages":[{"role":"user","content":"Count
+        from 1 to 5, one number per line."}],"stream":true,"options":{"temperature":0.2,"top_p":0.9,"num_ctx":8192}}'
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Host:
+      - ollama.com
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OLLAMA_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Set-Cookie:
+      - aid=6b095701-142f-44f2-b0e8-e6e1c0645497; Path=/; Max-Age=31536000; HttpOnly;
+        Secure; SameSite=Lax
+      X-Build-Commit:
+      - 170b47cb89b77ea3199c41e34d9c97c97cc5d540
+      X-Build-Time:
+      - '2026-08-17T16:12:34-07:00'
+      X-Frame-Options:
+      - DENY
+      X-Request-Id:
+      - 96e316b3-73ee-4dd5-a9a1-ab9b60e3220f
+      Date:
+      - Tue, 18 Aug 2026 04:07:06 GMT
+      Server:
+      - Google Frontend
+      Traceparent:
+      - 00-b6a741f611ebba042e60a50c7f82aa01-81332ec7885cec0b-00
+      X-Cloud-Trace-Context:
+      - b6a741f611ebba042e60a50c7f82aa01/9309836289226107915
+      Via:
+      - 1.1 google
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: UTF-8
+      string: |
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.117409063Z","message":{"role":"assistant","content":"","thinking":"The"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.154451472Z","message":{"role":"assistant","content":"","thinking":" user"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.162697352Z","message":{"role":"assistant","content":"","thinking":" wants"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.16732428Z","message":{"role":"assistant","content":"","thinking":" to"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.174861712Z","message":{"role":"assistant","content":"","thinking":" count"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.187108606Z","message":{"role":"assistant","content":"","thinking":" from"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.192862087Z","message":{"role":"assistant","content":"","thinking":" "},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.198568163Z","message":{"role":"assistant","content":"","thinking":"1"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.205993635Z","message":{"role":"assistant","content":"","thinking":" to"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.213106502Z","message":{"role":"assistant","content":"","thinking":" "},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.220927526Z","message":{"role":"assistant","content":"","thinking":"5"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.229086826Z","message":{"role":"assistant","content":"","thinking":","},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.241048437Z","message":{"role":"assistant","content":"","thinking":" one"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.246333765Z","message":{"role":"assistant","content":"","thinking":" number"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.252366946Z","message":{"role":"assistant","content":"","thinking":" per"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.261391133Z","message":{"role":"assistant","content":"","thinking":" line"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.266131242Z","message":{"role":"assistant","content":"","thinking":"."},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.275285297Z","message":{"role":"assistant","content":"","thinking":" So"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.282225148Z","message":{"role":"assistant","content":"","thinking":" output"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.292880721Z","message":{"role":"assistant","content":"","thinking":":\n\n"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.299244464Z","message":{"role":"assistant","content":"","thinking":"1"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.306045569Z","message":{"role":"assistant","content":"","thinking":"\n"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.313839222Z","message":{"role":"assistant","content":"","thinking":"2"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.319972815Z","message":{"role":"assistant","content":"","thinking":"\n"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.331622807Z","message":{"role":"assistant","content":"","thinking":"3"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.337941315Z","message":{"role":"assistant","content":"","thinking":"\n"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.347064401Z","message":{"role":"assistant","content":"","thinking":"4"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.355075786Z","message":{"role":"assistant","content":"","thinking":"\n"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.358646368Z","message":{"role":"assistant","content":"","thinking":"5"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.367761303Z","message":{"role":"assistant","content":"","thinking":"\n\n"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.376023087Z","message":{"role":"assistant","content":"","thinking":"That's"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.38196445Z","message":{"role":"assistant","content":"","thinking":" it"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.389449682Z","message":{"role":"assistant","content":"","thinking":"."},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.443603018Z","message":{"role":"assistant","content":"1"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.45463697Z","message":{"role":"assistant","content":"\n"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.459010177Z","message":{"role":"assistant","content":"2"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.470042543Z","message":{"role":"assistant","content":"\n"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.473500653Z","message":{"role":"assistant","content":"3"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.482678654Z","message":{"role":"assistant","content":"\n"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.489551426Z","message":{"role":"assistant","content":"4"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.501153491Z","message":{"role":"assistant","content":"\n"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.507862962Z","message":{"role":"assistant","content":"5"},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.513432587Z","message":{"role":"assistant","content":""},"done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:06.589221641Z","message":{"role":"assistant","content":""},"done":true,"done_reason":"stop","total_duration":754584673,"prompt_eval_count":80,"eval_count":52}
+  recorded_at: Tue, 18 Aug 2026 04:07:06 GMT
+recorded_with: VCR 6.4.0

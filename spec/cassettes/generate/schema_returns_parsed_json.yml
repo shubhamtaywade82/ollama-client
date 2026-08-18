@@ -1,0 +1,67 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://ollama.com/api/generate
+    body:
+      encoding: UTF-8
+      string: '{"model":"gpt-oss:20b","prompt":"Say hi and report a confidence score
+        between 0 and 1.\n\nCRITICAL: Respond with ONLY valid JSON (no markdown code
+        blocks, no explanations). The JSON must include these exact required fields:
+        Required fields: [\"greeting\", \"confidence\"]. Example structure:\n{\n  \"greeting\":
+        \"string_value\",\n  \"confidence\": 0\n}","stream":false,"format":{"type":"object","required":["greeting","confidence"],"properties":{"greeting":{"type":"string"},"confidence":{"type":"number"}}},"options":{"temperature":0.2,"top_p":0.9,"num_ctx":8192}}'
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Host:
+      - ollama.com
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OLLAMA_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Set-Cookie:
+      - aid=fa00d3b1-7282-4925-bd53-cb8374f687fd; Path=/; Max-Age=31536000; HttpOnly;
+        Secure; SameSite=Lax
+      X-Build-Commit:
+      - 170b47cb89b77ea3199c41e34d9c97c97cc5d540
+      X-Build-Time:
+      - '2026-08-17T16:12:34-07:00'
+      X-Frame-Options:
+      - DENY
+      X-Request-Id:
+      - 73da746d-380c-45be-a0f6-0564fa13fb9e
+      Content-Length:
+      - '455'
+      Date:
+      - Tue, 18 Aug 2026 04:07:08 GMT
+      Server:
+      - Google Frontend
+      X-Cloud-Trace-Context:
+      - 48ebf8e4c522284714cfd42b174d167c/2566821809148576533
+      Traceparent:
+      - 00-48ebf8e4c522284714cfd42b174d167c-239f2ed5f806c315-00
+      Via:
+      - 1.1 google
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+    body:
+      encoding: UTF-8
+      string: '{"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:08.925311147Z","response":"{\"greeting\":\"Hi\",\"confidence\":0.95}","thinking":"We
+        need to respond with only valid JSON, no markdown, no explanations. Must include
+        fields greeting and confidence. Greeting: \"Hi\" or \"Hello\". Confidence:
+        a number between 0 and 1. Let''s choose 0.95. Output JSON.","done":true,"done_reason":"stop","total_duration":991889854,"prompt_eval_count":138,"eval_count":74}
+
+        '
+  recorded_at: Tue, 18 Aug 2026 04:07:08 GMT
+recorded_with: VCR 6.4.0

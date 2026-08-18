@@ -18,6 +18,14 @@ bundle install
 bundle exec rake
 ```
 
+## Testing
+
+Most specs stub HTTP with WebMock. `spec/ollama/vcr/*.rb` instead replays real, pre-recorded Ollama
+Cloud responses via VCR cassettes committed under `spec/cassettes/` — see
+`spec/cassettes/README.md` for what's covered, why, and how to re-record after a behavior change.
+Neither needs a live server or an API key to run normally; VCR cassette recording is the one
+exception, and only when adding or refreshing a `spec/ollama/vcr/` scenario.
+
 ## What to include in a PR
 
 - Clear description of *why* the change exists (not just what changed)

@@ -1,0 +1,65 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://ollama.com/api/chat
+    body:
+      encoding: UTF-8
+      string: '{"model":"gpt-oss:20b","messages":[{"role":"user","content":"What is
+        the capital of France? Respond in JSON."}],"stream":false,"format":{"type":"object","required":["answer"],"properties":{"answer":{"type":"string"}}},"options":{"temperature":0.2,"top_p":0.9,"num_ctx":8192}}'
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Host:
+      - ollama.com
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OLLAMA_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Set-Cookie:
+      - aid=bc85dca5-c91f-421b-a09f-a15a78b43df4; Path=/; Max-Age=31536000; HttpOnly;
+        Secure; SameSite=Lax
+      X-Build-Commit:
+      - 170b47cb89b77ea3199c41e34d9c97c97cc5d540
+      X-Build-Time:
+      - '2026-08-17T16:12:34-07:00'
+      X-Frame-Options:
+      - DENY
+      X-Request-Id:
+      - fe693527-978d-4b2b-9c5d-b161754968d5
+      Content-Length:
+      - '536'
+      Date:
+      - Tue, 18 Aug 2026 04:07:05 GMT
+      Server:
+      - Google Frontend
+      X-Cloud-Trace-Context:
+      - 53c6283e6c77e900762712483d2d0d3c/18391085131087166600
+      Traceparent:
+      - 00-53c6283e6c77e900762712483d2d0d3c-ff3a427c906b3c88-00
+      Via:
+      - 1.1 google
+      Alt-Svc:
+      - h3=":443"; ma=2592000
+    body:
+      encoding: UTF-8
+      string: '{"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:05.694120018Z","message":{"role":"assistant","content":"```json\n{\n  \"capital\":
+        \"Paris\"\n}\n```","thinking":"The user asks: \"What is the capital of France?
+        Respond in JSON.\" So we need to output JSON with the answer. Likely something
+        like {\"capital\":\"Paris\"} or {\"country\":\"France\",\"capital\":\"Paris\"}.
+        The simplest: {\"capital\":\"Paris\"}. Ensure valid JSON."},"done":true,"done_reason":"stop","total_duration":1118402186,"prompt_eval_count":78,"eval_count":82}
+
+        '
+  recorded_at: Tue, 18 Aug 2026 04:07:05 GMT
+recorded_with: VCR 6.4.0

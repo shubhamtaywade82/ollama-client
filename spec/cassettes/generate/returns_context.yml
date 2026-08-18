@@ -1,0 +1,59 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://ollama.com/api/generate
+    body:
+      encoding: UTF-8
+      string: '{"model":"gpt-oss:20b","prompt":"Remember the number 42.","stream":false,"options":{"temperature":0.2,"top_p":0.9,"num_ctx":8192}}'
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Host:
+      - ollama.com
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OLLAMA_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Set-Cookie:
+      - aid=6ffc9467-bc84-47eb-a923-3ba23537d816; Path=/; Max-Age=31536000; HttpOnly;
+        Secure; SameSite=Lax
+      X-Build-Commit:
+      - 170b47cb89b77ea3199c41e34d9c97c97cc5d540
+      X-Build-Time:
+      - '2026-08-17T16:12:34-07:00'
+      X-Frame-Options:
+      - DENY
+      X-Request-Id:
+      - 6b83688a-50d2-4261-8ad2-9dcdc68717ac
+      Content-Length:
+      - '554'
+      Date:
+      - Tue, 18 Aug 2026 04:07:10 GMT
+      Server:
+      - Google Frontend
+      Traceparent:
+      - 00-fdccb9cb8e7aee5914cfd42b174d10c2-5d9a2f2f65e61a8c-00
+      X-Cloud-Trace-Context:
+      - fdccb9cb8e7aee5914cfd42b174d10c2/6744755272560286348
+      Via:
+      - 1.1 google
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+    body:
+      encoding: ASCII-8BIT
+      string: !binary |-
+        eyJtb2RlbCI6ImdwdC1vc3M6MjBiIiwiY3JlYXRlZF9hdCI6IjIwMjYtMDgtMThUMDQ6MDc6MTAuMjkyNjg5Njk4WiIsInJlc3BvbnNlIjoiR290IGl04oCUNDIgaXMgbm93IG9uIG15IG1lbnRhbCBub3RlcGFkLiBJZiB5b3UgbmVlZCBtZSB0byByZWZlcmVuY2UgaXQgbGF0ZXIgb3IgdXNlIGl0IGluIGEgY2FsY3VsYXRpb24sIGp1c3QgbGV0IG1lIGtub3chIiwidGhpbmtpbmciOiJUaGUgdXNlciBzYXlzIFwiUmVtZW1iZXIgdGhlIG51bWJlciA0Mi5cIiBUaGV5IG1pZ2h0IHdhbnQgbWUgdG8gcmVtZW1iZXIgaXQgZm9yIGZ1dHVyZSByZWZlcmVuY2UuIEFzIGFuIEFJLCBJIGNhbiBrZWVwIHRyYWNrIG9mIGNvbnRleHQuIFNvIEkgc2hvdWxkIGFja25vd2xlZGdlIGFuZCBjb25maXJtIHRoYXQgSSB3aWxsIHJlbWVtYmVyIGl0LiBNYXliZSBhc2sgaWYgdGhlcmUncyBhbnl0aGluZyBlbHNlLiIsImRvbmUiOnRydWUsImRvbmVfcmVhc29uIjoic3RvcCIsInRvdGFsX2R1cmF0aW9uIjoxMjMwNTU3NjcwLCJwcm9tcHRfZXZhbF9jb3VudCI6NzMsImV2YWxfY291bnQiOjkzfQo=
+  recorded_at: Tue, 18 Aug 2026 04:07:10 GMT
+recorded_with: VCR 6.4.0
