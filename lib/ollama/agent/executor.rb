@@ -9,6 +9,16 @@ module Ollama
     #
     # The LLM never executes tools. It can only request tool calls; this class
     # executes Ruby callables and feeds results back as role: "tool" messages.
+    #
+    # NOTE: #run currently calls @client.chat_raw, a pre-refactor Client
+    # method that no longer exists (superseded by chat(), which now always
+    # returns a full Ollama::Response — see API_CONTRACT.md). This class is
+    # not required by lib/ollama_client.rb's default load path — that's
+    # deliberate: docs/RUBYLLM_ADOPTION_MATRIX.md section L tracks whether
+    # tool-execution loops belong in core or a separate ollama-agent gem as
+    # an open question, and wiring this in would answer it by default.
+    # #run will raise NoMethodError on its first real chat call until that's
+    # resolved; #tool_definitions and the rest of the class work correctly.
     class Executor
       attr_reader :messages
 
@@ -126,13 +136,6 @@ module Ollama
             }
           end
         end
-
-        schema = { "type" => "object" }
-        schema["properties"] = properties unless properties.empty?
-        schema["required"] = required unless required.empty?
-        schema["additionalProperties"] = false if properties.any?
-
-        schema
       end
 
       def infer_parameters(callable)

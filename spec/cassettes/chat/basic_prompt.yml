@@ -1,0 +1,64 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://ollama.com/api/chat
+    body:
+      encoding: UTF-8
+      string: '{"model":"gpt-oss:20b","messages":[{"role":"user","content":"Say the
+        single word: pong"}],"stream":false,"options":{"temperature":0.2,"top_p":0.9,"num_ctx":8192}}'
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Host:
+      - ollama.com
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OLLAMA_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Set-Cookie:
+      - aid=726ab474-836c-4cc0-aa74-90c02cd632ef; Path=/; Max-Age=31536000; HttpOnly;
+        Secure; SameSite=Lax
+      X-Build-Commit:
+      - 170b47cb89b77ea3199c41e34d9c97c97cc5d540
+      X-Build-Time:
+      - '2026-08-17T16:12:34-07:00'
+      X-Frame-Options:
+      - DENY
+      X-Request-Id:
+      - 335a3f8d-7cba-43f8-913a-afb5436ce1f2
+      Content-Length:
+      - '427'
+      Date:
+      - Tue, 18 Aug 2026 04:07:02 GMT
+      Server:
+      - Google Frontend
+      Traceparent:
+      - 00-511b75a682975de9fc0bf9c79fe5bc07-8da8b83a55a50ec7-00
+      X-Cloud-Trace-Context:
+      - 511b75a682975de9fc0bf9c79fe5bc07/10207611116119723719
+      Via:
+      - 1.1 google
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+    body:
+      encoding: UTF-8
+      string: '{"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:02.331864218Z","message":{"role":"assistant","content":"pong","thinking":"The
+        user says: \"Say the single word: pong\". They want the assistant to say the
+        single word \"pong\". So the assistant should respond with \"pong\". Probably
+        just that word. No extra commentary."},"done":true,"done_reason":"stop","total_duration":1024927848,"prompt_eval_count":73,"eval_count":53}
+
+        '
+  recorded_at: Tue, 18 Aug 2026 04:07:02 GMT
+recorded_with: VCR 6.4.0

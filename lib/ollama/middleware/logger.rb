@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-require_relative "middleware"
+require_relative "../middleware"
 
 module Ollama
-  module Middleware
+  class Middleware
     # Logger middleware - logs request/response information
     class Logger < Ollama::Middleware
       attr_reader :logger, :level, :formatter

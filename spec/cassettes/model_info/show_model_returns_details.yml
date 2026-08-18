@@ -1,0 +1,60 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://ollama.com/api/show
+    body:
+      encoding: UTF-8
+      string: '{"model":"gpt-oss:20b"}'
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Host:
+      - ollama.com
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OLLAMA_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Set-Cookie:
+      - aid=2c7aec0c-938b-4685-b15c-3b91f7fdc600; Path=/; Max-Age=31536000; HttpOnly;
+        Secure; SameSite=Lax
+      X-Build-Commit:
+      - 170b47cb89b77ea3199c41e34d9c97c97cc5d540
+      X-Build-Time:
+      - '2026-08-17T16:12:34-07:00'
+      X-Frame-Options:
+      - DENY
+      X-Request-Id:
+      - e8e1f22d-52bd-4c24-9df6-5ce2a6cc078d
+      Content-Length:
+      - '382'
+      Date:
+      - Tue, 18 Aug 2026 04:07:13 GMT
+      Server:
+      - Google Frontend
+      Traceparent:
+      - 00-53ba38cf44a0bbe8d1743ab8294040a5-9c54cd0d405973a9-00
+      X-Cloud-Trace-Context:
+      - 53ba38cf44a0bbe8d1743ab8294040a5/11264854024758326185
+      Via:
+      - 1.1 google
+      Alt-Svc:
+      - h3=":443"; ma=2592000
+    body:
+      encoding: UTF-8
+      string: '{"capabilities":["completion","tools","thinking"],"details":{"parent_model":"gpt-oss:20b","format":"","family":"gptoss","families":null,"parameter_size":"20914757184","quantization_level":"MXFP4"},"model_info":{"general.architecture":"gptoss","general.parameter_count":20914757184,"gptoss.context_length":131072,"gptoss.embedding_length":2880},"modified_at":"2025-08-05T00:00:00Z"}
+
+        '
+  recorded_at: Tue, 18 Aug 2026 04:07:13 GMT
+recorded_with: VCR 6.4.0

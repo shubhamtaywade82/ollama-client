@@ -267,12 +267,22 @@ end
 test("history sanitizer") do
   s = Ollama::Client.new.history_sanitizer(MODEL)
   assert_kind Ollama::HistorySanitizer, s
-  cleaned = s.sanitize([
-                         { role: "user", content: "Hi" },
-                         { role: "assistant", content: "Hello" }
-                       ])
-  assert_kind Array, cleaned
-  info "sanitized #{cleaned.size} messages"
+  # Build a minimal response-like object carrying thinking + content
+  response = Struct.new(:content, :message, :model) do
+    def to_s = content
+  end.new(
+    "Hello",
+    Struct.new(:thinking).new("working through it..."),
+    MODEL
+  )
+
+  messages = []
+  appended = s.add(response, messages: messages)
+  assert_kind Hash, appended
+  assert_eq "Hello", appended[:content]
+  assert_eq 1, messages.size
+  assert_eq "Hello", messages[0][:content]
+  info "sanitized #{messages.size} messages"
 end
 
 section("RAW ADAPTER")

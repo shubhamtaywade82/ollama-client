@@ -1,0 +1,62 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://ollama.com/api/chat
+    body:
+      encoding: UTF-8
+      string: '{"model":"gpt-oss:20b","messages":[{"role":"user","content":"What is
+        2 + 2? Answer with just the number."}],"stream":false,"think":true,"options":{"temperature":0.2,"top_p":0.9,"num_ctx":8192}}'
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Host:
+      - ollama.com
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OLLAMA_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Set-Cookie:
+      - aid=6944f55f-db96-48ce-91a3-c4c7e7fd4e49; Path=/; Max-Age=31536000; HttpOnly;
+        Secure; SameSite=Lax
+      X-Build-Commit:
+      - 170b47cb89b77ea3199c41e34d9c97c97cc5d540
+      X-Build-Time:
+      - '2026-08-17T16:12:34-07:00'
+      X-Frame-Options:
+      - DENY
+      X-Request-Id:
+      - a68c332e-70e9-467d-ace6-2b621f925bed
+      Content-Length:
+      - '304'
+      Date:
+      - Tue, 18 Aug 2026 04:07:03 GMT
+      Server:
+      - Google Frontend
+      X-Cloud-Trace-Context:
+      - 9099dc6c51449709785ca25fce3e0108/1121600680835846517
+      Traceparent:
+      - 00-9099dc6c51449709785ca25fce3e0108-0f90b9e0710e9175-00
+      Via:
+      - 1.1 google
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+    body:
+      encoding: UTF-8
+      string: '{"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:03.485475748Z","message":{"role":"assistant","content":"4","thinking":"The
+        user asks: \"What is 2 + 2? Answer with just the number.\" So answer: 4."},"done":true,"done_reason":"stop","total_duration":968809561,"prompt_eval_count":81,"eval_count":36}
+
+        '
+  recorded_at: Tue, 18 Aug 2026 04:07:03 GMT
+recorded_with: VCR 6.4.0

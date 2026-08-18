@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Repository-wide dead-code/bug audit: 37 of 110 `lib/` files were never `require`d anywhere in the gem's load chain, so nothing ever caught several of them raising on load. All 110 files now load cleanly (enforced by `spec/ollama/all_files_load_spec.rb`).
+  - `Ollama::Middleware::{Cache,Logger,Metrics,Tracing}` each reopened `Ollama::Middleware` (a class) as `module Middleware`, raising `TypeError` on load — the `client.use Ollama::Middleware::Logger` example in README.md has never worked. Fixed the reopening, two broken `require_relative` paths, and a missing `require "digest"`. `Tracing#before_request` also unconditionally called `request.headers`/`request.with_headers`, which `Ollama::Request` doesn't implement — guarded behind `respond_to?`.
+  - `Ollama::Tool` (and `Tool::Function`/`Parameters`/`Property`) was never required by `lib/ollama_client.rb`, so `examples/tool_calling_direct.rb`, `tool_dto_example.rb`, and `structured_tools.rb` raised `NameError` immediately. Added to the default load path.
+  - `Ollama::Agent::Executor#tool_definitions` had a stray, copy-pasted code fragment from `#infer_parameters` appended after its real `.map` block, referencing undefined locals — always raised `NameError`. Removed the fragment; the method now returns its intended array.
+  - Fixed the two broken example scripts that use `Ollama::Agent`/`Ollama::Tool` to require what they need, and rewrote `tool_calling_direct.rb`'s use of the removed `chat_raw`/`allow_chat:` API to the current `chat()` (which already returns a full `Ollama::Response`, including `tool_calls`).
+  - `lib/ollama/policies/*` (Retry, Timeout, AutoPull, RepairJson, SchemaRepair, Fallback, RateLimit, CapabilityValidation): fixed three broken `require_relative` paths and a `Retry`/`Retry::Strategies` naming collision that raised `TypeError: superclass mismatch`. This subsystem is **not** wired into `Client` — see the note in `lib/ollama/policies/base.rb`; every policy's `#call` still references an `@app` that's never assigned. Left in place, documented, not deleted.
+  - Removed the now-redundant top-level `lib/ollama/openai_compat.rb` (zero references anywhere; `Ollama::Client` already includes `OpenAICompat` directly). `lib/ollama/openai.rb`'s `require "ollama/openai"` (documented in README) is kept for backwards compatibility — it's a harmless no-op now, since `client.openai` already works without it.
+  - `Ollama::Agent::Executor#run` still calls `Client#chat_raw`, a pre-refactor method that no longer exists (superseded by `chat()`), and is deliberately **not** added to the default load path — see the note in `lib/ollama/agent/executor.rb`: `docs/RUBYLLM_ADOPTION_MATRIX.md` section L tracks whether tool-execution loops belong in core or a separate `ollama-agent` gem as an open question.
+  - Confirmed genuinely dead with zero references anywhere (code, docs, examples) and left untouched: `lib/ollama/parsers/{list_models,list_running,model_management,show_model,version}.rb`, `lib/ollama/serializers/vision.rb`, `lib/ollama/schemas/tool_intent.rb`.
+
+## [1.4.0] - 2026-08-18
+
 ### Changed
 - Repositioned gem identity from "agent-first" to "Ruby AI SDK for Ollama" in gemspec and README. No API, behavior, or config changes.
 
@@ -17,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 - `API_CONTRACT.md`: documented `hooks: { on_progress: }` on `pull`/`push_model`, and the full `create_model`/`pull` keyword signatures (previously only partially listed).
+
+### Testing
+- Added `spec/ollama/vcr/` — VCR-cassette specs replaying real, recorded Ollama Cloud responses for `chat` (incl. tools, `think:`, `format:`, streaming), `generate` (incl. `schema:`, `context`, streaming), `list_models`, `show_model`, `version`, `web_search`, and `web_fetch`. Cassettes are committed under `spec/cassettes/` and replay with no network access or API key required; see `spec/cassettes/README.md` for scope, rationale, and the re-recording workflow. `embeddings` and model-management mutation endpoints (`pull`/`push`/`create`/`delete`/`copy`) remain WebMock-only — Ollama Cloud has no embedding models and rejects those endpoints for a regular API key.
+- A few real-response findings surfaced by recording: `chat(format:)` doesn't enforce/repair schema compliance the way `generate(schema:)` does (confirms the known gap in `docs/RUBYLLM_ADOPTION_MATRIX.md` C3); `generate`'s `context` field can be absent (`nil`) for Cloud-hosted chat-tuned models rather than always populated; `Ollama::Capabilities.for` doesn't yet recognize the `gptoss` family, so `show_model`'s derived capability hash reports `tools`/`thinking` as `false` for `gpt-oss:20b` even though the server's own `capabilities` array says otherwise (confirms `docs/RUBYLLM_ADOPTION_MATRIX.md` E3). No code changes made for these — they're documented via the new specs' comments, not fixed, since fixing them is separate roadmap work.
 
 ### CI/CD
 - CI now also runs against Ruby 3.4, and splits `rspec`/`rubocop` into separate steps so failures are distinguishable at a glance.
