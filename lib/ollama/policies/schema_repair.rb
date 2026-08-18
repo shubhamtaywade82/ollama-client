@@ -78,7 +78,7 @@ module Ollama
 
       def validate_schema(data, schema)
         # Use existing schema validator
-        require_relative "../../schema_validator"
+        require_relative "../schema_validator"
         Ollama::SchemaValidator.validate!(data, schema)
       end
 

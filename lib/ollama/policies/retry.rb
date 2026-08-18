@@ -1,15 +1,28 @@
 # frozen_string_literal: true
 
 require_relative "base"
-require_relative "retry/strategies/exponential"
-require_relative "retry/strategies/linear"
-require_relative "retry/strategies/fixed"
-require_relative "retry/strategies/jitter"
 
 module Ollama
+  # Policy objects modeling production behaviors (retry, timeout, etc.) — see
+  # lib/ollama/policies/base.rb for current status.
   module Policies
     # Retry policy - handles automatic retries with configurable backoff strategies
+    #
+    # Declared here as an empty stub (before requiring the strategy files
+    # below) so that Retry's superclass is established as Base first — the
+    # strategy files reopen this same class to nest their Strategies module
+    # under it, and Ruby raises "superclass mismatch" if a class is reopened
+    # with a different (or absent) superclass than its first declaration.
     class Retry < Base
+    end
+
+    require_relative "retry/strategies/exponential"
+    require_relative "retry/strategies/linear"
+    require_relative "retry/strategies/fixed"
+    require_relative "retry/strategies/jitter"
+
+    # (continued from the stub declaration above, now that Strategies exists)
+    class Retry
       attr_reader :max_attempts, :strategy, :retryable_errors, :hooks
 
       # @param max_attempts [Integer] Maximum number of retry attempts (default: 3)

@@ -2,7 +2,7 @@
 
 module Ollama
   module Policies
-    module Retry
+    class Retry
       module Strategies
         # Fixed delay: always base_delay
         class Fixed

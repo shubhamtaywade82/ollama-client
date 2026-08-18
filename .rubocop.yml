@@ -83,6 +83,14 @@ Style/MultilineBlockChain:
 RSpec/DescribeClass:
   Exclude:
     - "spec/ollama/errors_spec.rb"
+    - "spec/ollama/all_files_load_spec.rb"
+
+# Intentional: this spec generates one `it` per file at load time, so `path`
+# and `relative` are parameters of that generation, not shared mutable state
+# between examples.
+RSpec/LeakyLocalVariable:
+  Exclude:
+    - "spec/ollama/all_files_load_spec.rb"
 
 RSpec/DescribeMethod:
   Exclude:

@@ -6,6 +6,7 @@
 
 require "json"
 require_relative "../lib/ollama_client"
+require_relative "../lib/ollama/agent/executor"
 
 puts "\n=== STRUCTURED TOOLS EXAMPLE ===\n"
 
