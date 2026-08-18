@@ -1,0 +1,136 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://ollama.com/api/generate
+    body:
+      encoding: UTF-8
+      string: '{"model":"gpt-oss:20b","prompt":"Count from 1 to 5.","stream":true,"options":{"temperature":0.2,"top_p":0.9,"num_ctx":8192}}'
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Host:
+      - ollama.com
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OLLAMA_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Set-Cookie:
+      - aid=6f4b8bf7-bd7b-4403-af34-2cad4a4a3044; Path=/; Max-Age=31536000; HttpOnly;
+        Secure; SameSite=Lax
+      X-Build-Commit:
+      - 170b47cb89b77ea3199c41e34d9c97c97cc5d540
+      X-Build-Time:
+      - '2026-08-17T16:12:34-07:00'
+      X-Frame-Options:
+      - DENY
+      X-Request-Id:
+      - c7da6b8c-1df7-46a9-a23e-f9702903ac1d
+      Date:
+      - Tue, 18 Aug 2026 04:07:10 GMT
+      Server:
+      - Google Frontend
+      Traceparent:
+      - 00-d79ee0044d5d065114cfd42b174d1c70-b5d4829ec00ee475-00
+      X-Cloud-Trace-Context:
+      - d79ee0044d5d065114cfd42b174d1c70/13102240834266260597
+      Via:
+      - 1.1 google
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: UTF-8
+      string: |
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:10.801936862Z","response":"","thinking":"The","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:10.817545495Z","response":"","thinking":" user","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:10.869410338Z","response":"","thinking":" says","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.283083724Z","response":"","thinking":":","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.308079175Z","response":"","thinking":" \"","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.358372768Z","response":"","thinking":"Count","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.369505147Z","response":"","thinking":" from","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.391599445Z","response":"","thinking":" ","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.40868421Z","response":"","thinking":"1","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.429237297Z","response":"","thinking":" to","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.452788316Z","response":"","thinking":" ","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.477175717Z","response":"","thinking":"5","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.506001931Z","response":"","thinking":".\"","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.534965615Z","response":"","thinking":" They","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.568381473Z","response":"","thinking":" want","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.604295463Z","response":"","thinking":" a","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.638967312Z","response":"","thinking":" simple","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.706955359Z","response":"","thinking":" count","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.744257371Z","response":"","thinking":".","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.784990725Z","response":"","thinking":" Just","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.825095418Z","response":"","thinking":" output","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.87478376Z","response":"","thinking":" \"","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.917781386Z","response":"","thinking":"1","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:11.965700246Z","response":"","thinking":",","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.014120046Z","response":"","thinking":" ","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.064937729Z","response":"","thinking":"2","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.119102094Z","response":"","thinking":",","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.169155667Z","response":"","thinking":" ","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.218840778Z","response":"","thinking":"3","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.262748665Z","response":"","thinking":",","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.406911706Z","response":"","thinking":" ","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.407218656Z","response":"","thinking":"4","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.407313656Z","response":"","thinking":",","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.418368365Z","response":"","thinking":" ","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.455397626Z","response":"","thinking":"5","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.489723055Z","response":"","thinking":"\"","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.624984758Z","response":"","thinking":" or","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.625267728Z","response":"","thinking":" \"","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.625466309Z","response":"","thinking":"1","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.625714499Z","response":"","thinking":" ","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.625762489Z","response":"","thinking":"2","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.637232548Z","response":"","thinking":" ","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.657814826Z","response":"","thinking":"3","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.700147261Z","response":"","thinking":" ","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.732863288Z","response":"","thinking":"4","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.738672663Z","response":"","thinking":" ","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.754771147Z","response":"","thinking":"5","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.754940587Z","response":"","thinking":"\".","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.79385967Z","response":"","thinking":" Probably","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.796432822Z","response":"","thinking":" just","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.801796956Z","response":"","thinking":" list","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.809432323Z","response":"","thinking":" them","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.81792224Z","response":"","thinking":".","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.821351633Z","response":"","thinking":" I'll","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.832117342Z","response":"","thinking":" respond","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.838613857Z","response":"","thinking":" with","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.843518361Z","response":"","thinking":" \"","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.851591198Z","response":"","thinking":"1","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.861691016Z","response":"","thinking":" ","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.868816172Z","response":"","thinking":"2","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.875764748Z","response":"","thinking":" ","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.887175568Z","response":"","thinking":"3","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.891905962Z","response":"","thinking":" ","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.898429247Z","response":"","thinking":"4","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.909483567Z","response":"","thinking":" ","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.914926781Z","response":"","thinking":"5","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.920135375Z","response":"","thinking":"\".","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.97334163Z","response":"1","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.979521985Z","response":" ","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:12.987523182Z","response":"2","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:13.010586531Z","response":" ","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:13.010747561Z","response":"3","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:13.010951851Z","response":" ","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:13.02134984Z","response":"4","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:13.026880585Z","response":" ","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:13.035498462Z","response":"5","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:13.041550767Z","response":"","done":false}
+        {"model":"gpt-oss:20b","created_at":"2026-08-18T04:07:13.136292986Z","response":"","done":true,"done_reason":"stop","total_duration":2703610924,"prompt_eval_count":75,"eval_count":86}
+  recorded_at: Tue, 18 Aug 2026 04:07:13 GMT
+recorded_with: VCR 6.4.0

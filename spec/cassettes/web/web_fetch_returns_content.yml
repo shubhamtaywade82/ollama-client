@@ -1,0 +1,59 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://ollama.com/api/web_fetch
+    body:
+      encoding: UTF-8
+      string: '{"url":"https://ollama.com"}'
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Host:
+      - ollama.com
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OLLAMA_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - text/html; charset=utf-8
+      Set-Cookie:
+      - aid=924d0c1a-3186-4741-ae8f-728fe4f8c651; Path=/; Max-Age=31536000; HttpOnly;
+        Secure; SameSite=Lax
+      X-Build-Commit:
+      - 170b47cb89b77ea3199c41e34d9c97c97cc5d540
+      X-Build-Time:
+      - '2026-08-17T16:12:34-07:00'
+      X-Frame-Options:
+      - DENY
+      X-Request-Id:
+      - 03dbbb15-db0b-439c-907e-864eb3c4dc57
+      Content-Length:
+      - '1115'
+      Date:
+      - Tue, 18 Aug 2026 04:07:14 GMT
+      Server:
+      - Google Frontend
+      X-Cloud-Trace-Context:
+      - fcbdbec691a55adfd1743ab829404c26/6149718395279428030
+      Traceparent:
+      - 00-fcbdbec691a55adfd1743ab829404c26-5558304c4350c9be-00
+      Via:
+      - 1.1 google
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+    body:
+      encoding: ASCII-8BIT
+      string: !binary |-
+        eyJ0aXRsZSI6Ik9sbGFtYSIsImNvbnRlbnQiOiJPbGxhbWFcblxuIyBCdWlsZCB3aXRoIG9wZW4gbW9kZWxzLG9uIHlvdXIgY29tcHV0ZXIgYW5kIGluIHRoZSBjbG91ZFxuXG5GcmVlIHRvIHN0YXJ0LiBTZWUgcHJpY2luZ1xuXG4jIyBXb3JrcyB3aXRoIHRoZSB0b29scyB5b3UgYWxyZWFkeSB1c2VcblxuQnJpbmcgb3BlbiBtb2RlbHMgaW50byB5b3VyIHdvcmtmbG93LiBMYXVuY2ggYWdlbnRzIGZyb20gdGhlIE9sbGFtYSBDTEksIG9yIGNvbm5lY3QgZWRpdG9ycyBhbmQgZnJhbWV3b3JrcyB0aHJvdWdoIE9sbGFtYSdzIEFQSS5cblxuU2VlIGFsbCBpbnRlZ3JhdGlvbnMg4oaSXG5cbiQgb2xsYW1hXG5cbuKWuCBSdW4gYSBtb2RlbFxuXG5MYXVuY2ggQ2xhdWRlIENvZGVcblxuTGF1bmNoIE9wZW5Db2RlXG5cbkxhdW5jaCBIZXJtZXMgQWdlbnRcblxuTW9yZS4uLlxuXG4jIyBZb3VyIGRhdGEgc3RheXMgeW91cnNcblxuSG93IHdlIGhhbmRsZSBkYXRhIOKGklxuXG5Qcml2YXRlXG5cbllvdXIgZGF0YSBpcyBuZXZlciB0cmFpbmVkIG9uLlxuXG5SZWdpb25zXG5cbkNsb3VkIG1vZGVscyBpbiB0aGUgVW5pdGVkIFN0YXRlcywgRXVyb3BlLCBhbmQgU2luZ2Fwb3JlLlxuXG5EaXNjb25uZWN0ZWRcblxuUnVuIGVudGlyZWx5IG9mZmxpbmUgZm9yIG1pc3Npb24gY3JpdGljYWwgd29yay5cblxuT3BlblxuXG5PcGVuIG1vZGVsIHdlaWdodHMgYW5kIG9wZW4tc291cmNlIGNvZGUuXG5cbiMjIFRyZW5kaW5nIG1vZGVsc1xuXG4jIyMgZ2xtLTUuMlxuXG4jIyMgZGVlcHNlZWstdjQtZmxhc2hcblxuIyMjIGtpbWktazNcblxuLSAxIGNsb3VkIHRvb2xzIHRoaW5raW5nIDMxOC44SyBQdWxscyBVcGRhdGVkIDIgbW9udGhzIGFnb1xuLSAyIGNsb3VkIHRvb2xzIHRoaW5raW5nIDM3My45SyBQdWxscyBVcGRhdGVkIDIgd2Vla3MgYWdvXG4tIDMgY2xvdWQgdmlzaW9uIHRvb2xzIHRoaW5raW5nIDM5LjZLIFB1bGxzIFVwZGF0ZWQgMyB3ZWVrcyBhZ29cblxuIyMgR2V0IHN0YXJ0ZWQgd2l0aCBPbGxhbWEiLCJsaW5rcyI6WyJodHRwczovL29sbGFtYS5jb20vc2VhcmNoIiwiaHR0cHM6Ly9vbGxhbWEuY29tL2RvY3MiLCJodHRwczovL29sbGFtYS5jb20vcHJpY2luZyJdfQo=
+  recorded_at: Tue, 18 Aug 2026 04:07:14 GMT
+recorded_with: VCR 6.4.0

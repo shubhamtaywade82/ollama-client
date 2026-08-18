@@ -1,0 +1,58 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: https://ollama.com/api/version
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Host:
+      - ollama.com
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OLLAMA_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      Set-Cookie:
+      - aid=b0834e75-7bfc-4548-a062-372b9f6ef147; Path=/; Max-Age=31536000; HttpOnly;
+        Secure; SameSite=Lax
+      X-Build-Commit:
+      - 170b47cb89b77ea3199c41e34d9c97c97cc5d540
+      X-Build-Time:
+      - '2026-08-17T16:12:34-07:00'
+      X-Frame-Options:
+      - DENY
+      X-Request-Id:
+      - da12d098-2354-489c-8f46-85f66d130ced
+      Content-Length:
+      - '19'
+      Date:
+      - Tue, 18 Aug 2026 04:07:13 GMT
+      Server:
+      - Google Frontend
+      Traceparent:
+      - 00-06977eaabf7033c3d1743ab8294046fb-424f7636a41a59ad-00
+      X-Cloud-Trace-Context:
+      - '06977eaabf7033c3d1743ab8294046fb/4778167706716887469'
+      Via:
+      - 1.1 google
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+    body:
+      encoding: UTF-8
+      string: '{"version":"0.0.0"}'
+  recorded_at: Tue, 18 Aug 2026 04:07:13 GMT
+recorded_with: VCR 6.4.0

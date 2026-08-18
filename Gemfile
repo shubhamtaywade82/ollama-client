@@ -17,6 +17,7 @@ gem "rubocop-rspec"
 # Testing utilities
 gem "simplecov", "~> 0.22", require: false
 gem "timecop", "~> 0.9"
+gem "vcr", "~> 6.2"
 gem "webmock", "~> 3.18"
 
 gem "dotenv", "~> 2.8"
