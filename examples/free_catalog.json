@@ -1,0 +1,290 @@
+[
+  {
+    "name": "deepseek-v4-flash",
+    "accessible": false,
+    "reason": "plan_restricted",
+    "capabilities": {
+      "tools": false,
+      "thinking": false,
+      "vision": false,
+      "embeddings": false
+    }
+  },
+  {
+    "name": "deepseek-v4-flash:0731",
+    "accessible": false,
+    "reason": "plan_restricted",
+    "capabilities": {
+      "tools": false,
+      "thinking": false,
+      "vision": false,
+      "embeddings": false
+    }
+  },
+  {
+    "name": "deepseek-v4-pro",
+    "accessible": false,
+    "reason": "plan_restricted",
+    "capabilities": {
+      "tools": false,
+      "thinking": false,
+      "vision": false,
+      "embeddings": false
+    }
+  },
+  {
+    "name": "gemini-3-flash-preview",
+    "accessible": false,
+    "reason": "http_error",
+    "capabilities": {}
+  },
+  {
+    "name": "gemma4:12b",
+    "accessible": false,
+    "reason": "not_found",
+    "capabilities": {}
+  },
+  {
+    "name": "gemma4:26b",
+    "accessible": false,
+    "reason": "not_found",
+    "capabilities": {}
+  },
+  {
+    "name": "gemma4:31b",
+    "accessible": true,
+    "reason": null,
+    "capabilities": {
+      "tools": false,
+      "thinking": true,
+      "vision": false,
+      "embeddings": false
+    }
+  },
+  {
+    "name": "glm-5",
+    "accessible": false,
+    "reason": "http_error",
+    "capabilities": {}
+  },
+  {
+    "name": "glm-5.1",
+    "accessible": false,
+    "reason": "plan_restricted",
+    "capabilities": {
+      "tools": false,
+      "thinking": false,
+      "vision": false,
+      "embeddings": false
+    }
+  },
+  {
+    "name": "glm-5.2",
+    "accessible": false,
+    "reason": "plan_restricted",
+    "capabilities": {
+      "tools": false,
+      "thinking": false,
+      "vision": false,
+      "embeddings": false
+    }
+  },
+  {
+    "name": "gpt-oss:120b",
+    "accessible": true,
+    "reason": null,
+    "capabilities": {
+      "tools": false,
+      "thinking": false,
+      "vision": false,
+      "embeddings": false
+    }
+  },
+  {
+    "name": "gpt-oss:20b",
+    "accessible": true,
+    "reason": null,
+    "capabilities": {
+      "tools": false,
+      "thinking": false,
+      "vision": false,
+      "embeddings": false
+    }
+  },
+  {
+    "name": "kimi-k2.5",
+    "accessible": false,
+    "reason": "http_error",
+    "capabilities": {}
+  },
+  {
+    "name": "kimi-k2.6",
+    "accessible": false,
+    "reason": "plan_restricted",
+    "capabilities": {
+      "tools": false,
+      "thinking": false,
+      "vision": false,
+      "embeddings": false
+    }
+  },
+  {
+    "name": "kimi-k2.7-code",
+    "accessible": false,
+    "reason": "plan_restricted",
+    "capabilities": {
+      "tools": false,
+      "thinking": false,
+      "vision": false,
+      "embeddings": false
+    }
+  },
+  {
+    "name": "kimi-k3",
+    "accessible": false,
+    "reason": "plan_restricted",
+    "capabilities": {
+      "tools": false,
+      "thinking": false,
+      "vision": false,
+      "embeddings": false
+    }
+  },
+  {
+    "name": "minimax-m2.7",
+    "accessible": false,
+    "reason": "plan_restricted",
+    "capabilities": {
+      "tools": false,
+      "thinking": false,
+      "vision": false,
+      "embeddings": false
+    }
+  },
+  {
+    "name": "minimax-m3",
+    "accessible": true,
+    "reason": null,
+    "capabilities": {
+      "tools": false,
+      "thinking": false,
+      "vision": false,
+      "embeddings": false
+    }
+  },
+  {
+    "name": "mistral-large-3:123b",
+    "accessible": false,
+    "reason": "not_found",
+    "capabilities": {}
+  },
+  {
+    "name": "mistral-large-3:400b",
+    "accessible": false,
+    "reason": "not_found",
+    "capabilities": {}
+  },
+  {
+    "name": "mistral-large-3:675b",
+    "accessible": false,
+    "reason": "plan_restricted",
+    "capabilities": {
+      "tools": false,
+      "thinking": false,
+      "vision": false,
+      "embeddings": false
+    }
+  },
+  {
+    "name": "nemotron-3-nano:30b",
+    "accessible": true,
+    "reason": null,
+    "capabilities": {
+      "tools": false,
+      "thinking": false,
+      "vision": false,
+      "embeddings": false
+    }
+  },
+  {
+    "name": "nemotron-3-nano:4b",
+    "accessible": false,
+    "reason": "not_found",
+    "capabilities": {}
+  },
+  {
+    "name": "nemotron-3-super",
+    "accessible": true,
+    "reason": null,
+    "capabilities": {
+      "tools": false,
+      "thinking": false,
+      "vision": false,
+      "embeddings": false
+    }
+  },
+  {
+    "name": "nemotron-3-ultra",
+    "accessible": true,
+    "reason": null,
+    "capabilities": {
+      "tools": false,
+      "thinking": false,
+      "vision": false,
+      "embeddings": false
+    }
+  },
+  {
+    "name": "qwen3.5:0.8b",
+    "accessible": false,
+    "reason": "not_found",
+    "capabilities": {}
+  },
+  {
+    "name": "qwen3.5:122b",
+    "accessible": false,
+    "reason": "rate_limited",
+    "capabilities": {}
+  },
+  {
+    "name": "qwen3.5:27b",
+    "accessible": false,
+    "reason": "rate_limited",
+    "capabilities": {}
+  },
+  {
+    "name": "qwen3.5:2b",
+    "accessible": false,
+    "reason": "rate_limited",
+    "capabilities": {}
+  },
+  {
+    "name": "qwen3.5:35b",
+    "accessible": false,
+    "reason": "not_found",
+    "capabilities": {}
+  },
+  {
+    "name": "qwen3.5:397b",
+    "accessible": false,
+    "reason": "plan_restricted",
+    "capabilities": {
+      "tools": false,
+      "thinking": false,
+      "vision": false,
+      "embeddings": false
+    }
+  },
+  {
+    "name": "qwen3.5:4b",
+    "accessible": false,
+    "reason": "not_found",
+    "capabilities": {}
+  },
+  {
+    "name": "qwen3.5:9b",
+    "accessible": false,
+    "reason": "rate_limited",
+    "capabilities": {}
+  }
+]
