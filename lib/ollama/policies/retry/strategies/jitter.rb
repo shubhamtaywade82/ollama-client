@@ -2,7 +2,7 @@
 
 module Ollama
   module Policies
-    module Retry
+    class Retry
       module Strategies
         # Jitter backoff: random delay between 0 and base_delay * 2^(attempt-1)
         class Jitter

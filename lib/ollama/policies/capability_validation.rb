@@ -61,7 +61,7 @@ module Ollama
         end
 
         # Get profile from capabilities module
-        require_relative "../../capabilities"
+        require_relative "../capabilities"
         profile = Ollama::Capabilities.for(model)
 
         @cache&.write(cache_key, profile, expires_in: @cache_ttl)

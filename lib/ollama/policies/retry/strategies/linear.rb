@@ -2,7 +2,7 @@
 
 module Ollama
   module Policies
-    module Retry
+    class Retry
       module Strategies
         # Linear backoff: base_delay * attempt
         class Linear

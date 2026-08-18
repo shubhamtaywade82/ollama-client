@@ -2,10 +2,11 @@
 # frozen_string_literal: true
 
 # Example: Direct Tool Calling (matching ollama-ruby pattern)
-# Demonstrates using Tool objects directly with chat() and chat_raw()
+# Demonstrates using Tool objects directly with chat()
 
 require "json"
 require_relative "../lib/ollama_client"
+require_relative "../lib/ollama/agent/messages"
 
 puts "\n=== DIRECT TOOL CALLING EXAMPLE ===\n"
 
@@ -40,14 +41,14 @@ def message(location)
   Ollama::Agent::Messages.user("What is the weather today in #{location}?")
 end
 
-puts "\n--- Using chat_raw() to access tool_calls ---"
+puts "\n--- Using chat() to access tool_calls ---"
 
-# Use chat_raw() to get full response with tool_calls
-response = client.chat_raw(
+# chat() always returns a full Ollama::Response — message.tool_calls is
+# populated whenever the model calls a tool. tools: takes an array.
+response = client.chat(
   model: "llama3.1:8b",
   messages: [message("The City of Love")],
-  tools: tool, # Pass Tool object directly
-  allow_chat: true
+  tools: [tool]
 )
 
 # Access tool_calls from response (using method access like ollama-ruby)
@@ -67,29 +68,6 @@ end
 # You can also use hash access if preferred:
 # tool_calls = response.to_h.dig("message", "tool_calls")
 
-puts "\n--- Using chat() with tools (returns content only) ---"
-
-# chat() returns only the content, not tool_calls
-# When tools are used and model returns only tool_calls (no content),
-# chat() returns empty string. Use chat_raw() to access tool_calls.
-begin
-  content = client.chat(
-    model: "llama3.1:8b",
-    messages: [message("The Windy City")],
-    tools: tool,
-    allow_chat: true
-  )
-
-  if content.empty?
-    puts "Content: (empty - model returned only tool_calls, use chat_raw() to access them)"
-  else
-    puts "Content: #{content}"
-  end
-rescue Ollama::Error => e
-  puts "Note: #{e.message}"
-  puts "For tool calling, use chat_raw() instead of chat()"
-end
-
 puts "\n--- Multiple tools (array) ---"
 
 # You can also pass an array of tools
@@ -106,11 +84,10 @@ tool2 = Ollama::Tool.new(
   )
 )
 
-response2 = client.chat_raw(
+response2 = client.chat(
   model: "llama3.1:8b",
   messages: [Ollama::Agent::Messages.user("What time is it? Use the get_time tool.")],
-  tools: [tool, tool2], # Array of Tool objects
-  allow_chat: true
+  tools: [tool, tool2] # Array of Tool objects
 )
 
 tool_calls2 = response2.message&.tool_calls

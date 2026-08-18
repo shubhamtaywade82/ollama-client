@@ -16,6 +16,7 @@ require_relative "ollama/prompt_adapters"
 require_relative "ollama/multimodal_input"
 require_relative "ollama/history_sanitizer"
 require_relative "ollama/client"
+require_relative "ollama/tool"
 require_relative "ollama/tool_intent"
 require_relative "ollama/prompts/tool_planner"
 
