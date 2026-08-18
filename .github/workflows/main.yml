@@ -60,7 +60,11 @@ jobs:
         run: gem build ollama-client.gemspec
 
       - name: Install built gem into a clean environment
-        run: gem install ./ollama-client-*.gem --local
+        run: |
+          rm -rf /tmp/gem-install-check
+          gem install ./ollama-client-*.gem --install-dir /tmp/gem-install-check
+          echo "GEM_HOME=/tmp/gem-install-check" >> "$GITHUB_ENV"
+          echo "GEM_PATH=/tmp/gem-install-check" >> "$GITHUB_ENV"
 
       - name: Verify the gem loads and exposes its public API
         run: |
