@@ -19,6 +19,10 @@ require_relative "ollama/client"
 require_relative "ollama/tool"
 require_relative "ollama/tool_intent"
 require_relative "ollama/prompts/tool_planner"
+require_relative "ollama/policies"
+require_relative "ollama/agent/messages"
+require_relative "ollama/agent/planner"
+require_relative "ollama/agent/executor"
 
 # Main entry point for OllamaClient gem
 #

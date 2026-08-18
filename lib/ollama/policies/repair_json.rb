@@ -19,8 +19,8 @@ module Ollama
         @hooks = hooks
       end
 
-      def call(request, env = {})
-        response = @app.call(request, env)
+      def around(request, env, &block)
+        response = block.call(request, env)
 
         # Only attempt repair on non-streaming responses with JSON parsing errors
         return response unless response&.body
@@ -30,10 +30,6 @@ module Ollama
       rescue JSON::ParserError => e
         @hooks[:on_repair_error]&.call(e, env)
         raise
-      end
-
-      def stream(request, env = {}, &block)
-        @app.stream(request, env, &block)
       end
 
       private

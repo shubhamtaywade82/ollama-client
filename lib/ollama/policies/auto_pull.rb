@@ -18,27 +18,25 @@ module Ollama
         @hooks = hooks
       end
 
-      def call(request, env = {})
-        return @app.call(request, env) unless @enabled && pullable?(request)
+      MAX_RETRY_ATTEMPTS = 1
+      PULLABLE_ENDPOINTS = %i[chat generate embeddings show_model create_model].freeze
+
+      def around(request, env, &block)
+        return block.call(request, env) unless @enabled && pullable?(request)
 
         attempt = 0
-        max_attempts = 1
 
         loop do
           attempt += 1
           env[:auto_pull_attempt] = attempt
 
           begin
-            response = @app.call(request, env)
-            return response
-          rescue NotFoundError => e
-            raise unless pullable?(request) && attempt <= max_attempts
+            return block.call(request, env)
+          rescue NotFoundError
+            raise unless attempt <= MAX_RETRY_ATTEMPTS
 
-            model = extract_model(request, e)
-            raise unless model
-
-            # Check if model is allowed
-            raise unless allowed?(model)
+            model = request_model(request)
+            raise unless model && allowed?(model)
 
             @hooks[:before_pull]&.call(model, env)
 
@@ -49,27 +47,10 @@ module Ollama
         end
       end
 
-      def stream(request, env = {}, &block)
-        @app.stream(request, env, &block)
-      end
-
       private
 
       def pullable?(request)
-        return false unless request.respond_to?(:model)
-        return false if request.model.nil? || request.model.empty?
-
-        # Only for endpoints that use models
-        %i[chat generate embeddings show_model create_model pull push].include?(request.endpoint)
-      end
-
-      def extract_model(request, error)
-        return request.model if request.respond_to?(:model) && request.model
-
-        # Try to extract from error
-        return unless error.respond_to?(:requested_model)
-
-        error.requested_model
+        PULLABLE_ENDPOINTS.include?(endpoint(request))
       end
 
       def allowed?(model)
@@ -77,9 +58,8 @@ module Ollama
       end
 
       def pull_model(model, env)
-        # Pull model using the client's pull method
-        # This bypasses the policy pipeline to avoid recursion
-        client = env[:client]
+        # Pull model using a client outside the policy chain to avoid recursion.
+        client = env[:client] || Ollama.client
         return unless client.respond_to?(:pull)
 
         client.pull(model, stream: false)

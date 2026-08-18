@@ -7,16 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `Ollama::Policies::*` middleware is now **wired and public**: `client.use(Ollama::Policies::Retry, ...)` etc. attaches retry/timeout/auto-pull/fallback/rate-limit/capability-validation/JSON-repair/schema-repair policies to the request pipeline. The Rack-style `call(request, env)`/`@app` scaffolding was converted to the pipeline's `around` contract, and HTTP failures now surface as typed errors *inside* the chain (`Transport::Base#call` → `Errors.from_response`) so policies can observe 404/429/5xx responses. Documented in `API_CONTRACT.md`.
+- `Ollama::Agent::Executor` is wired into the default load path and `#run` now uses the current `chat()` API (streaming via `hooks:`) instead of the removed `chat_raw`; tool keys may be strings or symbols.
+- `SchemaViolationError` now carries structured `violations` (field/type data), raised by `SchemaValidator` and consumed by `SchemaRepair`.
+- `Ollama::Schemas.tool_intent` is now the default schema for `client.generate_tool_intent`.
+- `list_running`, `show_model`, and `version` now parse through `Parsers::{ListRunning,ShowModel,Version}` (previously dead files).
+
+### Removed
+- Genuinely dead duplicates with zero references: `lib/ollama/parsers/{list_models,model_management}.rb` and `lib/ollama/serializers/vision.rb`.
+
 ### Fixed
 - Repository-wide dead-code/bug audit: 37 of 110 `lib/` files were never `require`d anywhere in the gem's load chain, so nothing ever caught several of them raising on load. All 110 files now load cleanly (enforced by `spec/ollama/all_files_load_spec.rb`).
   - `Ollama::Middleware::{Cache,Logger,Metrics,Tracing}` each reopened `Ollama::Middleware` (a class) as `module Middleware`, raising `TypeError` on load — the `client.use Ollama::Middleware::Logger` example in README.md has never worked. Fixed the reopening, two broken `require_relative` paths, and a missing `require "digest"`. `Tracing#before_request` also unconditionally called `request.headers`/`request.with_headers`, which `Ollama::Request` doesn't implement — guarded behind `respond_to?`.
   - `Ollama::Tool` (and `Tool::Function`/`Parameters`/`Property`) was never required by `lib/ollama_client.rb`, so `examples/tool_calling_direct.rb`, `tool_dto_example.rb`, and `structured_tools.rb` raised `NameError` immediately. Added to the default load path.
   - `Ollama::Agent::Executor#tool_definitions` had a stray, copy-pasted code fragment from `#infer_parameters` appended after its real `.map` block, referencing undefined locals — always raised `NameError`. Removed the fragment; the method now returns its intended array.
   - Fixed the two broken example scripts that use `Ollama::Agent`/`Ollama::Tool` to require what they need, and rewrote `tool_calling_direct.rb`'s use of the removed `chat_raw`/`allow_chat:` API to the current `chat()` (which already returns a full `Ollama::Response`, including `tool_calls`).
-  - `lib/ollama/policies/*` (Retry, Timeout, AutoPull, RepairJson, SchemaRepair, Fallback, RateLimit, CapabilityValidation): fixed three broken `require_relative` paths and a `Retry`/`Retry::Strategies` naming collision that raised `TypeError: superclass mismatch`. This subsystem is **not** wired into `Client` — see the note in `lib/ollama/policies/base.rb`; every policy's `#call` still references an `@app` that's never assigned. Left in place, documented, not deleted.
+  - `lib/ollama/policies/*` (Retry, Timeout, AutoPull, RepairJson, SchemaRepair, Fallback, RateLimit, CapabilityValidation): fixed three broken `require_relative` paths and a `Retry`/`Retry::Strategies` naming collision that raised `TypeError: superclass mismatch`. Subsequently wired into the pipeline as `client.use` middleware — see the Added section above.
   - Removed the now-redundant top-level `lib/ollama/openai_compat.rb` (zero references anywhere; `Ollama::Client` already includes `OpenAICompat` directly). `lib/ollama/openai.rb`'s `require "ollama/openai"` (documented in README) is kept for backwards compatibility — it's a harmless no-op now, since `client.openai` already works without it.
-  - `Ollama::Agent::Executor#run` still calls `Client#chat_raw`, a pre-refactor method that no longer exists (superseded by `chat()`), and is deliberately **not** added to the default load path — see the note in `lib/ollama/agent/executor.rb`: `docs/RUBYLLM_ADOPTION_MATRIX.md` section L tracks whether tool-execution loops belong in core or a separate `ollama-agent` gem as an open question.
-  - Confirmed genuinely dead with zero references anywhere (code, docs, examples) and left untouched: `lib/ollama/parsers/{list_models,list_running,model_management,show_model,version}.rb`, `lib/ollama/serializers/vision.rb`, `lib/ollama/schemas/tool_intent.rb`.
+  - `Ollama::Agent::Executor#run` still calls `Client#chat_raw`, a pre-refactor method that no longer exists (superseded by `chat()`), and is deliberately **not** added to the default load path — see the note in `lib/ollama/agent/executor.rb`: `docs/RUBYLLM_ADOPTION_MATRIX.md` section L tracks whether tool-execution loops belong in core or a separate `ollama-agent` gem as an open question. **Resolved in the Added section above: wired into the default load path on the current `chat()` API.**
+  - Confirmed genuinely dead with zero references anywhere (code, docs, examples): `lib/ollama/parsers/{list_models,list_running,model_management,show_model,version}.rb`, `lib/ollama/serializers/vision.rb`, `lib/ollama/schemas/tool_intent.rb`. Since resolved: `list_running`/`show_model`/`version` parsers are wired into model management, `Schemas.tool_intent` is the default intent schema, and the remaining dead duplicates were removed (see Added/Removed above).
 
 ## [1.4.0] - 2026-08-18
 

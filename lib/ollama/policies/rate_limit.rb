@@ -35,7 +35,7 @@ module Ollama
         )
       end
 
-      def call(request, env = {})
+      def around(request, env, &block)
         # Wait for both buckets to have tokens
         wait_for_tokens(@second_bucket)
         wait_for_tokens(@minute_bucket)
@@ -44,11 +44,7 @@ module Ollama
         @second_bucket.consume(1)
         @minute_bucket.consume(1)
 
-        @app.call(request, env)
-      end
-
-      def stream(request, env = {}, &block)
-        call(request, env) { |req, env| @app.stream(req, env, &block) }
+        block.call(request, env)
       end
 
       private

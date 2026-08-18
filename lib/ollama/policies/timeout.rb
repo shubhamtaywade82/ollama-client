@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "net/http"
 require_relative "base"
 
 module Ollama
@@ -25,26 +26,17 @@ module Ollama
         @hooks = hooks
       end
 
-      def call(request, env = {})
+      def around(request, env, &block)
         # Inject timeouts into request metadata
         env[:timeouts] ||= {}
         env[:timeouts][:connect] = @connect_timeout
         env[:timeouts][:read] = @read_timeout
         env[:timeouts][:write] = @write_timeout
 
-        @app.call(request, env)
-      rescue TimeoutError => e
+        block.call(request, env)
+      rescue TimeoutError, Net::ReadTimeout, Net::OpenTimeout => e
         @hooks[:on_timeout]&.call(request, env, e)
         raise
-      end
-
-      def stream(request, env = {}, &block)
-        env[:timeouts] ||= {}
-        env[:timeouts][:connect] = @connect_timeout
-        env[:timeouts][:read] = @read_timeout
-        env[:timeouts][:write] = @write_timeout
-
-        @app.stream(request, env, &block)
       end
     end
   end

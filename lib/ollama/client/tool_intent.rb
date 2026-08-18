@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../tool_intent"
+require_relative "../schemas/tool_intent"
 
 module Ollama
   class Client
@@ -15,15 +16,7 @@ module Ollama
       # @param schema [Hash, nil] Optional schema override.
       # @return [Ollama::ToolIntent, nil] Parsed intent or nil when absent.
       def generate_tool_intent(prompt:, tools:, model: nil, schema: nil)
-        intent_schema = schema || {
-          "type" => "object",
-          "required" => %w[action],
-          "properties" => {
-            "action" => { "type" => "string" },
-            "input" => { "type" => "object" }
-          },
-          "additionalProperties" => false
-        }
+        intent_schema = schema || Ollama::Schemas.tool_intent
 
         parsed = generate(
           prompt: prompt,

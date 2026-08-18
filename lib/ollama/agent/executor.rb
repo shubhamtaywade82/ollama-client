@@ -9,16 +9,6 @@ module Ollama
     #
     # The LLM never executes tools. It can only request tool calls; this class
     # executes Ruby callables and feeds results back as role: "tool" messages.
-    #
-    # NOTE: #run currently calls @client.chat_raw, a pre-refactor Client
-    # method that no longer exists (superseded by chat(), which now always
-    # returns a full Ollama::Response — see API_CONTRACT.md). This class is
-    # not required by lib/ollama_client.rb's default load path — that's
-    # deliberate: docs/RUBYLLM_ADOPTION_MATRIX.md section L tracks whether
-    # tool-execution loops belong in core or a separate ollama-agent gem as
-    # an open question, and wiring this in would answer it by default.
-    # #run will raise NoMethodError on its first real chat call until that's
-    # resolved; #tool_definitions and the rest of the class work correctly.
     class Executor
       attr_reader :messages
 
@@ -30,7 +20,7 @@ module Ollama
         @messages = []
       end
 
-      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity, Metrics/BlockLength
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
       def run(system:, user:)
         @messages = [
           Messages.system(system),
@@ -42,47 +32,25 @@ module Ollama
         @max_steps.times do
           @stream&.emit(:state, state: :assistant_streaming)
 
-          response =
-            if @stream
-              @client.chat_raw(
-                messages: @messages,
-                tools: tool_definitions,
-                allow_chat: true,
-                stream: true
-              ) do |chunk|
-                delta = chunk.dig("message", "content")
-                @stream.emit(:token, text: delta.to_s) if delta && !delta.to_s.empty?
+          response = request_chat
 
-                calls = chunk.dig("message", "tool_calls")
-                if calls.is_a?(Array)
-                  calls.each do |call|
-                    name = dig(call, %w[function name]) || call["name"]
-                    @stream.emit(:tool_call_detected, name: name, data: call) if name
-                  end
-                end
-              end
-            else
-              @client.chat_raw(messages: @messages, tools: tool_definitions, allow_chat: true)
-            end
-
-          message = response["message"] || {}
-          content = message["content"]
-          tool_calls = message["tool_calls"]
+          message = response.message
+          content = message&.content
+          tool_calls = message&.tool_calls || []
 
           # Preserve the assistant turn in history (including tool_calls if present).
-          @messages << Messages.assistant(content.to_s, tool_calls: tool_calls) if content || tool_calls
+          @messages << Messages.assistant(content.to_s, tool_calls: tool_calls.map(&:to_h)) if content || !tool_calls.empty?
           last_assistant_content = content if content && !content.empty?
 
-          break if tool_calls.nil? || tool_calls.empty?
+          break if tool_calls.empty?
 
           tool_calls.each do |call|
-            name = dig(call, %w[function name]) || call["name"]
+            name = call.name
             raise Ollama::Error, "Tool call missing function name: #{call.inspect}" if name.nil? || name.empty?
 
-            args = dig(call, %w[function arguments])
-            args_hash = normalize_arguments(args)
+            args_hash = call.arguments.is_a?(Hash) ? call.arguments : {}
 
-            tool_entry = @tools[name]
+            tool_entry = @tools[name] || @tools[name.to_sym]
             raise Ollama::Error, "Tool '#{name}' not found. Available: #{@tools.keys.sort.join(", ")}" unless tool_entry
 
             # Extract callable from tool entry
@@ -93,7 +61,7 @@ module Ollama
             result = invoke_tool(callable, args_hash)
             tool_content = encode_tool_result(result)
 
-            tool_call_id = call["id"] || call["tool_call_id"]
+            tool_call_id = call.id
             @messages << Messages.tool(content: tool_content, name: name, tool_call_id: tool_call_id)
             @stream&.emit(:state, state: :tool_result_injected)
           end
@@ -107,13 +75,33 @@ module Ollama
         @stream&.emit(:final, text: last_assistant_content.to_s)
         last_assistant_content
       end
-      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity, Metrics/BlockLength
+      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
 
       private
 
+      def request_chat
+        hooks = streaming_hooks
+        @client.chat(messages: @messages, tools: tool_definitions, stream: !hooks.nil?, hooks: hooks || {})
+      end
+
+      def streaming_hooks
+        return nil unless @stream
+
+        {
+          on_token: lambda { |delta, _logprobs = nil|
+            @stream.emit(:token, text: delta.to_s) if delta && !delta.to_s.empty?
+          },
+          on_tool_call: lambda { |call|
+            name = dig(call, %w[function name]) || call["name"]
+            @stream.emit(:tool_call_detected, name: name, data: call) if name
+          }
+        }
+      end
+
       def tool_definitions
-        @tools.keys.sort.map do |name|
-          tool_entry = @tools[name]
+        @tools.keys.sort.map do |key|
+          name = key.to_s
+          tool_entry = @tools[key]
 
           # Support both explicit Tool objects and callables
           # Tool objects are schema definitions only
@@ -173,19 +161,6 @@ module Ollama
           cur = cur[k] || cur[k.to_sym]
         end
         cur
-      end
-
-      def normalize_arguments(args)
-        return {} if args.nil? || args == ""
-        return args if args.is_a?(Hash)
-
-        if args.is_a?(String)
-          JSON.parse(args)
-        else
-          {}
-        end
-      rescue JSON::ParserError => e
-        raise Ollama::InvalidJSONError, "Failed to parse tool arguments JSON: #{e.message}. Arguments: #{args.inspect}"
       end
 
       def invoke_tool(callable, args_hash)

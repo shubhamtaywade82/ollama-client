@@ -171,6 +171,37 @@ API request/response shapes, for code written against OpenAI-shaped SDKs.
 | `openai.chat.completions.create` | `(model:, messages:, tools: nil, temperature: nil, top_p: nil, **)` | `Hash` (OpenAI chat completion shape) |
 | `openai.completions.create` | `(model:, prompt:, temperature: nil, top_p: nil, **)` | `Hash` (OpenAI text completion shape) |
 
+## Policy Middleware (v1.4+)
+
+`client.use(policy_class, **options)` attaches production-behavior middleware to the request
+pipeline (chain order = registration order). All policies live under `Ollama::Policies::` and
+wrap non-streaming requests; HTTP failures surface inside the chain as typed errors
+(`Errors.from_response`), so policies observe 404/429/5xx responses.
+
+| Policy | Options | Behavior |
+|---|---|---|
+| `Policies::Retry` | `max_attempts:`, `strategy:` (`:exponential`/`:linear`/`:fixed`/`:jitter`), `base_delay:`, `max_delay:`, `jitter:`, `retryable_errors:`, `hooks:` | Retries network errors and HTTP 429/5xx with backoff |
+| `Policies::Timeout` | `connect_timeout:`, `read_timeout:`, `write_timeout:`, `hooks:` (`:on_timeout`) | Annotates `env[:timeouts]`; fires `:on_timeout` hook |
+| `Policies::AutoPull` | `enabled:`, `allowed_patterns:` (glob), `hooks:` (`:before_pull`, `:after_pull`) | On 404, pulls the requested model once and retries the request |
+| `Policies::Fallback` | `models:` (ordered list), `fallback_on:`, `hooks:` | Re-issues the request against each fallback model until one succeeds |
+| `Policies::RateLimit` | `requests_per_second:`, `requests_per_minute:`, `burst:`, `hooks:` | Token-bucket throttling before dispatch |
+| `Policies::CapabilityValidation` | `enabled:`, `cache:`, `cache_ttl:`, `hooks:` (`:capability_missing`) | Raises `UnsupportedCapabilityError` when the model profile lacks a requested capability (tools/thinking/vision/structured output) |
+| `Policies::RepairJson` | `max_repairs:`, `strategies:` (`:balanced`, `:extract_object`), `hooks:` | Repairs malformed JSON response bodies |
+| `Policies::SchemaRepair` | `max_repairs:`, `strict:`, `hooks:` | Validates structured output against the request `format` schema and repairs violations (missing fields, type mismatches, extras) |
+
+## Agent Executor (v1.4+)
+
+`Ollama::Agent::Executor` (required by the default load path) runs the chat + tool-calling loop:
+
+| Method | Signature | Returns |
+|---|---|---|
+| `Executor#run` | `(system:, user:)` | `String` — final assistant content |
+| `Executor#messages` | `()` | `Array<Hash>` — conversation history (system, user, assistant, tool turns) |
+
+Constructor: `Executor.new(client, tools: { "name" => callable_or_tool }, max_steps: 20, stream: nil)`.
+Tool keys may be strings or symbols. Pass `stream:` an `Ollama::StreamingObserver` to receive
+`:token`, `:tool_call_detected`, and `:state` events.
+
 ## Error Classes
 
 All errors inherit from `Ollama::Error < StandardError`.
