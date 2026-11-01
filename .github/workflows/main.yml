@@ -97,7 +97,7 @@ jobs:
           bundler-cache: true
 
       - name: Install bundler-audit
-        run: gem install bundler-audit
+        run: gem install bundler-audit -v '~> 0.9'
 
       - name: Audit Gemfile.lock for known CVEs
         run: bundle-audit check --update
