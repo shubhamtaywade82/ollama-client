@@ -125,16 +125,33 @@ chat.ask("Write a function") { |chunk| print chunk }
 
 | Method | Signature | Returns | Description |
 |---|---|---|---|
-| `ask` | `(prompt, tools: nil, format: nil, &block)` | `Ollama::Response` | Appends user message and sanitized assistant response; yields chunks if block given |
+| `ask` | `(prompt, tools: nil, format: nil, with: nil, &block)` | `Ollama::Response` | Appends user message (with optional attachments via `with:`) and sanitized assistant response; yields chunks if block given |
 | `with_instructions` | `(text, append: false)` | `self` | Sets or appends system message at index 0 |
 | `with_model` | `(model_name)` | `self` | Updates the active model |
 | `with_temperature` | `(temp)` | `self` | Sets runtime temperature option |
 | `with_think` | `(level)` | `self` | Sets thinking/reasoning mode |
 | `with_keep_alive` | `(duration)` | `self` | Sets keep_alive duration |
 | `with_tool` / `with_tools` | `(*tools)` | `self` | Adds callable tools or tool hashes |
-| `with_format` / `with_schema` | `(format)` | `self` | Sets format or JSON schema with auto-repair retry loop |
+| `with_format` / `with_schema` | `(format)` | `self` | Sets format, JSON schema, or `Ollama::Schema` class with auto-repair retry loop |
 | `reset!` | `()` | `self` | Clears conversation history while preserving system instructions |
 | `messages` | `()` | `Array<Hash>` | Active conversation message history |
+
+### `Ollama::Schema` (v1.4+)
+
+Class-based schema definition and typed object instantiation:
+
+```ruby
+class TradeSignal < Ollama::Schema
+  string :direction, enum: %w[buy sell wait]
+  number :confidence, minimum: 0, maximum: 1
+end
+
+chat = client.chat.with_schema(TradeSignal)
+response = chat.ask("What is the trade?")
+signal = response.parsed  # => #<TradeSignal direction="buy" confidence=0.95>
+signal.direction          # => "buy"
+signal.confidence         # => 0.95
+```
 
 ### `Ollama::GenerateStreamHandler` (v1.3+)
 

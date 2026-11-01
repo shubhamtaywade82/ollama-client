@@ -4,14 +4,15 @@ require_relative "history_sanitizer"
 require_relative "schema_validator"
 require_relative "json_fragment_extractor"
 require_relative "model_profile"
+require_relative "attachment"
 
 module Ollama
   # Stateful multi-turn conversation object.
   # Manages message history, sanitizes reasoning blocks across turns,
-  # and supports block-based streaming and structured output repair.
+  # and supports block-based streaming, structured output repair, and attachments.
   class Chat
     attr_reader :client, :model, :options, :tools, :format, :think,
-                :keep_alive, :profile, :trace_store
+                :keep_alive, :profile, :trace_store, :schema_class
     attr_accessor :messages
 
     # rubocop:disable Metrics/ParameterLists
@@ -22,7 +23,6 @@ module Ollama
       @client = client
       @model = model || client.config.model
       @tools = tools
-      @format = format
       @think = think
       @keep_alive = keep_alive
       @options = options ? options.dup : {}
@@ -30,16 +30,22 @@ module Ollama
       @trace_store = trace_store
       @messages = []
 
+      with_format(format) if format
       add_system_message(system) if system
       Array(history).each { |msg| add_message(msg) }
     end
 
-    def ask(prompt, tools: nil, format: nil, &block)
-      add_message(role: "user", content: prompt)
+    def ask(prompt, tools: nil, format: nil, with: nil, &block)
+      user_msg = { role: "user", content: prompt }
+      images = coerce_attachments(with) if with
+      user_msg[:images] = images if images&.any?
+      add_message(user_msg)
 
-      effective_format = format || @format
+      turn_schema = format.is_a?(Class) && format < Schema ? format : @schema_class
+      effective_format = resolve_format(format)
       response = execute_turn_with_repair(tools: tools, format: effective_format, &block)
 
+      response.schema_class = turn_schema if turn_schema
       record_assistant_response(response)
       response
     end
@@ -86,7 +92,8 @@ module Ollama
     end
 
     def with_format(fmt)
-      @format = fmt
+      @schema_class = fmt if fmt.is_a?(Class) && fmt < Schema
+      @format = fmt&.respond_to?(:to_h) ? fmt.to_h : fmt
       self
     end
     alias with_schema with_format
@@ -103,6 +110,27 @@ module Ollama
     end
 
     private
+
+    def resolve_format(fmt)
+      target = fmt || @format
+      return nil if target.nil?
+
+      target.respond_to?(:to_h) ? target.to_h : target
+    end
+
+    def coerce_attachments(attachments)
+      Array(attachments).map do |att|
+        if att.is_a?(Attachment)
+          att.data
+        elsif att.respond_to?(:to_path) || (att.is_a?(String) && File.exist?(att))
+          Attachment.file(att.to_s).data
+        elsif att.is_a?(Hash)
+          att[:data] || att["data"]
+        else
+          att.to_s
+        end
+      end
+    end
 
     def add_system_message(text)
       @messages.unshift({ role: "system", content: text })

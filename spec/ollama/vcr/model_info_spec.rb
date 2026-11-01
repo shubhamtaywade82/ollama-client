@@ -22,14 +22,10 @@ RSpec.describe Ollama::Client, "model info (VCR)", :vcr do
 
       expect(details).to be_a(Hash)
       expect(details["details"]["family"]).to eq("gptoss")
-      # show_model overwrites the server's raw "capabilities" array (which for
-      # this model is ["completion","tools","thinking"]) with
-      # Ollama::Capabilities.for's heuristic hash. The "gptoss" family isn't in
-      # Capabilities::TOOLS_FAMILIES/THINKING_MODELS yet, so both come back
-      # false here despite the server saying otherwise — a known accuracy gap
-      # (see docs/RUBYLLM_ADOPTION_MATRIX.md E3), not a VCR/test bug.
+      # E3 closed: Capabilities.for prefers the server's raw "capabilities" array
+      # (["completion","tools","thinking"]) over name heuristics.
       expect(details["capabilities"]).to eq(
-        "tools" => false, "thinking" => false, "vision" => false, "embeddings" => false
+        "tools" => true, "thinking" => true, "vision" => false, "embeddings" => false
       )
     end
   end

@@ -107,5 +107,22 @@ RSpec.describe Ollama::Capabilities do
 
       expect(result["tools"]).to be true
     end
+
+    it "prefers server-provided capabilities array over name heuristics" do
+      model_info = {
+        "name" => "custom-model",
+        "capabilities" => %w[completion tools thinking],
+        "details" => { "family" => "unknown_family" }
+      }
+
+      result = described_class.for(model_info)
+
+      expect(result).to eq({
+                             "tools" => true,
+                             "thinking" => true,
+                             "vision" => false,
+                             "embeddings" => false
+                           })
+    end
   end
 end

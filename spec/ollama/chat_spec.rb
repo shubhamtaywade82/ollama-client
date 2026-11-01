@@ -216,4 +216,56 @@ RSpec.describe Ollama::Chat do
       expect { chat.ask("Capital?") }.to raise_error(Ollama::SchemaViolationError)
     end
   end
+
+  describe "multimodal attachments via ask(with:)" do
+    it "attaches base64 images to the user message" do
+      chat = client.chat(model: "qwen3vl:latest")
+
+      stub_request(:post, "http://localhost:11434/api/chat")
+        .with(body: hash_including("messages" => [{ "role" => "user", "content" => "Describe", "images" => ["aGVsbG8="] }]))
+        .to_return(status: 200, body: { message: { role: "assistant", content: "A sunny day" }, done: true }.to_json)
+
+      chat.ask("Describe", with: "aGVsbG8=")
+      expect(chat.messages[-2][:images]).to eq(["aGVsbG8="])
+    end
+
+    it "accepts Ollama::Attachment instances" do
+      chat = client.chat(model: "qwen3vl:latest")
+      attachment = Ollama::Attachment.base64("aW1hZ2U=")
+
+      stub_request(:post, "http://localhost:11434/api/chat")
+        .with(body: hash_including("messages" => [{ "role" => "user", "content" => "Look", "images" => ["aW1hZ2U="] }]))
+        .to_return(status: 200, body: { message: { role: "assistant", content: "A cat" }, done: true }.to_json)
+
+      chat.ask("Look", with: attachment)
+      expect(chat.messages[-2][:images]).to eq(["aW1hZ2U="])
+    end
+  end
+
+  describe "Ollama::Schema typed object integration" do
+    let(:sample_signal_class) do
+      Class.new(Ollama::Schema) do
+        string :direction, enum: %w[buy sell wait]
+        number :confidence, minimum: 0, maximum: 1
+      end
+    end
+
+    it "instantiates typed objects from response.parsed" do
+      chat = client.chat(model: "qwen3.5:4b").with_schema(sample_signal_class)
+
+      stub_request(:post, "http://localhost:11434/api/chat")
+        .with(body: hash_including("format" => sample_signal_class.to_h))
+        .to_return(status: 200, body: {
+          message: { role: "assistant", content: '{"direction":"buy","confidence":0.95}' }, done: true
+        }.to_json)
+
+      response = chat.ask("Next signal?")
+      signal = response.parsed
+
+      expect(signal).to be_a(sample_signal_class)
+      expect(signal.direction).to eq("buy")
+      expect(signal.confidence).to eq(0.95)
+      expect(signal["direction"]).to eq("buy")
+    end
+  end
 end

@@ -53,5 +53,42 @@ RSpec.describe Ollama::SchemaDSL do
       expect(schema["properties"]["items"]["type"]).to eq("array")
       expect(schema["properties"]["meta"]["type"]).to eq("object")
     end
+
+    it "supports array of: and nested blocks" do
+      schema = described_class.define do
+        array :tags, of: :string
+        object :location do
+          string :city
+        end
+      end.to_h
+
+      expect(schema["properties"]["tags"]).to eq({ "type" => "array", "items" => { "type" => "string" } })
+      expect(schema["properties"]["location"]["properties"]["city"]["type"]).to eq("string")
+    end
+  end
+
+  describe Ollama::Schema do
+    let(:product_class) do
+      Class.new(described_class) do
+        string :title
+        number :price
+        boolean :in_stock, optional: true
+      end
+    end
+
+    it "builds schema from class definition" do
+      schema = product_class.to_h
+      expect(schema["properties"]["title"]["type"]).to eq("string")
+      expect(schema["properties"]["price"]["type"]).to eq("number")
+      expect(schema["required"]).to match_array(%w[title price])
+    end
+
+    it "instantiates typed objects with method accessors" do
+      item = product_class.new("title" => "Shoes", "price" => 89.99, "in_stock" => true)
+      expect(item.title).to eq("Shoes")
+      expect(item.price).to eq(89.99)
+      expect(item.in_stock).to be true
+      expect(item["title"]).to eq("Shoes")
+    end
   end
 end

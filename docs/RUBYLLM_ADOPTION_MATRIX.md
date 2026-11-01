@@ -229,7 +229,7 @@ Derived strictly from the matrix. Every P0/P1 item is additive; none touches a s
 | Item | Ref | Why first | Status |
 |---|---|---|---|
 | Route `chat(format:)` through validate → repair → retry | C3 | Two structured-output paths with different reliability guarantees is a defect, and the gem's core claim is deterministic structured output | **SHIPPED** |
-| Prefer `/api/show` server capabilities over name heuristics | E3 | `Capabilities.for` currently guesses from model names; the server knows | Next |
+| Prefer `/api/show` server capabilities over name heuristics | E3 | `Capabilities.for` currently guesses from model names; the server knows | **SHIPPED** |
 | Decide the tool-loop boundary and document it | L | Blocks P1 tool work and `Agent::Executor`'s fate | Documented |
 
 ### P1 — Ergonomics parity (the RubyLLM lesson)
@@ -240,9 +240,9 @@ Derived strictly from the matrix. Every P0/P1 item is additive; none touches a s
 | `with_instructions` / `with_model` / `with_temperature` / `with_think` / `with_keep_alive` | A3, A4 | **SHIPPED** |
 | Block streaming `chat.ask(…) { \|chunk\| }` over the existing NDJSON path | D1 | **SHIPPED** |
 | `class T < Ollama::Tool` with `#execute`; `chat.with_tool(T)`; bounded loop; `halt` | B1, B4, B6, B9 | Pending |
-| `class S < Ollama::Schema`; `chat.with_schema(S)` → typed object | C1, C2, C4 | Pending |
+| `class S < Ollama::Schema`; `chat.with_schema(S)` → typed object | C1, C2, C4 | **SHIPPED** |
 | `client.embed("text")` + `default_embedding_model` | F1 | **SHIPPED** |
-| `ask(…, with: "image.png")` sugar | F2 | Pending |
+| `ask(…, with: "image.png")` sugar | F2 | **SHIPPED** |
 
 ### P2 — Depth that exceeds RubyLLM
 

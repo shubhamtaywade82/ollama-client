@@ -6,10 +6,13 @@ module Ollama
   module Capabilities
     class << self
       # Returns a hash of boolean capabilities.
+      # Prefers server-provided capabilities array from /api/show when available,
+      # and falls back to model family and name heuristics.
       # @param model_info [Hash] A model entry from `/api/tags` or `/api/show`
       # @return [Hash] { "tools" => true, "thinking" => false, ... }
       def for(model_info)
         name = model_info["name"] || ""
+        server_caps = Array(model_info["capabilities"]).map(&:to_s).map(&:downcase) if model_info["capabilities"].is_a?(Array)
 
         # Details may be nested under 'details' in list/tags, or at top level in show
         details = model_info["details"] || model_info || {}
@@ -18,10 +21,10 @@ module Ollama
         families = details["families"] || [family]
 
         {
-          "tools" => tools_supported?(families, name),
-          "thinking" => thinking_supported?(families, name),
-          "vision" => vision_supported?(families, name),
-          "embeddings" => embeddings_supported?(families, name)
+          "tools" => resolve_cap(server_caps, "tools") { tools_supported?(families, name) },
+          "thinking" => resolve_cap(server_caps, "thinking") { thinking_supported?(families, name) },
+          "vision" => resolve_cap(server_caps, "vision") { vision_supported?(families, name) },
+          "embeddings" => resolve_cap(server_caps, %w[embeddings embedding]) { embeddings_supported?(families, name) }
         }
       end
 
@@ -33,6 +36,12 @@ module Ollama
       EMBEDDING_MODELS = [/embed/i, /minilm/i].freeze
 
       private
+
+      def resolve_cap(server_caps, keys)
+        return Array(keys).any? { |k| server_caps.include?(k) } if server_caps
+
+        yield
+      end
 
       def tools_supported?(families, name)
         return false if name&.match?(/codellama/i)

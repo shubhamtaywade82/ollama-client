@@ -16,6 +16,8 @@ module Ollama
   #   response.done_reason           # Why generation stopped
   #   response.total_duration        # Total time in nanoseconds
   class Response
+    attr_accessor :schema_class
+
     def initialize(data)
       @data = data || {}
     end
@@ -115,12 +117,13 @@ module Ollama
 
     # Extract and parse JSON from the response content.
     # Strips Markdown fences and extracts balanced JSON fragments.
-    # @return [Hash, Array, nil]
+    # @return [Hash, Array, Ollama::Schema, nil]
     def parsed
       return nil unless content
 
       json_str = JsonFragmentExtractor.call(content)
-      JSON.parse(json_str)
+      data = JSON.parse(json_str)
+      @schema_class ? @schema_class.new(data) : data
     rescue JSON::ParserError => e
       raise InvalidJSONError, "Failed to parse JSON response: #{e.message}"
     end

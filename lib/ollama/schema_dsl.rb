@@ -12,8 +12,6 @@ module Ollama
   #     string :direction, enum: %w[buy sell wait]
   #     number :confidence, minimum: 0, maximum: 1
   #   end.to_h
-  #
-  #   client.generate(prompt: "...", schema: schema)
   class SchemaDSL
     attr_reader :properties, :required
 
@@ -52,14 +50,17 @@ module Ollama
       add_property(name, "boolean", optional: optional, default: default, description: description)
     end
 
-    def array(name, items: nil, optional: false, default: nil, description: nil)
+    def array(name, items: nil, of: nil, optional: false, default: nil, description: nil, &block)
+      item_type = of ? { "type" => of.to_s } : items
+      item_type = self.class.define(&block).to_h if block
       prop = { "type" => "array" }
-      prop["items"] = items if items
+      prop["items"] = item_type if item_type
       add_property_entry(name, prop, optional: optional, default: default, description: description)
     end
 
-    def object(name, properties: {}, optional: false, default: nil, description: nil)
-      prop = { "type" => "object", "properties" => properties }
+    def object(name, properties: {}, optional: false, default: nil, description: nil, &block)
+      props = block ? self.class.define(&block).properties : properties
+      prop = { "type" => "object", "properties" => props }
       add_property_entry(name, prop, optional: optional, default: default, description: description)
     end
 
@@ -92,6 +93,72 @@ module Ollama
       @required << name.to_s unless optional
       prop["default"] = default if default
       prop["description"] = description if description
+    end
+  end
+
+  # Class-level schema definition for typed structured outputs.
+  # Subclasses declare attributes with schema DSL and instantiate typed objects.
+  class Schema
+    class << self
+      def dsl
+        @dsl ||= SchemaDSL.new
+      end
+
+      def string(name, ...)
+        dsl.string(name, ...)
+        attr_reader name.to_sym
+      end
+
+      def number(name, ...)
+        dsl.number(name, ...)
+        attr_reader name.to_sym
+      end
+
+      def integer(name, ...)
+        dsl.integer(name, ...)
+        attr_reader name.to_sym
+      end
+
+      def boolean(name, ...)
+        dsl.boolean(name, ...)
+        attr_reader name.to_sym
+      end
+
+      def array(name, ...)
+        dsl.array(name, ...)
+        attr_reader name.to_sym
+      end
+
+      def object(name, ...)
+        dsl.object(name, ...)
+        attr_reader name.to_sym
+      end
+
+      def to_h
+        dsl.to_h
+      end
+
+      def inherited(subclass)
+        super
+        subclass.instance_variable_set(:@dsl, SchemaDSL.new)
+      end
+    end
+
+    attr_reader :attributes
+
+    def initialize(attrs = {})
+      @attributes = (attrs || {}).transform_keys(&:to_s)
+      @attributes.each do |key, val|
+        instance_variable_set("@#{key}", val) if respond_to?(key.to_sym)
+      end
+    end
+
+    def [](key)
+      @attributes[key.to_s]
+    end
+
+    def to_h
+      @attributes
     end
   end
 end
