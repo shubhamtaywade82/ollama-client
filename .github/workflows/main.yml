@@ -5,6 +5,9 @@ on:
     branches: [main, develop]
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -95,9 +98,6 @@ jobs:
 
       - name: Install bundler-audit
         run: gem install bundler-audit
-
-      - name: Update vulnerability database
-        run: bundle-audit update
 
       - name: Audit Gemfile.lock for known CVEs
         run: bundle-audit check --update

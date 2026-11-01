@@ -5,6 +5,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     name: Verify before publish
@@ -16,7 +19,7 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.3.4"
+          ruby-version: "3.3"
           bundler-cache: true
       - name: Run tests
         run: bundle exec rspec
@@ -35,7 +38,7 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.3.4"
+          ruby-version: "3.3"
           bundler-cache: true
       - name: Validate tag matches gem version
         run: |
@@ -48,7 +51,7 @@ jobs:
             exit 1
           fi
       - name: Install OTP generator
-        run: gem install rotp
+        run: gem install rotp -v '~> 6.0'
       - name: Build gem
         run: |
           set -euo pipefail
