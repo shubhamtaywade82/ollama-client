@@ -17,11 +17,10 @@ module Ollama
       # @param think [Boolean, String, nil] forwarded from chat
       # @param tools [Array<Hash>, nil] forwarded from chat
       # @return [Array<Hash>]
-      # rubocop:disable Lint/UnusedMethodArgument -- keyword kept for subclass / duck-typed API
+      # rubocop:disable-next Lint/UnusedMethodArgument -- keyword kept for subclass / duck-typed API
       def adapt_messages(messages, think: false, tools: nil)
         messages
       end
-      # rubocop:enable Lint/UnusedMethodArgument
 
       # Whether this adapter injects think: true into the API body.
       # Gemma 4 uses a system-prompt tag instead, so returns false there.

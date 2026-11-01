@@ -15,7 +15,7 @@ module Ollama
     ENDPOINTS = %i[chat generate embeddings show_model list_models version
                    create_model delete_model copy_model pull push list_running blob].freeze
 
-    # rubocop:disable Metrics/ParameterLists
+    # rubocop:disable-next Metrics/ParameterLists
     def initialize(endpoint:, model: nil, messages: nil, prompt: nil, images: nil,
                    tools: nil, schema: nil, options: nil, stream: nil, keep_alive: nil,
                    think: nil, format: nil, metadata: {}, raw_options: nil)
@@ -35,7 +35,6 @@ module Ollama
       @raw_options = raw_options
       freeze
     end
-    # rubocop:enable Metrics/ParameterLists
 
     # Build a request from endpoint-specific parameters
     def self.build(endpoint, **params)

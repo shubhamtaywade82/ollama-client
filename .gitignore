@@ -33,3 +33,4 @@ lib/bundler/man/
 metrics.json
 .ollama_chat_history
 .ollama_dhan_history
+.railsforge

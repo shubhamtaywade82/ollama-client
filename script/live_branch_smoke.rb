@@ -76,7 +76,7 @@ class LiveBranchSmoke
     @preview_limit = pv.clamp(200, 32_768)
   end
 
-  # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+  # rubocop:disable-next Metrics/AbcSize, Metrics/MethodLength
   def run
     banner("ollama-client live smoke (#{Ollama::VERSION})")
     puts "Base URL: #{@base_url}"
@@ -145,7 +145,6 @@ class LiveBranchSmoke
     summary
     @failed.zero? ? 0 : 1
   end
-  # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
   private
 

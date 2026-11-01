@@ -13,7 +13,7 @@ module Ollama
           @provider = provider
         end
 
-        # rubocop:disable Metrics/MethodLength
+        # rubocop:disable-next Metrics/MethodLength
         def build_request(params, client_instance)
           target_model = params.model || @config.model
           active_profile = client_instance.send(:resolve_profile, target_model, params.profile)
@@ -56,7 +56,6 @@ module Ollama
             }
           )
         end
-        # rubocop:enable Metrics/MethodLength
 
         private
 

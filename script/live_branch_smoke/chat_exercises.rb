@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# rubocop:disable Metrics/ModuleLength
+# rubocop:disable-next Metrics/ModuleLength
 module LiveBranchSmokeChatExercises
   def exercise_chat_plain(client)
     r = client.chat(
@@ -229,4 +229,3 @@ module LiveBranchSmokeChatExercises
     smoke_emit("message.content", r.content)
   end
 end
-# rubocop:enable Metrics/ModuleLength

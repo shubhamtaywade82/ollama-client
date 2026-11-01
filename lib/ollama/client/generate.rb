@@ -124,7 +124,7 @@ module Ollama
         "#{THINK_PROMPT}#{prompt}"
       end
 
-      # rubocop:disable Metrics/AbcSize, Metrics/MethodLength, Metrics/ParameterLists
+      # rubocop:disable-next Metrics/AbcSize, Metrics/MethodLength, Metrics/ParameterLists
       def call_generate_api(prompt:, context:, schema:, model:, hooks:, system: nil, images: nil,
                             think: nil, keep_alive: nil, suffix: nil, raw: nil, options: nil)
         preparer = RequestPreparer.new(config: @config, provider: @provider, schema_cache: @summarize_schema_cache)
@@ -184,7 +184,6 @@ module Ollama
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse API response: #{e.message}"
       end
-      # rubocop:enable Metrics/AbcSize, Metrics/MethodLength, Metrics/ParameterLists
 
       def enhance_not_found_error(error)
         return error if error.requested_model.nil?
