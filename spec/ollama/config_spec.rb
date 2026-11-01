@@ -13,6 +13,7 @@ RSpec.describe Ollama::Config do
       config = described_class.new
       expect(config.base_url).to eq("http://localhost:11434")
       expect(config.model).to eq("qwen3.5:4b")
+      expect(config.default_embedding_model).to eq("nomic-embed-text:latest")
       expect(config.timeout).to eq(30)
       expect(config.retries).to eq(2)
       expect(config.strict_json).to be(true)

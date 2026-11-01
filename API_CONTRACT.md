@@ -22,7 +22,10 @@ client = Ollama::Client.new(config: Ollama::Config.new)
 
 | Method | Signature | Returns |
 |---|---|---|
-| `chat` | `(messages:, model: nil, format: nil, tools: nil, stream: nil, think: nil, keep_alive: nil, options: nil, logprobs: nil, top_logprobs: nil, hooks: {}, profile: :auto, inputs: nil)` | `Ollama::Response` |
+| `chat` | `(messages: nil, model: nil, format: nil, tools: nil, stream: nil, think: nil, keep_alive: nil, options: nil, logprobs: nil, top_logprobs: nil, hooks: {}, profile: :auto, inputs: nil, strict: nil)` | `Ollama::Response` (when `messages:` provided) or `Ollama::Chat` (when `messages:` omitted) |
+| `embed` | `(input, model: nil, **options)` | `Array<Float>` (single) or `Array<Array<Float>>` (batch) using `config.default_embedding_model` |
+
+> **Stateful Chat (v1.4+):** Calling `client.chat(model: "...")` with `messages:` omitted returns a stateful `Ollama::Chat` instance managing multi-turn conversation history, block-based streaming (`chat.ask("...") { |c| ... }`), built-in `HistorySanitizer`, and schema auto-repair.
 
 > **Server support (v1.4.0):** `logprobs:` and `top_logprobs:` are forwarded verbatim to `/api/chat`, but they are **not** part of the official Ollama API (absent from upstream `docs/api.md` as of 2026-11-01). Servers that don't implement them drop the fields silently and `Ollama::Response#logprobs` stays `nil`; the parameters remain in the signature so gateways that do support them keep working.
 
@@ -88,6 +91,7 @@ Returned by `chat`. Wraps the API response with accessor methods:
 |---|---|---|
 | `message` | `Ollama::Response::Message` | Message wrapper |
 | `content` | `String` | Shorthand for `message.content` |
+| `parsed` / `parsed_content` | `Hash, Array, nil` | Automatically extracts JSON from markdown fences/prose and parses |
 | `done?` | `Boolean` | Whether generation finished |
 | `done_reason` | `String` | Why generation stopped (`"stop"`, etc.) |
 | `model` | `String` | Model name used |
@@ -106,6 +110,31 @@ Returned by `chat`. Wraps the API response with accessor methods:
 | `role` | `String` | `"assistant"` |
 | `tool_calls` | `Array<ToolCall>` | Function calls |
 | `images` | `Array<String>` | Base64 images |
+
+### `Ollama::Chat` (v1.4+)
+
+Stateful multi-turn conversation manager:
+
+```ruby
+chat = client.chat(model: "qwen3.5:4b")
+chat.with_instructions("You are a helpful coding assistant")
+response = chat.ask("Hello!")
+# Block streaming:
+chat.ask("Write a function") { |chunk| print chunk }
+```
+
+| Method | Signature | Returns | Description |
+|---|---|---|---|
+| `ask` | `(prompt, tools: nil, format: nil, &block)` | `Ollama::Response` | Appends user message and sanitized assistant response; yields chunks if block given |
+| `with_instructions` | `(text, append: false)` | `self` | Sets or appends system message at index 0 |
+| `with_model` | `(model_name)` | `self` | Updates the active model |
+| `with_temperature` | `(temp)` | `self` | Sets runtime temperature option |
+| `with_think` | `(level)` | `self` | Sets thinking/reasoning mode |
+| `with_keep_alive` | `(duration)` | `self` | Sets keep_alive duration |
+| `with_tool` / `with_tools` | `(*tools)` | `self` | Adds callable tools or tool hashes |
+| `with_format` / `with_schema` | `(format)` | `self` | Sets format or JSON schema with auto-repair retry loop |
+| `reset!` | `()` | `self` | Clears conversation history while preserving system instructions |
+| `messages` | `()` | `Array<Hash>` | Active conversation message history |
 
 ### `Ollama::GenerateStreamHandler` (v1.3+)
 

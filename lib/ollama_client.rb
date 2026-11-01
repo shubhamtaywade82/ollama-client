@@ -15,6 +15,7 @@ require_relative "ollama/stream_event"
 require_relative "ollama/prompt_adapters"
 require_relative "ollama/multimodal_input"
 require_relative "ollama/history_sanitizer"
+require_relative "ollama/chat"
 require_relative "ollama/client"
 require_relative "ollama/tool"
 require_relative "ollama/tool_intent"
@@ -79,7 +80,7 @@ module Ollama
     @client ||= Client.new(config: config)
   end
 
-  def self.chat(messages:, **args)
+  def self.chat(messages: nil, **args)
     client.chat(messages: messages, **args)
   end
 
@@ -87,7 +88,7 @@ module Ollama
     client.generate(prompt: prompt, **args)
   end
 
-  def self.embed(...)
-    client.embeddings.embed(...)
+  def self.embed(input, **args)
+    client.embed(input, **args)
   end
 end

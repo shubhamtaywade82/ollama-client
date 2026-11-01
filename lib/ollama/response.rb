@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "json"
+require_relative "errors"
+require_relative "json_fragment_extractor"
 
 module Ollama
   # Response wrapper for chat() that provides method access to response data
@@ -110,6 +112,19 @@ module Ollama
     def content
       message&.content
     end
+
+    # Extract and parse JSON from the response content.
+    # Strips Markdown fences and extracts balanced JSON fragments.
+    # @return [Hash, Array, nil]
+    def parsed
+      return nil unless content
+
+      json_str = JsonFragmentExtractor.call(content)
+      JSON.parse(json_str)
+    rescue JSON::ParserError => e
+      raise InvalidJSONError, "Failed to parse JSON response: #{e.message}"
+    end
+    alias parsed_content parsed
 
     # Delegate hash access to underlying data
     def [](key)

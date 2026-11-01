@@ -18,7 +18,7 @@ module Ollama
   # Each client instance with its own config is thread-safe.
   #
   class Config
-    attr_accessor :base_url, :model, :timeout, :retries, :temperature,
+    attr_accessor :base_url, :model, :default_embedding_model, :timeout, :retries, :temperature,
                   :top_p, :num_ctx, :on_response, :strict_json,
                   :transport_adapter, :provider
     attr_reader :api_key, :api_keys, :enable_multi_key_concurrency, :api_key_pool
@@ -30,6 +30,7 @@ module Ollama
     def initialize(_value = nil)
       @base_url = "http://localhost:11434"
       @model = "qwen3.5:4b"
+      @default_embedding_model = "nomic-embed-text:latest"
       @timeout = 30
       @retries = 2
       @strict_json = true

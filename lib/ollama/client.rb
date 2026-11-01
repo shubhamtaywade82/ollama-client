@@ -110,6 +110,16 @@ module Ollama
       HistorySanitizer.for(p, trace_store: trace_store)
     end
 
+    # Generate embeddings using default_embedding_model or specified model.
+    #
+    # @param input [String, Array<String>] Single text or array of texts
+    # @param model [String, nil] Embedding model (defaults to config.default_embedding_model)
+    # @param options [Hash] Additional options forwarded to embeddings
+    # @return [Array<Float>, Array<Array<Float>>]
+    def embed(input, model: nil, **options)
+      @embeddings.embed(input: input, model: model, **options)
+    end
+
     # Execute a request through the pipeline
     # @param request [Ollama::Request] The request to execute
     # @return [Ollama::Transport::Response] The transport response

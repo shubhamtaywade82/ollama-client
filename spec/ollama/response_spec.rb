@@ -75,4 +75,32 @@ RSpec.describe Ollama::Response do
       expect(response.message.tool_calls.first.function.description).to eq("Get weather")
     end
   end
+
+  describe "#parsed and #parsed_content" do
+    it "parses plain JSON content" do
+      res = described_class.new({ "message" => { "content" => '{"answer": 42}' } })
+      expect(res.parsed).to eq({ "answer" => 42 })
+      expect(res.parsed_content).to eq({ "answer" => 42 })
+    end
+
+    it "extracts JSON wrapped in markdown fences" do
+      res = described_class.new({ "message" => { "content" => "```json\n{\"status\":\"ok\"}\n```" } })
+      expect(res.parsed).to eq({ "status" => "ok" })
+    end
+
+    it "extracts JSON embedded in surrounding prose" do
+      res = described_class.new({ "message" => { "content" => 'Here is the data: {"count": 5}. Have fun!' } })
+      expect(res.parsed).to eq({ "count" => 5 })
+    end
+
+    it "returns nil when content is nil" do
+      res = described_class.new({})
+      expect(res.parsed).to be_nil
+    end
+
+    it "raises InvalidJSONError when content has no valid JSON" do
+      res = described_class.new({ "message" => { "content" => "no json here" } })
+      expect { res.parsed }.to raise_error(Ollama::InvalidJSONError)
+    end
+  end
 end

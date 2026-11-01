@@ -28,7 +28,7 @@ module Ollama
 
     # Client extension to intercept requests and return stubbed responses during testing
     module ClientExtension
-      def chat(messages:, **args)
+      def chat(**args)
         stub = Ollama::Testing.pop_stub(:chat)
         return super if stub.nil?
 

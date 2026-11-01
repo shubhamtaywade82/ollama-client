@@ -25,12 +25,12 @@ module Ollama
     class Chat < Base
       attr_accessor :messages, :model, :format, :tools, :stream, :think,
                     :keep_alive, :options, :logprobs, :top_logprobs, :hooks,
-                    :profile, :inputs
+                    :profile, :inputs, :strict
 
       # rubocop:disable Metrics/ParameterLists
       def initialize(messages:, model: nil, format: nil, tools: nil, stream: nil,
                      think: nil, keep_alive: nil, options: nil, logprobs: nil,
-                     top_logprobs: nil, hooks: {}, profile: :auto, inputs: nil)
+                     top_logprobs: nil, hooks: {}, profile: :auto, inputs: nil, strict: nil)
         # rubocop:enable Metrics/ParameterLists
         super()
         @messages = messages
@@ -46,6 +46,7 @@ module Ollama
         @hooks = hooks
         @profile = profile
         @inputs = inputs
+        @strict = strict
       end
     end
 
@@ -124,7 +125,7 @@ module Ollama
     class Embeddings < Base
       attr_accessor :model, :input, :truncate, :dimensions, :keep_alive, :options
 
-      def initialize(model:, input:, truncate: nil, dimensions: nil, keep_alive: nil, options: nil)
+      def initialize(input:, model: nil, truncate: nil, dimensions: nil, keep_alive: nil, options: nil)
         super()
         @model = model
         @input = input

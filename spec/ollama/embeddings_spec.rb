@@ -42,6 +42,23 @@ RSpec.describe Ollama::Embeddings do
         expect(result).to eq([0.1, 0.2, 0.3, 0.4, 0.5])
       end
 
+      it "uses config.default_embedding_model when model is omitted" do
+        stub_request(:post, "http://localhost:11434/api/embed")
+          .with(
+            body: hash_including(
+              model: "nomic-embed-text:latest",
+              input: "Default model test"
+            )
+          )
+          .to_return(
+            status: 200,
+            body: { embeddings: [[0.1, 0.2, 0.3]] }.to_json
+          )
+
+        result = embeddings.embed(input: "Default model test")
+        expect(result).to eq([0.1, 0.2, 0.3])
+      end
+
       it "serializes truncate and dimensions options into the request body" do
         stub_request(:post, "http://localhost:11434/api/embed")
           .with(
@@ -178,6 +195,34 @@ RSpec.describe Ollama::Embeddings do
           embeddings.embed(model: "nomic-embed-text:latest", input: "test")
         end.to raise_error(Ollama::Error, /Empty embedding/)
       end
+    end
+  end
+
+  describe "convenience helpers" do
+    let(:client) { Ollama::Client.new(config: config) }
+
+    it "client.embed generates embeddings using default_embedding_model" do
+      stub_request(:post, "http://localhost:11434/api/embed")
+        .with(body: hash_including(model: "nomic-embed-text:latest", input: "quick test"))
+        .to_return(status: 200, body: { embeddings: [[0.7, 0.8]] }.to_json)
+
+      expect(client.embed("quick test")).to eq([0.7, 0.8])
+    end
+
+    it "client.embed allows overriding model" do
+      stub_request(:post, "http://localhost:11434/api/embed")
+        .with(body: hash_including(model: "bge-m3:latest", input: "quick test"))
+        .to_return(status: 200, body: { embeddings: [[0.9, 1.0]] }.to_json)
+
+      expect(client.embed("quick test", model: "bge-m3:latest")).to eq([0.9, 1.0])
+    end
+
+    it "Ollama.embed delegates to client.embed" do
+      stub_request(:post, "http://localhost:11434/api/embed")
+        .with(body: hash_including(input: "top level test"))
+        .to_return(status: 200, body: { embeddings: [[0.2, 0.4]] }.to_json)
+
+      expect(Ollama.embed("top level test")).to eq([0.2, 0.4])
     end
   end
 end

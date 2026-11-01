@@ -31,16 +31,17 @@ module Ollama
 
     # Generate embeddings for text input(s)
     #
-    # @param model [String] Embedding model name (e.g., "all-minilm")
     # @param input [String, Array<String>] Single text or array of texts
+    # @param model [String, nil] Embedding model name (defaults to config.default_embedding_model)
     # @param truncate [Boolean, nil] If true, truncate inputs exceeding context window
     # @param dimensions [Integer, nil] Number of dimensions for embeddings
     # @param keep_alive [String, nil] Model keep-alive duration (e.g. "5m")
     # @param options [Hash, nil] Runtime options (temperature, etc.)
     # @return [Array<Float>, Array<Array<Float>>] Embedding vector(s)
-    def embed(model:, input:, truncate: nil, dimensions: nil, keep_alive: nil, options: nil)
+    def embed(input:, model: nil, truncate: nil, dimensions: nil, keep_alive: nil, options: nil)
+      effective_model = model || @config.default_embedding_model
       params = Params::Embeddings.new(
-        model: model, input: input, truncate: truncate,
+        model: effective_model, input: input, truncate: truncate,
         dimensions: dimensions, keep_alive: keep_alive, options: options
       )
       embed_with_params(params)
