@@ -31,12 +31,13 @@ module Ollama
       # rubocop:disable Metrics/ParameterLists
       def generate(prompt:, context: nil, schema: nil, model: nil, strict: nil, return_meta: false,
                    system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil,
-                   options: nil, hooks: {}, tools: nil)
+                   options: nil, hooks: {}, tools: nil, template: nil, logprobs: nil, top_logprobs: nil, format: nil)
         params = Params::Generate.new(
           prompt: prompt, context: context, schema: schema, model: model, strict: strict,
           return_meta: return_meta, system: system, images: images, think: think,
           return_reasoning: return_reasoning, keep_alive: keep_alive, suffix: suffix,
-          raw: raw, options: options, hooks: hooks, tools: tools
+          raw: raw, options: options, hooks: hooks, tools: tools,
+          template: template, logprobs: logprobs, top_logprobs: top_logprobs, format: format
         )
         generate_with_params(params)
       end
@@ -64,7 +65,8 @@ module Ollama
           raw_response, final_context = call_generate_api(
             prompt: current_prompt, context: params.context, schema: params.schema, model: params.model, hooks: params.hooks,
             system: params.system, images: params.images, think: params.think, keep_alive: params.keep_alive,
-            suffix: params.suffix, raw: params.raw, options: params.options
+            suffix: params.suffix, raw: params.raw, options: params.options,
+            template: params.template, logprobs: params.logprobs, top_logprobs: params.top_logprobs, format: params.format
           )
 
           emit_response_hook(raw_response,
@@ -126,12 +128,14 @@ module Ollama
 
       # rubocop:disable-next Metrics/AbcSize, Metrics/MethodLength, Metrics/ParameterLists
       def call_generate_api(prompt:, context:, schema:, model:, hooks:, system: nil, images: nil,
-                            think: nil, keep_alive: nil, suffix: nil, raw: nil, options: nil)
+                            think: nil, keep_alive: nil, suffix: nil, raw: nil, options: nil,
+                            template: nil, logprobs: nil, top_logprobs: nil, format: nil)
         preparer = RequestPreparer.new(config: @config, provider: @provider, schema_cache: @summarize_schema_cache)
         request = preparer.build_request(
           prompt: prompt, context: context, schema: schema, model: model, hooks: hooks,
           system: system, images: images, think: think, keep_alive: keep_alive,
-          suffix: suffix, raw: raw, options: options, client_instance: self
+          suffix: suffix, raw: raw, options: options, client_instance: self,
+          template: template, logprobs: logprobs, top_logprobs: top_logprobs, format: format
         )
 
         serializer = Serializers::Generate.new

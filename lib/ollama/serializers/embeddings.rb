@@ -28,6 +28,10 @@ module Ollama
 
         body[:options] = request.options if request.options&.any?
         body[:keep_alive] = request.keep_alive if request.keep_alive
+        if request.raw_options
+          body[:truncate] = request.raw_options[:truncate] unless request.raw_options[:truncate].nil?
+          body[:dimensions] = request.raw_options[:dimensions] if request.raw_options[:dimensions]
+        end
 
         body.compact
       end

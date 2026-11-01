@@ -8,6 +8,8 @@ module Ollama
       def to_h
         instance_variables.each_with_object({}) do |var, hash|
           key = var.to_s.delete("@").to_sym
+          next if key == :hooks
+
           value = instance_variable_get(var)
           hash[key] = value unless value.nil?
         end
@@ -51,18 +53,21 @@ module Ollama
     class Generate < Base
       attr_accessor :prompt, :context, :schema, :model, :strict, :return_meta,
                     :system, :images, :think, :return_reasoning, :keep_alive,
-                    :suffix, :raw, :options, :hooks, :tools
+                    :suffix, :raw, :options, :hooks, :tools, :template,
+                    :logprobs, :top_logprobs, :format
 
       # rubocop:disable Metrics/ParameterLists
       def initialize(prompt:, context: nil, schema: nil, model: nil, strict: nil,
                      return_meta: false, system: nil, images: nil, think: nil,
                      return_reasoning: false, keep_alive: nil, suffix: nil,
-                     raw: nil, options: nil, hooks: {}, tools: nil)
+                     raw: nil, options: nil, hooks: {}, tools: nil,
+                     template: nil, logprobs: nil, top_logprobs: nil, format: nil)
         # rubocop:enable Metrics/ParameterLists
         super()
         @prompt = prompt
         @context = context
-        @schema = schema
+        @schema = schema || format
+        @format = format || schema
         @model = model
         @strict = strict
         @return_meta = return_meta
@@ -76,18 +81,22 @@ module Ollama
         @options = options
         @hooks = hooks
         @tools = tools
+        @template = template
+        @logprobs = logprobs
+        @top_logprobs = top_logprobs
       end
     end
 
     # Model creation parameters
     class CreateModel < Base
       attr_accessor :model, :from, :modelfile, :path, :system, :template,
-                    :license, :parameters, :messages, :quantize, :stream
+                    :license, :parameters, :messages, :quantize, :stream,
+                    :files, :adapters, :hooks
 
       # rubocop:disable Metrics/ParameterLists
       def initialize(model:, from: nil, modelfile: nil, path: nil, system: nil,
                      template: nil, license: nil, parameters: nil, messages: nil,
-                     quantize: nil, stream: false)
+                     quantize: nil, stream: false, files: nil, adapters: nil, hooks: {})
         # rubocop:enable Metrics/ParameterLists
         super()
         @model = model
@@ -101,6 +110,9 @@ module Ollama
         @messages = messages
         @quantize = quantize
         @stream = stream
+        @files = files
+        @adapters = adapters
+        @hooks = hooks
       end
 
       def self.from_kwargs(kwargs)

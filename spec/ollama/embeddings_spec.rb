@@ -41,6 +41,33 @@ RSpec.describe Ollama::Embeddings do
         expect(result).to be_an(Array)
         expect(result).to eq([0.1, 0.2, 0.3, 0.4, 0.5])
       end
+
+      it "serializes truncate and dimensions options into the request body" do
+        stub_request(:post, "http://localhost:11434/api/embed")
+          .with(
+            body: hash_including(
+              "model" => "nomic-embed-text:latest",
+              "input" => "What is Ruby?",
+              "truncate" => false,
+              "dimensions" => 256
+            )
+          )
+          .to_return(
+            status: 200,
+            body: {
+              embeddings: [[0.1, 0.2, 0.3]]
+            }.to_json
+          )
+
+        result = embeddings.embed(
+          model: "nomic-embed-text:latest",
+          input: "What is Ruby?",
+          truncate: false,
+          dimensions: 256
+        )
+
+        expect(result).to eq([0.1, 0.2, 0.3])
+      end
     end
 
     context "with array input" do

@@ -19,6 +19,7 @@ module Ollama
       presence_penalty frequency_penalty
       min_p penalize_newline repeat_last_n numa num_batch
       main_gpu low_vram vocab_only use_mmap use_mlock
+      draft_num_predict
     ].freeze
 
     attr_reader :temperature, :top_p, :top_k, :num_ctx, :repeat_penalty, :seed,
@@ -26,7 +27,8 @@ module Ollama
                 :num_gpu, :num_thread, :num_keep, :typical_p,
                 :presence_penalty, :frequency_penalty,
                 :min_p, :penalize_newline, :repeat_last_n, :numa, :num_batch,
-                :main_gpu, :low_vram, :vocab_only, :use_mmap, :use_mlock
+                :main_gpu, :low_vram, :vocab_only, :use_mmap, :use_mlock,
+                :draft_num_predict
 
     def initialize(**options)
       unknown_keys = options.keys - VALID_KEYS
@@ -177,6 +179,11 @@ module Ollama
     def use_mlock=(value)
       validate_boolean(value, "use_mlock")
       @use_mlock = value
+    end
+
+    def draft_num_predict=(value)
+      validate_integer(value, "draft_num_predict")
+      @draft_num_predict = value
     end
 
     # Convert to hash for API calls

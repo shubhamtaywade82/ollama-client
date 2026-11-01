@@ -90,6 +90,26 @@ RSpec.describe Ollama::Client do
       end.not_to raise_error
     end
 
+    it "accepts template, logprobs, top_logprobs, and format parameters" do
+      stub_request(:post, /generate/)
+        .with(body: hash_including({
+                                     template: "CUSTOM TEMPLATE",
+                                     logprobs: true,
+                                     top_logprobs: 3,
+                                     format: "json"
+                                   }))
+        .to_return(body: { response: "{\"status\":\"ok\"}" }.to_json)
+
+      result = client.generate(
+        prompt: "test",
+        template: "CUSTOM TEMPLATE",
+        logprobs: true,
+        top_logprobs: 3,
+        format: "json"
+      )
+      expect(result).to eq("status" => "ok")
+    end
+
     it "merges user options with config defaults" do
       stub_request(:post, "http://localhost:11434/api/generate")
         .with(body: hash_including(
@@ -444,6 +464,45 @@ RSpec.describe Ollama::Client do
 
       result = client.create_model(model: "my-model", from: "qwen2.5-coder:7b", system: "You are Alpaca")
       expect(result["status"]).to eq("success")
+    end
+
+    it "supports files and adapters blob mappings" do
+      stub_request(:post, "http://localhost:11434/api/create")
+        .with(body: hash_including(
+          "model" => "custom-lora",
+          "from" => "llama3",
+          "files" => { "file1" => "sha256:abc" },
+          "adapters" => { "lora1" => "sha256:def" }
+        ))
+        .to_return(status: 200, body: { status: "success" }.to_json)
+
+      result = client.create_model(
+        model: "custom-lora",
+        from: "llama3",
+        files: { "file1" => "sha256:abc" },
+        adapters: { "lora1" => "sha256:def" }
+      )
+      expect(result["status"]).to eq("success")
+    end
+
+    it "streams NDJSON progress updates when stream: true" do
+      progress_events = []
+      ndjson_body = "{\"status\":\"reading model metadata\"}\n{\"status\":\"success\"}\n"
+
+      stub_request(:post, "http://localhost:11434/api/create")
+        .with(body: hash_including("model" => "stream-model", "from" => "llama3", "stream" => true))
+        .to_return(status: 200, body: ndjson_body)
+
+      final = client.create_model(
+        model: "stream-model",
+        from: "llama3",
+        stream: true,
+        hooks: { on_progress: ->(p) { progress_events << p } }
+      )
+
+      expect(progress_events.size).to eq(2)
+      expect(progress_events[0]["status"]).to eq("reading model metadata")
+      expect(final["status"]).to eq("success")
     end
   end
 

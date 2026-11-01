@@ -9,7 +9,8 @@ RSpec.describe Ollama::Options do
         temperature: 0.5, num_predict: 100, stop: ["END"],
         mirostat: 2, mirostat_tau: 5.0, mirostat_eta: 0.1,
         presence_penalty: 0.5, frequency_penalty: -0.3,
-        typical_p: 0.9, tfs_z: 1.0, num_thread: 4
+        typical_p: 0.9, tfs_z: 1.0, num_thread: 4,
+        draft_num_predict: 4
       )
 
       hash = opts.to_h
@@ -19,6 +20,11 @@ RSpec.describe Ollama::Options do
       expect(hash[:presence_penalty]).to eq(0.5)
       expect(hash[:frequency_penalty]).to eq(-0.3)
       expect(hash[:typical_p]).to eq(0.9)
+      expect(hash[:draft_num_predict]).to eq(4)
+    end
+
+    it "validates draft_num_predict must be an integer" do
+      expect { described_class.new(draft_num_predict: "four") }.to raise_error(ArgumentError, /draft_num_predict/)
     end
 
     it "validates mirostat values" do

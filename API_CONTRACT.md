@@ -28,7 +28,7 @@ client = Ollama::Client.new(config: Ollama::Config.new)
 
 | Method | Signature | Returns |
 |---|---|---|
-| `generate` | `(prompt:, context: nil, schema: nil, model: nil, strict: config.strict_json, return_meta: false, system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil, options: nil, hooks: {}, tools: nil)` | `String` (no schema) or `Hash` (with schema) |
+| `generate` | `(prompt:, context: nil, schema: nil, model: nil, strict: config.strict_json, return_meta: false, system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil, options: nil, hooks: {}, tools: nil, template: nil, logprobs: nil, top_logprobs: nil, format: nil)` | `String` (no schema) or `Hash` (with schema) |
 
 `context:` accepts the `context` array returned by a previous `generate` call (or via `return_meta: true`) for `/api/generate`-side conversational memory, independent of `chat`'s message history.
 
@@ -48,7 +48,7 @@ When `think: true` and `return_reasoning: true`, the return value is a `Hash` wi
 | `pull` | `(model_name, insecure: false, stream: false, hooks: {})` | `Hash` (final status) |
 | `delete_model` | `(model:)` | `true` |
 | `copy_model` | `(source:, destination:)` | `true` |
-| `create_model` | `(model:, from: nil, modelfile: nil, path: nil, system: nil, template: nil, license: nil, parameters: nil, messages: nil, quantize: nil, stream: false)` | `Hash` |
+| `create_model` | `(model:, from: nil, modelfile: nil, path: nil, system: nil, template: nil, license: nil, parameters: nil, messages: nil, quantize: nil, stream: false, files: nil, adapters: nil, hooks: {})` | `Hash` |
 | `push_model` | `(model:, insecure: false, stream: false, hooks: {})` | `Hash` (final status) |
 | `blob_exists?` | `(digest:)` | `Boolean` |
 | `create_blob` | `(digest:, content:)` | `true` |
@@ -57,7 +57,7 @@ When `think: true` and `return_reasoning: true`, the return value is a `Hash` wi
 | `version` | `()` | `String` |
 | `embeddings` | *(attr_reader)* | `Ollama::Embeddings` instance |
 
-`pull` and `push_model` accept `hooks: { on_progress: ->(status) { ... } }`, invoked once per streamed NDJSON status line (`stream: true`) with the parsed status `Hash`.
+`pull`, `push_model`, and `create_model` accept `hooks: { on_progress: ->(status) { ... } }`, invoked once per streamed NDJSON status line (`stream: true`) with the parsed status `Hash`.
 
 #### Web Search (Ollama Cloud)
 
@@ -129,7 +129,7 @@ Type-safe runtime options passed via `options:` parameter:
 Ollama::Options.new(temperature: 0.7, num_predict: 256)
 ```
 
-Valid keys: `temperature`, `top_p`, `top_k`, `num_ctx`, `repeat_penalty`, `seed`, `num_predict`, `stop`, `tfs_z`, `mirostat`, `mirostat_tau`, `mirostat_eta`, `num_gpu`, `num_thread`, `num_keep`, `typical_p`, `presence_penalty`, `frequency_penalty`.
+Valid keys: `temperature`, `top_p`, `top_k`, `num_ctx`, `repeat_penalty`, `seed`, `num_predict`, `stop`, `tfs_z`, `mirostat`, `mirostat_tau`, `mirostat_eta`, `num_gpu`, `num_thread`, `num_keep`, `typical_p`, `presence_penalty`, `frequency_penalty`, `min_p`, `penalize_newline`, `repeat_last_n`, `numa`, `num_batch`, `main_gpu`, `low_vram`, `vocab_only`, `use_mmap`, `use_mlock`, `draft_num_predict`.
 
 ### `Ollama::Config`
 

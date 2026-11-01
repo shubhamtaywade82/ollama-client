@@ -50,14 +50,17 @@ module Ollama
     end
 
     def self.generate(model:, prompt:, schema: nil, options: nil, stream: nil, keep_alive: nil,
-                      think: nil, images: nil, system: nil, suffix: nil, raw: nil, **)
+                      think: nil, images: nil, system: nil, suffix: nil, raw: nil,
+                      template: nil, logprobs: nil, top_logprobs: nil, **)
       new(endpoint: :generate, model: model, prompt: prompt, schema: schema, options: options,
           stream: stream, keep_alive: keep_alive, think: think, images: images,
-          raw_options: { system: system, suffix: suffix, raw: raw })
+          raw_options: { system: system, suffix: suffix, raw: raw,
+                         template: template, logprobs: logprobs, top_logprobs: top_logprobs })
     end
 
-    def self.embeddings(model:, input:, options: nil, keep_alive: nil, **)
-      new(endpoint: :embeddings, model: model, prompt: input, options: options, keep_alive: keep_alive)
+    def self.embeddings(model:, input:, truncate: nil, dimensions: nil, options: nil, keep_alive: nil, **)
+      new(endpoint: :embeddings, model: model, prompt: input, options: options, keep_alive: keep_alive,
+          raw_options: { truncate: truncate, dimensions: dimensions })
     end
 
     def self.show_model(model:, verbose: nil, **)
@@ -74,11 +77,12 @@ module Ollama
 
     def self.create_model(model:, from: nil, modelfile: nil, path: nil, system: nil,
                           template: nil, license: nil, parameters: nil, messages: nil,
-                          quantize: nil, stream: false, **)
+                          quantize: nil, stream: false, files: nil, adapters: nil, **)
       new(endpoint: :create_model, model: model,
           raw_options: { from: from, modelfile: modelfile, path: path, system: system,
                          template: template, license: license, parameters: parameters,
-                         messages: messages, quantize: quantize, stream: stream })
+                         messages: messages, quantize: quantize, stream: stream,
+                         files: files, adapters: adapters })
     end
 
     def self.delete_model(model:, **_)

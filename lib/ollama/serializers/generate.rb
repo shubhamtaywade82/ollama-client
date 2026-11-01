@@ -6,6 +6,9 @@ module Ollama
   module Serializers
     # Serializes generate completion requests
     class Generate < Base
+      RAW_KEYS = %i[system suffix raw context template logprobs top_logprobs].freeze
+      private_constant :RAW_KEYS
+
       def call(request)
         body = build_generate_body(request)
         Transport::Request.new(
@@ -27,21 +30,21 @@ module Ollama
           stream: request.streaming?
         }
 
-        body[:format] = request.schema if request.schema
+        format_val = request.format || request.schema
+        body[:format] = format_val if format_val
         body[:keep_alive] = request.keep_alive if request.keep_alive
         body[:think] = request.think unless request.think.nil?
         body[:images] = request.images if request.images
         body[:options] = request.options if request.options&.any?
-
-        # Handle raw_options
-        if request.raw_options
-          body[:system] = request.raw_options[:system] if request.raw_options[:system]
-          body[:suffix] = request.raw_options[:suffix] if request.raw_options[:suffix]
-          body[:raw] = request.raw_options[:raw] if request.raw_options[:raw]
-          body[:context] = request.raw_options[:context] if request.raw_options[:context]
-        end
+        merge_raw_options(body, request.raw_options)
 
         body.compact
+      end
+
+      def merge_raw_options(body, raw)
+        return unless raw
+
+        RAW_KEYS.each { |key| body[key] = raw[key] unless raw[key].nil? }
       end
     end
   end

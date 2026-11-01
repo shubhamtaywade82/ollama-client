@@ -43,28 +43,16 @@ module Ollama
         true
       end
 
-      # Create a model from an existing model, a Modelfile, or a path
-      #
-      # @param model [String] Name for the model to create (required)
-      # @param from [String, nil] Existing model to create from
-      # @param modelfile [String, nil] Raw content of a Modelfile
-      # @param path [String, nil] Path to a Modelfile on the server
-      # @param system [String, nil] System prompt to embed
-      # @param template [String, nil] Prompt template
-      # @param license [String, Array<String>, nil] License string(s)
-      # @param parameters [Hash, nil] Key-value parameters
-      # @param messages [Array<Hash>, nil] Message history
-      # @param quantize [String, nil] Quantization level (e.g. "q4_K_M", "q8_0")
-      # @param stream [Boolean] Stream status updates
-      # @return [Hash] Final status response
+      # Create a model from an existing model, Modelfile, or files.
+      # @return [Hash] Final status response or streamed progress
       # rubocop:disable Metrics/ParameterLists
       def create_model(model:, from: nil, modelfile: nil, path: nil, system: nil, template: nil, license: nil,
-                       parameters: nil, messages: nil, quantize: nil, stream: false)
+                       parameters: nil, messages: nil, quantize: nil, stream: false, files: nil, adapters: nil, hooks: {})
         # rubocop:enable Metrics/ParameterLists
         params = Params::CreateModel.new(
           model: model, from: from, modelfile: modelfile, path: path, system: system,
           template: template, license: license, parameters: parameters, messages: messages,
-          quantize: quantize, stream: stream
+          quantize: quantize, stream: stream, files: files, adapters: adapters, hooks: hooks
         )
         create_model_with_params(params)
       end
@@ -73,12 +61,21 @@ module Ollama
       # @return [Hash] Final status response
       def create_model_with_params(params)
         if params.from.nil? && params.modelfile.nil? && params.path.nil?
-          raise ArgumentError,
-                "One of from:, modelfile:, or path: is required"
+          raise ArgumentError, "One of from:, modelfile:, or path: is required"
         end
 
-        res = execute_management_request("/api/create", body: params.to_h, read_timeout: @config.timeout * 5)
-        JSON.parse(res.body)
+        body = params.to_h
+        if params.stream
+          create_uri = URI("#{@config.base_url}/api/create")
+          req = Net::HTTP::Post.new(create_uri)
+          req["Content-Type"] = "application/json"
+          req.body = body.to_json
+          @config.apply_auth_to(req)
+          handle_ndjson_stream(create_uri, req, params.hooks || {})
+        else
+          res = execute_management_request("/api/create", body: body, read_timeout: @config.timeout * 5)
+          JSON.parse(res.body)
+        end
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse create response: #{e.message}"
       end
@@ -254,17 +251,11 @@ module Ollama
         req["Content-Type"] = "application/json"
         req.body = body.to_json if body && method != :get && method != :head
 
-        res = if read_timeout
-                http_request(uri, req, read_timeout: read_timeout)
-              else
-                http_request(uri, req)
-              end
-
+        res = http_request(uri, req, **{ read_timeout: read_timeout }.compact)
         unless res.is_a?(Net::HTTPSuccess)
           raise Error, "Failed request to #{uri.path}: HTTP #{res.code}" if %i[get head].include?(method)
 
           handle_http_error(res, requested_model: model)
-
         end
         res
       end

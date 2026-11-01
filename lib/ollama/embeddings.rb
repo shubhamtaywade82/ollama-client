@@ -63,6 +63,10 @@ module Ollama
           base_url: @config.base_url,
           timeout: @config.timeout,
           uri: @provider.embeddings_endpoint
+        },
+        raw_options: {
+          truncate: params.truncate,
+          dimensions: params.dimensions
         }
       )
 
