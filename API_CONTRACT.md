@@ -24,6 +24,8 @@ client = Ollama::Client.new(config: Ollama::Config.new)
 |---|---|---|
 | `chat` | `(messages:, model: nil, format: nil, tools: nil, stream: nil, think: nil, keep_alive: nil, options: nil, logprobs: nil, top_logprobs: nil, hooks: {}, profile: :auto, inputs: nil)` | `Ollama::Response` |
 
+> **Server support (v1.4.0):** `logprobs:` and `top_logprobs:` are forwarded verbatim to `/api/chat`, but they are **not** part of the official Ollama API (absent from upstream `docs/api.md` as of 2026-11-01). Servers that don't implement them drop the fields silently and `Ollama::Response#logprobs` stays `nil`; the parameters remain in the signature so gateways that do support them keep working.
+
 #### Generate
 
 | Method | Signature | Returns |
@@ -93,7 +95,7 @@ Returned by `chat`. Wraps the API response with accessor methods:
 | `load_duration` | `Integer` | Model load time |
 | `prompt_eval_count` | `Integer` | Prompt token count |
 | `eval_count` | `Integer` | Response token count |
-| `logprobs` | `Array` | Log probabilities (when enabled) |
+| `logprobs` | `Array` | Log probabilities (only when the server supports and returns them — see *Server support* note under **Chat**) |
 
 #### `Ollama::Response::Message`
 
