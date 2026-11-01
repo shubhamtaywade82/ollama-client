@@ -38,6 +38,7 @@ module Ollama
           body[:system] = request.raw_options[:system] if request.raw_options[:system]
           body[:suffix] = request.raw_options[:suffix] if request.raw_options[:suffix]
           body[:raw] = request.raw_options[:raw] if request.raw_options[:raw]
+          body[:context] = request.raw_options[:context] if request.raw_options[:context]
         end
 
         body.compact
