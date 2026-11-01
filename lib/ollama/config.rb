@@ -155,7 +155,7 @@ module Ollama
       raise Error, "Config file not found: #{path}"
     end
 
-    # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+    # rubocop:disable-next Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def self.map_json_data(config, data)
       config.base_url = data["base_url"] if data.key?("base_url")
       config.api_keys = data["api_keys"] if data.key?("api_keys")
@@ -171,7 +171,6 @@ module Ollama
       config.num_ctx = data["num_ctx"] if data.key?("num_ctx")
       config.transport_adapter = data["transport_adapter"]&.to_sym if data.key?("transport_adapter")
     end
-    # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     private_class_method :map_json_data
 
     # Parse a comma-separated String or Array of API keys into a frozen key list.

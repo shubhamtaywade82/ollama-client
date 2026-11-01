@@ -48,7 +48,7 @@ module Ollama
 
     # @param params [Ollama::Params::Embeddings] Embeddings parameters
     # @return [Array<Float>, Array<Array<Float>>] Embedding vector(s)
-    # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+    # rubocop:disable-next Metrics/AbcSize, Metrics/MethodLength
     def embed_with_params(params)
       # Use provider-specific endpoint
       @provider.embeddings_endpoint
@@ -100,7 +100,6 @@ module Ollama
         handle_http_error(res.raw, requested_model: params.model)
       end
     end
-    # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
     private
 

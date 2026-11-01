@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# rubocop:disable Metrics/ModuleLength
+# rubocop:disable-next Metrics/ModuleLength
 module LiveBranchSmokeGenerationExercises
   def exercise_generate_plain(client)
     out = client.generate(prompt: "Reply with exactly: LIVE_OK", model: @model, strict: false)
@@ -125,4 +125,3 @@ module LiveBranchSmokeGenerationExercises
     smoke_emit("response", out)
   end
 end
-# rubocop:enable Metrics/ModuleLength

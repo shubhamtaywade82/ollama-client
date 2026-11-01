@@ -13,7 +13,7 @@ module Ollama
           @schema_cache = schema_cache
         end
 
-        # rubocop:disable Metrics/MethodLength, Metrics/ParameterLists
+        # rubocop:disable-next Metrics/MethodLength, Metrics/ParameterLists
         def build_request(prompt:, context:, schema:, model:, hooks:, system: nil, images: nil,
                           think: nil, keep_alive: nil, suffix: nil, raw: nil, options: nil, client_instance: nil)
           config_model = @config.model
@@ -67,7 +67,6 @@ module Ollama
             }
           )
         end
-        # rubocop:enable Metrics/MethodLength, Metrics/ParameterLists
 
         private
 

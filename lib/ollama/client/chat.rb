@@ -45,7 +45,7 @@ module Ollama
 
       # @param params [Ollama::Params::Chat] Chat parameters
       # @return [Ollama::Response] Response wrapper with message, tool_calls, timing, etc.
-      # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+      # rubocop:disable-next Metrics/AbcSize, Metrics/MethodLength
       def chat_with_params(params)
         raise ArgumentError, "messages is required" if params.messages.nil? || params.messages.empty?
 
@@ -105,7 +105,6 @@ module Ollama
       rescue JSON::ParserError => e
         raise InvalidJSONError, "Failed to parse chat response: #{e.message}"
       end
-      # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
     end
   end
 end
