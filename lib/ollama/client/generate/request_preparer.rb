@@ -16,7 +16,7 @@ module Ollama
         # rubocop:disable-next Metrics/MethodLength, Metrics/ParameterLists
         def build_request(prompt:, context:, schema:, model:, hooks:, system: nil, images: nil,
                           think: nil, keep_alive: nil, suffix: nil, raw: nil, options: nil, client_instance: nil,
-                          template: nil, logprobs: nil, top_logprobs: nil, format: nil)
+                          template: nil, logprobs: nil, top_logprobs: nil, format: nil, tools: nil)
           config_model = @config.model
           config_timeout = @config.timeout
           base_url = @config.base_url
@@ -49,6 +49,7 @@ module Ollama
             model: model || config_model,
             prompt: request_params[:prompt],
             schema: effective_schema,
+            tools: tools,
             options: request_params[:options],
             stream: stream_enabled,
             keep_alive: keep_alive,

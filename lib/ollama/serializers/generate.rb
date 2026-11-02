@@ -30,6 +30,7 @@ module Ollama
           stream: request.streaming?
         }
 
+        body[:tools] = request.tools if request.tools
         format_val = request.format || request.schema
         body[:format] = format_val if format_val
         body[:keep_alive] = request.keep_alive if request.keep_alive

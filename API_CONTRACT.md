@@ -42,6 +42,8 @@ When `think: true` and `return_reasoning: true`, the return value is a `Hash` wi
 - `"reasoning"` — the extracted reasoning text (may be empty string)
 - `"final"` — either a `String` (no schema) or a `Hash` (when `schema:` is provided)
 
+> **Server support (v1.4.0):** `tools:` is forwarded verbatim to `/api/generate`, but the official Ollama API does not document tool calling for this endpoint (`docs/api.md`, as of 2026-11-02) — stock servers ignore unknown request fields, so it is a no-op there; gateways that support generation-side tools can use it.
+
 #### Model Management
 
 | Method | Signature | Returns |
