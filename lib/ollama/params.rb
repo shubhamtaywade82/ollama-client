@@ -51,13 +51,13 @@ module Ollama
     class Generate < Base
       attr_accessor :prompt, :context, :schema, :model, :strict, :return_meta,
                     :system, :images, :think, :return_reasoning, :keep_alive,
-                    :suffix, :raw, :options, :hooks, :tools
+                    :suffix, :raw, :options, :hooks, :tools, :template
 
       # rubocop:disable Metrics/ParameterLists
       def initialize(prompt:, context: nil, schema: nil, model: nil, strict: nil,
                      return_meta: false, system: nil, images: nil, think: nil,
                      return_reasoning: false, keep_alive: nil, suffix: nil,
-                     raw: nil, options: nil, hooks: {}, tools: nil)
+                     raw: nil, options: nil, hooks: {}, tools: nil, template: nil)
         # rubocop:enable Metrics/ParameterLists
         super()
         @prompt = prompt
@@ -76,6 +76,7 @@ module Ollama
         @options = options
         @hooks = hooks
         @tools = tools
+        @template = template
       end
     end
 

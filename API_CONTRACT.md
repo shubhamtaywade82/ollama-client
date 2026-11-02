@@ -28,7 +28,7 @@ client = Ollama::Client.new(config: Ollama::Config.new)
 
 | Method | Signature | Returns |
 |---|---|---|
-| `generate` | `(prompt:, context: nil, schema: nil, model: nil, strict: config.strict_json, return_meta: false, system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil, options: nil, hooks: {}, tools: nil)` | `String` (no schema) or `Hash` (with schema) |
+| `generate` | `(prompt:, context: nil, schema: nil, model: nil, strict: config.strict_json, return_meta: false, system: nil, images: nil, think: nil, return_reasoning: false, keep_alive: nil, suffix: nil, raw: nil, options: nil, hooks: {}, tools: nil, template: nil)` | `String` (no schema) or `Hash` (with schema) |
 
 `context:` accepts the `context` array returned by a previous `generate` call (or via `return_meta: true`) for `/api/generate`-side conversational memory, independent of `chat`'s message history.
 
@@ -36,6 +36,8 @@ When `think: true` and `return_reasoning: true`, the return value is a `Hash` wi
 
 - `"reasoning"` — the extracted reasoning text (may be empty string)
 - `"final"` — either a `String` (no schema) or a `Hash` (when `schema:` is provided)
+
+> **Server support (v1.4.0):** `tools:` is forwarded verbatim to `/api/generate`, but the official Ollama API does not document tool calling for this endpoint (`docs/api.md`, as of 2026-11-01) — stock servers ignore unknown request fields, so it is a no-op there; gateways that support generation-side tools can use it. `template:` is a documented `/api/generate` request field.
 
 #### Model Management
 

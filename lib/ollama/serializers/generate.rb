@@ -27,6 +27,7 @@ module Ollama
           stream: request.streaming?
         }
 
+        body[:tools] = request.tools if request.tools
         body[:format] = request.schema if request.schema
         body[:keep_alive] = request.keep_alive if request.keep_alive
         body[:think] = request.think unless request.think.nil?
@@ -39,6 +40,7 @@ module Ollama
           body[:suffix] = request.raw_options[:suffix] if request.raw_options[:suffix]
           body[:raw] = request.raw_options[:raw] if request.raw_options[:raw]
           body[:context] = request.raw_options[:context] if request.raw_options[:context]
+          body[:template] = request.raw_options[:template] if request.raw_options[:template]
         end
 
         body.compact
