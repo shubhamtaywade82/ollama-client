@@ -92,12 +92,13 @@ module Ollama
     class CreateModel < Base
       attr_accessor :model, :from, :modelfile, :path, :system, :template,
                     :license, :parameters, :messages, :quantize, :stream,
-                    :files, :adapters, :hooks
+                    :files, :adapters, :hooks, :renderer, :parser, :capabilities
 
       # rubocop:disable Metrics/ParameterLists
       def initialize(model:, from: nil, modelfile: nil, path: nil, system: nil,
                      template: nil, license: nil, parameters: nil, messages: nil,
-                     quantize: nil, stream: false, files: nil, adapters: nil, hooks: {})
+                     quantize: nil, stream: false, files: nil, adapters: nil, hooks: {},
+                     renderer: nil, parser: nil, capabilities: nil)
         # rubocop:enable Metrics/ParameterLists
         super()
         @model = model
@@ -114,6 +115,9 @@ module Ollama
         @files = files
         @adapters = adapters
         @hooks = hooks
+        @renderer = renderer
+        @parser = parser
+        @capabilities = capabilities
       end
 
       def self.from_kwargs(kwargs)

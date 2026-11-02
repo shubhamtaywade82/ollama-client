@@ -44,15 +44,20 @@ module Ollama
       end
 
       # Create a model from an existing model, Modelfile, or files.
+      # @param renderer [String, nil] Name of the renderer for the model (docs/api.md)
+      # @param parser [String, nil] Name of the parser for the model (docs/api.md)
+      # @param capabilities [Array<String>, nil] Capabilities to add without removing existing ones (docs/api.md)
       # @return [Hash] Final status response or streamed progress
       # rubocop:disable Metrics/ParameterLists
       def create_model(model:, from: nil, modelfile: nil, path: nil, system: nil, template: nil, license: nil,
-                       parameters: nil, messages: nil, quantize: nil, stream: false, files: nil, adapters: nil, hooks: {})
+                       parameters: nil, messages: nil, quantize: nil, stream: false, files: nil, adapters: nil, hooks: {},
+                       renderer: nil, parser: nil, capabilities: nil)
         # rubocop:enable Metrics/ParameterLists
         params = Params::CreateModel.new(
           model: model, from: from, modelfile: modelfile, path: path, system: system,
           template: template, license: license, parameters: parameters, messages: messages,
-          quantize: quantize, stream: stream, files: files, adapters: adapters, hooks: hooks
+          quantize: quantize, stream: stream, files: files, adapters: adapters, hooks: hooks,
+          renderer: renderer, parser: parser, capabilities: capabilities
         )
         create_model_with_params(params)
       end

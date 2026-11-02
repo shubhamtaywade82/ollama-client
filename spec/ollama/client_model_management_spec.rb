@@ -485,6 +485,27 @@ RSpec.describe Ollama::Client do
       expect(result["status"]).to eq("success")
     end
 
+    it "supports renderer, parser, and capabilities additions (docs/api.md Create a Model)" do
+      stub_request(:post, "http://localhost:11434/api/create")
+        .with(body: hash_including(
+          "model" => "renderer-model",
+          "from" => "llama3",
+          "renderer" => "simple",
+          "parser" => "simple",
+          "capabilities" => ["thinking"]
+        ))
+        .to_return(status: 200, body: { status: "success" }.to_json)
+
+      result = client.create_model(
+        model: "renderer-model",
+        from: "llama3",
+        renderer: "simple",
+        parser: "simple",
+        capabilities: ["thinking"]
+      )
+      expect(result["status"]).to eq("success")
+    end
+
     it "streams NDJSON progress updates when stream: true" do
       progress_events = []
       ndjson_body = "{\"status\":\"reading model metadata\"}\n{\"status\":\"success\"}\n"
