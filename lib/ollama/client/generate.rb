@@ -66,7 +66,8 @@ module Ollama
             prompt: current_prompt, context: params.context, schema: params.schema, model: params.model, hooks: params.hooks,
             system: params.system, images: params.images, think: params.think, keep_alive: params.keep_alive,
             suffix: params.suffix, raw: params.raw, options: params.options,
-            template: params.template, logprobs: params.logprobs, top_logprobs: params.top_logprobs, format: params.format
+            template: params.template, logprobs: params.logprobs, top_logprobs: params.top_logprobs, format: params.format,
+            tools: params.tools
           )
 
           emit_response_hook(raw_response,
@@ -129,13 +130,14 @@ module Ollama
       # rubocop:disable-next Metrics/AbcSize, Metrics/MethodLength, Metrics/ParameterLists
       def call_generate_api(prompt:, context:, schema:, model:, hooks:, system: nil, images: nil,
                             think: nil, keep_alive: nil, suffix: nil, raw: nil, options: nil,
-                            template: nil, logprobs: nil, top_logprobs: nil, format: nil)
+                            template: nil, logprobs: nil, top_logprobs: nil, format: nil, tools: nil)
         preparer = RequestPreparer.new(config: @config, provider: @provider, schema_cache: @summarize_schema_cache)
         request = preparer.build_request(
           prompt: prompt, context: context, schema: schema, model: model, hooks: hooks,
           system: system, images: images, think: think, keep_alive: keep_alive,
           suffix: suffix, raw: raw, options: options, client_instance: self,
-          template: template, logprobs: logprobs, top_logprobs: top_logprobs, format: format
+          template: template, logprobs: logprobs, top_logprobs: top_logprobs, format: format,
+          tools: tools
         )
 
         serializer = Serializers::Generate.new
