@@ -53,7 +53,7 @@ When `think: true` and `return_reasoning: true`, the return value is a `Hash` wi
 | `pull` | `(model_name, insecure: false, stream: false, hooks: {})` | `Hash` (final status) |
 | `delete_model` | `(model:)` | `true` |
 | `copy_model` | `(source:, destination:)` | `true` |
-| `create_model` | `(model:, from: nil, modelfile: nil, path: nil, system: nil, template: nil, license: nil, parameters: nil, messages: nil, quantize: nil, stream: false, files: nil, adapters: nil, hooks: {})` | `Hash` |
+| `create_model` | `(model:, from: nil, modelfile: nil, path: nil, system: nil, template: nil, license: nil, parameters: nil, messages: nil, quantize: nil, stream: false, files: nil, adapters: nil, hooks: {}, renderer: nil, parser: nil, capabilities: nil)` | `Hash` |
 | `push_model` | `(model:, insecure: false, stream: false, hooks: {})` | `Hash` (final status) |
 | `blob_exists?` | `(digest:)` | `Boolean` |
 | `create_blob` | `(digest:, content:)` | `true` |
