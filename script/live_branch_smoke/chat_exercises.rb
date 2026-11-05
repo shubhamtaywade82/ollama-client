@@ -68,7 +68,10 @@ module LiveBranchSmokeChatExercises
 
   def exercise_chat_format_options_keepalive(client)
     fmt = { "type" => "object", "properties" => { "k" => { "type" => "string" } } }
-    opts = Ollama::Options.new(num_predict: 32, temperature: 0.1)
+    # num_predict must leave room for the model's thinking trace before the
+    # constrained JSON: thinking models (qwen3 family) burned a 32-token budget
+    # on <think> output and returned empty content (conformance CI finding).
+    opts = Ollama::Options.new(num_predict: 512, temperature: 0.1)
     r = client.chat(
       model: @model,
       format: fmt,
