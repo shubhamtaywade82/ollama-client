@@ -19,8 +19,8 @@ module Ollama
     # @param middleware [Class, Ollama::Middleware] Middleware class or instance
     # @param options [Hash] Options to pass to middleware constructor
     # @return [Pipeline] New pipeline with middleware added (immutable)
-    def use(middleware, **options)
-      middleware_instance = middleware.is_a?(Class) ? middleware.new(**options) : middleware
+    def use(middleware, **)
+      middleware_instance = middleware.is_a?(Class) ? middleware.new(**) : middleware
       raise ArgumentError, "Middleware must be a subclass of Ollama::Middleware" unless middleware_instance.is_a?(Middleware)
 
       self.class.new(@transport, middlewares: @middlewares + [middleware_instance], events: @events)
@@ -40,10 +40,10 @@ module Ollama
     # @param request [Ollama::Request] The request to execute
     # @yield [chunk] Yields each chunk of the streaming response
     # @return [Ollama::Transport::Response] The final transport response
-    def stream(request, &block)
+    def stream(request, &)
       env = { request: request, started_at: Process.clock_gettime(Process::CLOCK_MONOTONIC) }
 
-      execute_stream_chain(request, env, &block)
+      execute_stream_chain(request, env, &)
     end
 
     private
@@ -162,8 +162,8 @@ module Ollama
       @middleware.around(request, env) { |req, e| @app.call(req || request, e || env) }
     end
 
-    def stream(uri:, request:, &block)
-      @app.stream(uri: uri, request: request, &block)
+    def stream(uri:, request:, &)
+      @app.stream(uri: uri, request: request, &)
     end
   end
 end

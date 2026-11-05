@@ -76,8 +76,8 @@ module Ollama
     # @param middleware [Class, Ollama::Middleware] Middleware class or instance
     # @param options [Hash] Options to pass to middleware constructor
     # @return [Ollama::Client] self
-    def use(middleware, **options)
-      @pipeline = @pipeline.use(middleware, **options)
+    def use(middleware, **)
+      @pipeline = @pipeline.use(middleware, **)
       @embeddings.pipeline = @pipeline if @embeddings.respond_to?(:pipeline=)
       self
     end
@@ -86,8 +86,8 @@ module Ollama
     # @param event [Symbol] Event name (:before_request, :after_request, :request_error, etc.)
     # @param block [Proc] Callback to execute when event is published
     # @return [Proc] The subscribed block
-    def on(event, &block)
-      @events.subscribe(event, &block)
+    def on(event, &)
+      @events.subscribe(event, &)
     end
 
     # Return the capability profile for a model name.
@@ -116,8 +116,8 @@ module Ollama
     # @param model [String, nil] Embedding model (defaults to config.default_embedding_model)
     # @param options [Hash] Additional options forwarded to embeddings
     # @return [Array<Float>, Array<Array<Float>>]
-    def embed(input, model: nil, **options)
-      @embeddings.embed(input: input, model: model, **options)
+    def embed(input, model: nil, **)
+      @embeddings.embed(input: input, model: model, **)
     end
 
     # Execute a request through the pipeline
@@ -131,8 +131,8 @@ module Ollama
     # @param request [Ollama::Request] The request to execute
     # @yield [chunk] Yields each chunk of the streaming response
     # @return [Ollama::Transport::Response] The final transport response
-    def execute_stream(request, &block)
-      @pipeline.stream(request, &block)
+    def execute_stream(request, &)
+      @pipeline.stream(request, &)
     end
 
     private

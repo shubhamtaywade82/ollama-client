@@ -71,8 +71,8 @@ module Ollama
     OllamaClient.config
   end
 
-  def self.configure(&block)
-    OllamaClient.configure(&block)
+  def self.configure(&)
+    OllamaClient.configure(&)
   end
 
   def self.client

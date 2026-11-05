@@ -20,9 +20,9 @@ module Ollama
       @required = []
     end
 
-    def self.define(&block)
+    def self.define(&)
       instance = new
-      instance.instance_eval(&block)
+      instance.instance_eval(&)
       instance
     end
 
