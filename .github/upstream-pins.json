@@ -1,0 +1,27 @@
+{
+  "repo": "ollama/ollama",
+  "description": "Pinned upstream documentation sources for ollama-client. scripts/upstream_drift.rb compares each pinned path's latest commit SHA against pinned_sha; on drift the upstream-watch workflow opens a candidate re-pin PR on upstream-sync/auto and a single upstream-drift issue. Never merged automatically — the diff report attached to the PR is the review artifact.",
+  "pins": [
+    {
+      "id": "api-md",
+      "path": "docs/api.md",
+      "pinned_sha": "efe43c5561047d8baf8c862730b2151249d51fd5",
+      "pinned_at": "2026-11-05",
+      "pinned_commit": "model: add multimodal embeddings (#18820)"
+    },
+    {
+      "id": "openapi",
+      "path": "docs/openapi.yaml",
+      "pinned_sha": "f067033f9126993b6172bdfffa71a74ad693fda4",
+      "pinned_at": "2026-11-05",
+      "pinned_commit": "mlx: add LFM3 and d1 models (#19333)"
+    },
+    {
+      "id": "openai-compat",
+      "path": "docs/api/openai-compatibility.mdx",
+      "pinned_sha": "f067033f9126993b6172bdfffa71a74ad693fda4",
+      "pinned_at": "2026-11-05",
+      "pinned_commit": "mlx: add LFM3 and d1 models (#19333)"
+    }
+  ]
+}

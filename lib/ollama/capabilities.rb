@@ -5,12 +5,24 @@ module Ollama
   # based on the model's native `family`, `families`, and `name`.
   module Capabilities
     class << self
+      # Keys that make up a previously derived capabilities Hash. Client methods
+      # like Client#show_model inject such a Hash into the payload they return;
+      # re-deriving from it must be idempotent rather than degrade to heuristics.
+      DERIVED_CAPABILITY_KEYS = %w[tools thinking vision embeddings].freeze
+
       # Returns a hash of boolean capabilities.
       # Prefers server-provided capabilities array from /api/show when available,
       # and falls back to model family and name heuristics.
+      # Idempotent: a payload that already carries derived capabilities (a Hash
+      # with exactly the four capability keys) yields that same result again —
+      # without this, Client#show_model output re-derived to different values
+      # because /api/show payloads carry no top-level "name".
       # @param model_info [Hash] A model entry from `/api/tags` or `/api/show`
       # @return [Hash] { "tools" => true, "thinking" => false, ... }
       def for(model_info)
+        prior = model_info["capabilities"]
+        return prior.dup if prior.is_a?(Hash) && DERIVED_CAPABILITY_KEYS.all? { |key| prior.key?(key) }
+
         name = model_info["name"] || ""
         server_caps = Array(model_info["capabilities"]).map(&:to_s).map(&:downcase) if model_info["capabilities"].is_a?(Array)
 

@@ -1,0 +1,96 @@
+# Weekly upstream docs drift watch.
+#
+# Compares every pinned docs source (.github/upstream-pins.json) against the
+# latest ollama/ollama commit touching it (script/upstream_drift.rb). On drift
+# it:
+#   1. re-pins the drifted sources (pins file is metadata — no code references
+#      it) and writes the drift report;
+#   2. opens or updates the candidate PR on branch `upstream-sync/auto` with
+#      the drift report attached — never merged automatically. A merged re-pin
+#      only acknowledges the drift; the report's diff is the review artifact
+#      that decides whether client work is due;
+#   3. opens or updates the single `upstream-drift` issue.
+#
+# A PR opened with the default GITHUB_TOKEN does not trigger ci.yml on the
+# candidate branch. Set the UPSTREAM_SYNC_TOKEN secret (a PAT with contents +
+# pull-requests write) to have normal CI run on the PR as well.
+
+name: Upstream Watch
+
+on:
+  schedule:
+    - cron: "30 3 * * 1" # Monday 09:00 IST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: upstream-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Authenticates the GitHub API calls in script/upstream_drift.rb.
+      GITHUB_TOKEN: ${{ github.token }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3" # the drift script is stdlib-only; any 3.2+ works
+
+      - name: Detect upstream drift
+        id: drift
+        run: |
+          set +e
+          ruby script/upstream_drift.rb --report "$RUNNER_TEMP/drift.md" --json "$RUNNER_TEMP/drift.json"
+          code=$?
+          # 1 = drift found, anything else non-zero = the check itself failed.
+          if [ "$code" -ne 0 ] && [ "$code" -ne 1 ]; then exit "$code"; fi
+          echo "has_drift=$([ "$code" -eq 1 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Re-pin drifted sources
+        if: steps.drift.outputs.has_drift == 'true'
+        run: ruby script/upstream_drift.rb --write-pins
+
+      - name: Ensure upstream-drift label
+        if: steps.drift.outputs.has_drift == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh label create upstream-drift --color B60205 --description 'Pinned Ollama docs source is behind ollama/ollama' --force
+
+      - name: Open or update candidate PR
+        id: pr
+        if: steps.drift.outputs.has_drift == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.UPSTREAM_SYNC_TOKEN || github.token }}
+          branch: upstream-sync/auto
+          title: "chore(upstream): re-pin drifted Ollama docs sources (automated)"
+          commit-message: "chore(upstream): re-pin drifted Ollama docs sources (automated)"
+          body-path: ${{ runner.temp }}/drift.md
+          labels: upstream-drift
+
+      - name: Open or update upstream-drift issue
+        if: steps.drift.outputs.has_drift == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ steps.pr.outputs.pull-request-url }}
+        run: |
+          body="$RUNNER_TEMP/issue-body.md"
+          { cat "$RUNNER_TEMP/drift.md"; echo; echo "Candidate re-pin PR: ${PR_URL:-not created}"; } > "$body"
+          number=$(gh issue list --label upstream-drift --state open --json number --jq '.[0].number // empty')
+          if [ -z "$number" ]; then
+            gh issue create --title 'Upstream Ollama docs drift' --label upstream-drift --body-file "$body"
+          else
+            gh issue edit "$number" --body-file "$body"
+          fi

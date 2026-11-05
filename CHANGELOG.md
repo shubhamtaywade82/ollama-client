@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Live-server conformance in CI: a `conformance` job installs a real Ollama server on the runner, pulls `qwen3:0.6b` + `nomic-embed-text:latest`, and runs the project's own live smoke harness (`script/live_branch_smoke.rb`) against it — the last line of defense against wire-vs-docs drift. The unit suite is unchanged and stays WebMock-only (`CLAUDE.md`: never *require* live Ollama in tests); optional capabilities (vision, tools, thinking) SKIP with an explicit reason when no capable model is present.
+- Weekly upstream docs drift watch: `script/upstream_drift.rb` + `.github/upstream-pins.json` pin the official Ollama API documentation sources (`docs/api.md`, `docs/openapi.yaml`, `docs/api/openai-compatibility.mdx`); the new `upstream-watch` workflow detects drift weekly (Monday 09:00 IST + manual dispatch), re-pins, and opens a candidate PR + a single `upstream-drift` issue with the per-source diff attached — never merged automatically.
+
 ### Changed
 - Declared Ruby support floor raised from `>= 3.0.0` to `>= 3.2.0` (owner decision on issue #53, Option B): the gemspec and the README badge now match the CI-tested matrix (Ruby 3.2/3.3/3.4) instead of declaring support that CI never exercised. No code or runtime-dependency changes; a regression guard spec (`spec/ollama/client_support_floor_spec.rb`) pins the declared floor to the lowest CI-tested leg.
 
