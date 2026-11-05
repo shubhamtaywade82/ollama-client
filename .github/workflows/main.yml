@@ -82,6 +82,56 @@ jobs:
             puts "OK: ollama-client #{Ollama::VERSION} loads and exposes its documented API"
           '
 
+  conformance:
+    # Last line of defense against wire-vs-docs drift: runs the project's own
+    # live smoke harness (script/live_branch_smoke.rb) against a REAL Ollama
+    # server installed on the runner. The unit suite stays WebMock-only
+    # (CLAUDE.md: "never require live Ollama in tests") — this job is the
+    # dedicated live layer. Optional capabilities (vision, tools, thinking)
+    # SKIP with an explicit reason when no capable model is pulled.
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Install Ollama
+        run: curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Start Ollama server
+        run: |
+          ollama serve &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:11434/api/version > /dev/null 2>&1; then
+              echo "Ollama is up"
+              break
+            fi
+            sleep 1
+          done
+          curl -s http://localhost:11434/api/version || true
+
+      - name: Pull conformance models
+        run: |
+          ollama pull qwen3:0.6b
+          ollama pull nomic-embed-text:latest
+
+      - name: Run live smoke conformance suite
+        env:
+          OLLAMA_BASE_URL: http://localhost:11434
+          OLLAMA_MODEL: qwen3:0.6b
+          OLLAMA_EMBED_MODEL: nomic-embed-text:latest
+          OLLAMA_SMOKE_BACKTRACE: "1"
+        run: bundle exec ruby script/live_branch_smoke.rb
+
   dependency-audit:
     runs-on: ubuntu-latest
     name: Dependency vulnerability audit
@@ -105,7 +155,7 @@ jobs:
   ci:
     name: CI gate
     if: always()
-    needs: [test, build, dependency-audit]
+    needs: [test, build, dependency-audit, conformance]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any required job failed
@@ -115,6 +165,7 @@ jobs:
             echo "  test: ${{ needs.test.result }}"
             echo "  build: ${{ needs.build.result }}"
             echo "  dependency-audit: ${{ needs.dependency-audit.result }}"
+            echo "  conformance: ${{ needs.conformance.result }}"
             exit 1
           fi
           echo "All required checks passed."
