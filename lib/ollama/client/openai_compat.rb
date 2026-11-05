@@ -80,8 +80,8 @@ module Ollama
         # @param input [String, Array<String>]
         # @param opts [Hash] additional options
         # @return [Hash] OpenAI-style embeddings response
-        def create(model:, input:, **opts)
-          vectors = @client.embeddings.embed(model: model, input: input, **opts)
+        def create(model:, input:, **)
+          vectors = @client.embeddings.embed(model: model, input: input, **)
           vectors = [vectors] unless input.is_a?(Array)
           {
             "object" => "list",

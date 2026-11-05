@@ -31,12 +31,12 @@ module Ollama
         @tool_name
       end
 
-      def input(&block)
-        @input_schema = SchemaDSL.define(&block).to_h
+      def input(&)
+        @input_schema = SchemaDSL.define(&).to_h
       end
 
-      def output(&block)
-        @output_schema = SchemaDSL.define(&block).to_h
+      def output(&)
+        @output_schema = SchemaDSL.define(&).to_h
       end
 
       def call(&block)

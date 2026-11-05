@@ -35,7 +35,7 @@ module Ollama
       Array(history).each { |msg| add_message(msg) }
     end
 
-    def ask(prompt, tools: nil, format: nil, with: nil, &block)
+    def ask(prompt, tools: nil, format: nil, with: nil, &)
       user_msg = { role: "user", content: prompt }
       images = coerce_attachments(with) if with
       user_msg[:images] = images if images&.any?
@@ -43,7 +43,7 @@ module Ollama
 
       turn_schema = format.is_a?(Class) && format < Schema ? format : @schema_class
       effective_format = resolve_format(format)
-      response = execute_turn_with_repair(tools: tools, format: effective_format, &block)
+      response = execute_turn_with_repair(tools: tools, format: effective_format, &)
 
       response.schema_class = turn_schema if turn_schema
       record_assistant_response(response)

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/shubhamtaywade82/ollama-client/actions/workflows/main.yml/badge.svg)](https://github.com/shubhamtaywade82/ollama-client/actions)
 [![Gem Version](https://badge.fury.io/rb/ollama-client.svg)](https://rubygems.org/gems/ollama-client)
-[![Ruby](https://img.shields.io/badge/ruby-%3E%3D%203.0-ruby.svg)](https://www.ruby-lang.org)
+[![Ruby](https://img.shields.io/badge/ruby-%3E%3D%203.2-ruby.svg)](https://www.ruby-lang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.txt)
 
 > **The production-safe Ruby AI SDK for Ollama.**

@@ -98,8 +98,8 @@ module Ollama
     end
 
     # Enumerate messages without exposing the backing array.
-    def each(&block)
-      to_h.each(&block)
+    def each(&)
+      to_h.each(&)
     end
 
     def inspect
